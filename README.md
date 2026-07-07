@@ -1,0 +1,115 @@
+<div align="center">
+
+<img src="https://media.luminis-sim.com/media/challenge/posters/robodojo_logo.png"></img>
+
+<h2 align="center">RoboDojo: A Unified Sim-and-Real Benchmark for Comprehensive Evaluation of Generalist Robot Manipulation Policies</h2>
+
+<h2 align="center"><a href="https://robodojo-benchmark.com/">Webpage</a> | <a href="https://robodojo-benchmark.com/doc/">Document</a> | <a href="https://arxiv.org/abs/2607.04434">Paper</a> | <a href="https://robodojo-benchmark.com/community">Community</a> | <a href="https://robodojo-benchmark.com/leaderboard">Leaderboard</a></h2>
+
+</div>
+
+https://private-user-images.githubusercontent.com/88101805/617881023-5a1efab0-c1c6-49f1-a187-790efb0fb424.mp4
+
+## ✨ Highlights
+
+<p align="center">
+  <img src="https://media.luminis-sim.com/media/home/teaser.png" width="70%"></img>
+</p>
+
+<p align="center"><em>Overview of RoboDojo. RoboDojo unifies efficient simulation evaluation and reproducible real-world testing for generalist robot manipulation, covering 42 simulation tasks, 18 real-world tasks, heterogeneous parallel simulation, RoboDojo-RealEval, XPolicyLab, and a continuously updated leaderboard.</em></p>
+
+> RoboDojo is **eval-only** in this release: it provides the simulator client, benchmark tasks, asset/config validation, and result artifacts. Policy integration and policy servers are owned by [XPolicyLab](https://github.com/XPolicyLab/XPolicyLab/blob/main/README.md).
+
+- 🌐 **Unified sim-and-real benchmark** — 42 simulation tasks and 18 real-world tasks across 3 robot embodiments for generalist robot manipulation.
+- 🧭 **Five capability dimensions** — Generalization, Memory, Precision, Long-Horizon, and Open, designed to probe different skills rather than simple object or layout reskins.
+- 🧗 **Challenging by design** — intentionally hard, diverse, long-horizon tasks that expose failures hidden by simpler benchmarks.
+- ⚡ **Heterogeneous parallel simulation** — runs different tasks, scenes, and processes concurrently on Isaac Sim for fast, scalable feedback.
+- 🧱 **Physically grounded assets** — rigid, articulated, and deformable objects in a single configuration-driven scene.
+- 🤖 **Integrate once, evaluate everywhere** — [XPolicyLab](https://github.com/XPolicyLab/XPolicyLab/blob/main/README.md) unifies 40+ policies behind one interface for both simulation and real-world runs.
+- 📊 **Reproducible & leaderboard-ready** — seed-controlled layouts and one-command `summarize` aggregation into a leaderboard table.
+
+## 📚 Documentation
+
+The [RoboDojo documentation](https://robodojo-benchmark.com/doc/) is the canonical reference. Key sections:
+
+| Section | Description |
+| :-- | :-- |
+| [Usage Overview](https://robodojo-benchmark.com/doc/usage/) | End-to-end walkthrough of the evaluation workflow. |
+| [Installation & Assets Downloading](https://robodojo-benchmark.com/doc/usage/install-and-download/) | Environment setup and downloading robot/object/layout assets. |
+| [Quick Evaluation](https://robodojo-benchmark.com/doc/usage/evaluation/) | Quickly dispatch XPolicyLab to run a policy for testing. |
+| [XPolicyLab](https://robodojo-benchmark.com/doc/usage/XPolicyLab/) | Integrates a large collection of policies and defines how to integrate new ones. |
+| [Simulation Tasks Details](https://robodojo-benchmark.com/doc/tasks/) | The 42 Isaac Sim tasks across five capability dimensions. |
+| [Real Robot Tasks Details](https://robodojo-benchmark.com/doc/real-tasks/) | The 18 real-world tasks on Piper X, Piper, and ARX X5. |
+| [Configurations](https://robodojo-benchmark.com/doc/usage/configurations/) | Simulator, scene, robot, and camera configuration options. |
+| [Common Issues](https://robodojo-benchmark.com/doc/common-issue/) | Troubleshooting for installation, assets, GPU memory, and evaluation. |
+
+## 🗂️ Repository Structure
+
+```text
+env/                   simulator backbone and managers
+env_cfg/               simulator, scene, robot, and camera configs
+task/RoboDojo/         task logic and task YAML configs
+scripts/robodojo.sh    public RoboDojo-side eval entry
+scripts/eval_policy.sh simulator client launched by XPolicyLab eval.sh
+XPolicyLab/            policy server and policy integrations
+Assets/                downloaded robot, object, material, and layout assets
+```
+
+## 🔌 Policy Integration
+
+Policies live in [XPolicyLab](https://github.com/XPolicyLab/XPolicyLab/blob/main/README.md), which owns policy structure, dependencies, checkpoint layout, and server behavior. RoboDojo only assumes a policy directory provides:
+
+```text
+XPolicyLab/policy/<POLICY_NAME>/eval.sh
+XPolicyLab/policy/<POLICY_NAME>/deploy.yml
+```
+
+`eval.sh` starts the policy server and calls back into RoboDojo through `scripts/eval_policy.sh`; `deploy.yml` declares the server host, port, action mode, and policy-specific runtime settings.
+
+## 🏆 Leaderboard
+
+View live rankings on the [RoboDojo Leaderboard](https://robodojo-benchmark.com/leaderboard).
+
+**Simulation.** The full evaluation stack is open source, so you can debug locally and iterate on scores. Official RoboDojo-endorsed listings are submitted through the cloud evaluation pipeline with anti-cheating verification.
+
+**Real world.** Real-robot leaderboard entries are accepted through the same cloud evaluation process; see the public documentation for protocol, rules, and submission details.
+
+## 📝 Citation
+
+**RoboDojo**
+
+```bibtex
+@misc{chen2026robodojounifiedsimandrealbenchmark,
+      title={RoboDojo: A Unified Sim-and-Real Benchmark for Comprehensive Evaluation of Generalist Robot Manipulation Policies}, 
+      author={Tianxing Chen and Yue Chen and Zixuan Li and Junyuan Tang and Kailun Su and Weijie Wan and Baijun Chen and Haoran Lu and Haowen Yan and Honghao Su and Zhiyang Dou and Kaixuan Wang and Dandan Zhang and Yunze Liu and Yan Qin and Qiwei Liang and Qiwei Wu and Zijian Lin and Wenwei Lin and Yuran Wang and Minghua He and Tianshu Wu and Ruihai Wu and Jingquan Zhou and Kai-Chong Lei and Haibao Yu and Yuanfeng Ji and Weiyang Jin and Guanyu Lin and Xiaofan Li and Qi Xiong and Renjing Xu and Zhongyu Li and Wenhao Chai and Enze Xie and Ziwei Wang and Yao Mu and Hao Dong and Wojciech Matusik and Mingyu Ding and Wenbo Ding and Ping Luo and Masayoshi Tomizuka},
+      year={2026},
+      eprint={2607.04434},
+      archivePrefix={arXiv},
+      primaryClass={cs.RO},
+      url={https://arxiv.org/abs/2607.04434}, 
+}
+```
+
+## 🙏 Acknowledgements
+
+RoboDojo builds on [Isaac Sim](https://developer.nvidia.com/isaac/sim), [IsaacLab](https://github.com/isaac-sim/IsaacLab), [IsaacLab-Arena](https://github.com/isaac-sim/IsaacLab-Arena), [RoboTwin 2.0](https://github.com/robotwin-Platform/robotwin), [XPolicyLab](https://github.com/XPolicyLab/XPolicyLab), and [MagicSim](https://arxiv.org/abs/2606.17511). We thank the authors and maintainers for their open-source contributions to the robotics community.
+
+Contact Tianxing Chen or Yue Chen if you have questions or suggestions.
+
+## 🏫 Affiliations
+
+RoboDojo is operated by **AI MMLab Club**, a non-profit, vendor-neutral organization. For inquiries regarding project support, including financial sponsorship, compute, hardware, or other resources, please contact [RoboDojoCommittee@gmail.com](mailto:RoboDojoCommittee@gmail.com).
+
+<img src="https://media.luminis-sim.com/media/home/partners/affiliations-banner.png"></img>
+
+## ⚖️ License
+
+Released under the [RoboDojo Non-Commercial Research License](LICENSE). RoboDojo is available for non-commercial research, education, and evaluation only. Commercial use requires prior written permission from the maintainers.
+
+
+<p align="center">
+  <img alt="Python 3.11" src="https://img.shields.io/badge/Python-3.11-475569?style=flat-square&logo=python&logoColor=white&labelColor=64748b" height="22"/>&nbsp;
+  <img alt="Isaac Sim 5.1" src="https://img.shields.io/badge/Isaac_Sim-5.1-475569?style=flat-square&logo=nvidia&logoColor=76B900&labelColor=64748b" height="22"/>&nbsp;
+  <img alt="Isaac Lab 2.3" src="https://img.shields.io/badge/Isaac_Lab-2.3-475569?style=flat-square&logo=nvidia&logoColor=76B900&labelColor=64748b" height="22"/>&nbsp;
+  <img alt="License Non-Commercial" src="https://img.shields.io/badge/License-Non--Commercial-475569?style=flat-square&labelColor=64748b" height="22"/>
+</p>
