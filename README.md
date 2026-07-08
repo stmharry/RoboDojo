@@ -81,7 +81,7 @@ View live rankings on the [RoboDojo Leaderboard](https://robodojo-benchmark.com/
 ```bibtex
 @misc{chen2026robodojounifiedsimandrealbenchmark,
       title={RoboDojo: A Unified Sim-and-Real Benchmark for Comprehensive Evaluation of Generalist Robot Manipulation Policies}, 
-      author={Tianxing Chen and Yue Chen and Zixuan Li and Junyuan Tang and Kailun Su and Weijie Wan and Baijun Chen and Haoran Lu and Haowen Yan and Honghao Su and Zhiyang Dou and Kaixuan Wang and Dandan Zhang and Yunze Liu and Yan Qin and Qiwei Liang and Qiwei Wu and Zijian Lin and Wenwei Lin and Yuran Wang and Minghua He and Tianshu Wu and Ruihai Wu and Jingquan Zhou and Kai-Chong Lei and Haibao Yu and Yuanfeng Ji and Weiyang Jin and Guanyu Lin and Xiaofan Li and Qi Xiong and Renjing Xu and Zhongyu Li and Wenhao Chai and Enze Xie and Ziwei Wang and Yao Mu and Hao Dong and Wojciech Matusik and Mingyu Ding and Wenbo Ding and Ping Luo and Masayoshi Tomizuka},
+      author={Tianxing Chen and Yue Chen and Zixuan Li and Junyuan Tang and Kailun Su and Haoran Lu and Weijie Wan and Baijun Chen and Songling Liu and Haowen Yan and Honghao Su and Zhiyang Dou and Kaixuan Wang and Dandan Zhang and Yunze Liu and Yan Qin and Qiwei Liang and Qiwei Wu and Zijian Lin and Wenwei Lin and Yuran Wang and Minghua He and Tianshu Wu and Ruihai Wu and Jingquan Zhou and Kai-Chong Lei and Haibao Yu and Yuanfeng Ji and Weiyang Jin and Guanyu Lin and Xiaofan Li and Qi Xiong and Renjing Xu and Zhongyu Li and Wenhao Chai and Enze Xie and Ziwei Wang and Yao Mu and Hao Dong and Wojciech Matusik and Mingyu Ding and Wenbo Ding and Ping Luo and Masayoshi Tomizuka},
       year={2026},
       eprint={2607.04434},
       archivePrefix={arXiv},
@@ -90,11 +90,36 @@ View live rankings on the [RoboDojo Leaderboard](https://robodojo-benchmark.com/
 }
 ```
 
+**RoboTwin 2.0**
+
+```bibtex
+@article{chen2025robotwin,
+  title={Robotwin 2.0: A scalable data generator and benchmark with strong domain randomization for robust bimanual robotic manipulation},
+  author={Chen, Tianxing and Chen, Zanxin and Chen, Baijun and Cai, Zijian and Liu, Yibin and Li, Zixuan and Liang, Qiwei and Lin, Xianliang and Ge, Yiheng and Gu, Zhenyu and others},
+  journal={arXiv preprint arXiv:2506.18088},
+  year={2025}
+}
+```
+
+**MagicSim**
+
+```bibtex
+@misc{lu2026magicsimunifiedinfrastructureexecutable,
+      title={MagicSim: A Unified Infrastructure for Executable Embodied Interaction}, 
+      author={Haoran Lu and Songling Liu and Yue Chen and Guo Ye and Mutian Shen and Shuyang Yu and Yu Xiao and Jihai Zhao and Shang Wu and Jianshu Zhang and Xiangtian Gui and Chuye Hong and Yuran Wang and Maojiang Su and Jiayi Wang and Ruihai Wu and Zhaoran Wang and Han Liu},
+      year={2026},
+      eprint={2606.17511},
+      archivePrefix={arXiv},
+      primaryClass={cs.RO},
+      url={https://arxiv.org/abs/2606.17511}, 
+}
+```
+
 ## 🙏 Acknowledgements
 
 RoboDojo builds on [Isaac Sim](https://developer.nvidia.com/isaac/sim), [IsaacLab](https://github.com/isaac-sim/IsaacLab), [IsaacLab-Arena](https://github.com/isaac-sim/IsaacLab-Arena), [RoboTwin 2.0](https://github.com/robotwin-Platform/robotwin), [XPolicyLab](https://github.com/XPolicyLab/XPolicyLab), and [MagicSim](https://arxiv.org/abs/2606.17511). We thank the authors and maintainers for their open-source contributions to the robotics community.
 
-Contact Tianxing Chen or Yue Chen if you have questions or suggestions.
+Contact [Tianxing Chen](https://tianxingchen.github.io/) or [Yue Chen](https://yuechen0614.github.io/) if you have questions or suggestions.
 
 ## 🏫 Affiliations
 
