@@ -1,0 +1,38 @@
+default_frequency: 30
+render_settings:
+  exposure_time_s: 0.01
+  whitepoint: [1.0, 1.0, 1.0]
+annotator:
+  common:
+    enabled: true
+    rgb_capture:
+      type: rgb
+      device: cpu
+  cam_head:
+    enabled: true
+    rgb_capture:
+      type: rgb
+      device: cpu
+  cam_left_wrist:
+    enabled: true
+    rgb_capture:
+      type: rgb
+      device: cpu
+  cam_right_wrist:
+    enabled: true
+    rgb_capture:
+      type: rgb
+      device: cpu
+
+cam_head:
+  camera:
+    type: openarm_base
+    mesh: pinhole
+    pos: [0.0, -0.9, 1.7]
+    ori: [43.0, 0.0, 0.0]
+    lens_distortion_model: opencvFisheye
+    cx: 320.0
+    cy: 240.0
+    fx: 500.0
+    fy: 500.0
+    distortion_coefficients: [-0.035, 0.006, 0.0, 0.0]

@@ -385,13 +385,16 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
                         key_name = self.robot_manager.process_name(robot.gripper_name)
                         if robot.ee_type == "gripper":
                             val = deepcopy(action[key_name][0])
-                            val = np.clip(val, 0, 1)
-                            if robot.gripper_move["sign"] == 1:
-                                val = val * (robot.gripper_scale[1] - robot.gripper_scale[0]) + robot.gripper_scale[0]
+                            if getattr(robot, "physical_gripper_interface", False):
+                                val = np.clip(val, robot.gripper_scale[0], robot.gripper_scale[1])
                             else:
-                                val = (1 - val) * (
-                                    robot.gripper_scale[1] - robot.gripper_scale[0]
-                                ) + robot.gripper_scale[0]
+                                val = np.clip(val, 0, 1)
+                                if robot.gripper_move["sign"] == 1:
+                                    val = val * (robot.gripper_scale[1] - robot.gripper_scale[0]) + robot.gripper_scale[0]
+                                else:
+                                    val = (1 - val) * (
+                                        robot.gripper_scale[1] - robot.gripper_scale[0]
+                                    ) + robot.gripper_scale[0]
                             vals = [
                                 val,
                                 val * robot.gripper_move["mimic"][1] + robot.gripper_move["mimic"][2],

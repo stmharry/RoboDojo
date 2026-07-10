@@ -175,7 +175,9 @@ class ObsManager:
                                 robot = self.robot_manager.get_robot_by_gripper_name(end_effector_name)
                                 if robot.ee_type == "gripper":
                                     val = position[0]
-                                    if robot.gripper_move["sign"] == 1:
+                                    if getattr(robot, "physical_gripper_interface", False):
+                                        val = np.clip(val, robot.gripper_scale[0], robot.gripper_scale[1])
+                                    elif robot.gripper_move["sign"] == 1:
                                         val = (val - robot.gripper_scale[0]) / (
                                             robot.gripper_scale[1] - robot.gripper_scale[0]
                                         )

@@ -449,6 +449,9 @@ class RobotManager:
             mesh = camera_cfg.get("mesh", None)
             if mesh is not None:
                 target_cfg["mesh"] = mesh
+            for key in ("lens_distortion_model", "distortion_coefficients", "cx", "cy", "fx", "fy"):
+                if key in camera_cfg:
+                    target_cfg[key] = camera_cfg[key]
 
         try:
             # wrist camera
@@ -681,10 +684,15 @@ ROBOT_CLASS_REGISTRY = {
         "module": "x5",
         "classes": ("X5",),
     },
+    "openarm": {
+        "module": "openarm",
+        "classes": ("LeftOpenArm", "RightOpenArm"),
+    },
 }
 
 
 ROBOT_CONFIG_REGISTRY = {
     "franka": "franka",
     "x5": "x5",
+    "openarm": "openarm",
 }

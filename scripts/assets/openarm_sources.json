@@ -1,0 +1,16 @@
+{
+  "openarm_isaac_lab": {
+    "repository": "https://github.com/enactic/openarm_isaac_lab.git",
+    "revision": "bad82e23716e6941c2de78ccb978f57c78b37734"
+  },
+  "hardware_modifications": {
+    "repository": "https://huggingface.co/datasets/lerobot/openarms-hardware-modifications",
+    "revision": "ffe34b93c070343042eb9412fbfeffce16139947",
+    "files": [
+      "J3-J4_Cover front extended.stl",
+      "J3-J4_Cover back extended.stl",
+      "jaw_normal.stl"
+    ]
+  },
+  "upper_arm_extension_m": 0.05
+}

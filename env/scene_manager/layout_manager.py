@@ -17,6 +17,7 @@ import transforms3d as t3d
 
 from env.global_configs import *
 from env.seeding import seed_everywhere
+from env.scene_manager.layout_overrides import apply_fixture_overrides
 from utils.cluttered_generator import ClutteredGenerator
 from utils.load_file import *
 from utils.path import deep_resolve_paths, get_mdl_paths_from_folder, get_usd_paths_from_folder, resolve_path
@@ -153,6 +154,7 @@ class LayoutManager:
         env_config = deepcopy(self.saved_layouts[env_idx])
         if env_config is None:
             return None
+        env_config = self._apply_layout_overrides(env_config)
         self.clear_layout_state([env_idx])
         for key, value in env_config.items():
             if key in ["Rigid", "Dynamic", "Geometry", "Articulation", "Garment", "Fluid"]:
@@ -204,6 +206,11 @@ class LayoutManager:
                 value = self.select_light(env_idx, light_cfg=value)
         self.cluttered_generator_init(env_idx)
         return env_config
+
+    def _apply_layout_overrides(self, env_config):
+        """Apply fixture-only overrides without permitting task-object drift."""
+        overrides = OmegaConf.to_container(self.scene_config.get("layout_overrides", {}), resolve=True)
+        return apply_fixture_overrides(env_config, overrides)
 
     def cluttered_generator_init(self, env_idx):
         for key in self.cluttered_generator.keys():

@@ -3,6 +3,7 @@ from copy import deepcopy
 import os
 from typing import List, Tuple
 
+import carb
 from isaacsim.core.prims import SingleGeometryPrim
 from isaacsim.core.simulation_manager import SimulationManager
 from isaacsim.core.utils.prims import is_prim_path_valid
@@ -28,6 +29,8 @@ REAL_MAP = {
     "third_view": THIRD_VIEW,
     "d435": D435,
     "large_d435": LARGE_D435,
+    "openarm_base": OPENARM_BASE,
+    "openarm_wrist": OPENARM_WRIST,
 }
 
 VISUAL_MAP = {
@@ -183,6 +186,17 @@ class CameraManager:
                 default_frequency = config.pop("default_frequency")
             if "annotator" in config:
                 config.pop("annotator")
+            render_settings = config.pop("render_settings", {})
+            if render_settings:
+                settings = carb.settings.get_settings()
+                settings.set(
+                    "/rtx/post/tonemap/exposureTime",
+                    float(render_settings.get("exposure_time_s", 0.01)),
+                )
+                settings.set(
+                    "/rtx/post/tonemap/whitepoint",
+                    list(render_settings.get("whitepoint", [1.0, 1.0, 1.0])),
+                )
             random_config = config.pop("random", {})
             self.random_config = OmegaConf.create(random_config)
 
@@ -318,7 +332,18 @@ class CameraManager:
                         resolution=cur_camera_resolution,
                         frequency=default_frequency,
                     )
-                    cur_camera.set_lens_distortion_model("pinhole")
+                    distortion_model = camera_config.camera.get("lens_distortion_model", "pinhole")
+                    if distortion_model == "opencvFisheye":
+                        width, height = cur_camera_resolution
+                        cur_camera.set_opencv_fisheye_properties(
+                            cx=float(camera_config.camera.get("cx", width / 2.0)),
+                            cy=float(camera_config.camera.get("cy", height / 2.0)),
+                            fx=float(camera_config.camera.get("fx", width * 0.43)),
+                            fy=float(camera_config.camera.get("fy", width * 0.43)),
+                            fisheye=list(camera_config.camera.get("distortion_coefficients", [0.0] * 4)),
+                        )
+                    else:
+                        cur_camera.set_lens_distortion_model("pinhole")
                     cur_camera.set_local_pose(
                         visual_args_info["position"],
                         visual_args_info["orientation"],

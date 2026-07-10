@@ -26,4 +26,18 @@ LARGE_D435 = {
     "vertical_aperture": 15.716,
     "clipping_range": (0.005, 10.0),
 }
+OPENARM_BASE = {
+    "resolution": (640, 480),
+    "focal_length": 5.2,
+    "horizontal_aperture": 22.0,
+    "vertical_aperture": 16.5,
+    "clipping_range": (0.005, 10.0),
+}
+OPENARM_WRIST = {
+    "resolution": (1280, 720),
+    "focal_length": 4.0,
+    "horizontal_aperture": 22.0,
+    "vertical_aperture": 12.375,
+    "clipping_range": (0.005, 10.0),
+}
 PINHOLE = {"position": (0.0, 0.0, 0.0), "orientation": (1.0, 0.0, 0.0, 0.0)}

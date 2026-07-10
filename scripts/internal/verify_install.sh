@@ -165,6 +165,47 @@ else
   record "FAIL" "env_cfg references" "missing referenced env_cfg file"
 fi
 
+if [[ "${env_cfg}" == "openarm_cloth_folding" ]]; then
+  check_path file "${ROOT_DIR}/Assets/Robots/openarm/manifest.json" "OpenARM asset manifest"
+  check_path file "${ROOT_DIR}/Assets/Robots/openarm/openarm_bimanual_cloth_folding.usd" "OpenARM functional-twin USD"
+  check_path file "${ROOT_DIR}/Assets/Robots/openarm/robot_config.yml" "OpenARM robot config"
+  if python3 - <<PY; then
+import json
+from pathlib import Path
+import sys
+import yaml
+
+root = Path("${ROOT_DIR}")
+env = yaml.safe_load((root / "env_cfg/openarm_cloth_folding.yml").read_text())
+sim = yaml.safe_load((root / "env_cfg/sim/openarm_cloth_folding.yml").read_text())
+camera = yaml.safe_load((root / "env_cfg/camera/openarm_cloth_folding.yml").read_text())
+info = json.loads((root / "env_cfg/robot/_robot_info.json").read_text())["dual_openarm"]
+manifest = json.loads((root / "Assets/Robots/openarm/manifest.json").read_text())
+sources = json.loads((root / "scripts/assets/openarm_sources.json").read_text())
+assert env["observation"]["collect_freq"] == 30
+assert abs(1.0 / (sim["dt"] * 30) - 8.0) < 1e-9
+assert sum(info["arm_dim"]) + sum(info["ee_dim"]) == 16
+assert camera["cam_head"]["camera"]["type"] == "openarm_base"
+assert camera["cam_head"]["camera"]["lens_distortion_model"] == "opencvFisheye"
+assert all(key in camera["cam_head"]["camera"] for key in ("cx", "cy", "fx", "fy"))
+assert manifest["upper_arm_extension_m"] == 0.05
+assert len(manifest["joint_paths"]) == 2
+assert len(manifest["jaw_paths"]) == 4
+assert len(manifest["cover_paths"]) == 4
+assert sources["openarm_isaac_lab"]["revision"] == "bad82e23716e6941c2de78ccb978f57c78b37734"
+assert sources["hardware_modifications"]["revision"] == "ffe34b93c070343042eb9412fbfeffce16139947"
+
+sys.path.insert(0, str(root))
+from env_cfg.camera.template import OPENARM_BASE, OPENARM_WRIST
+assert OPENARM_BASE["resolution"] == (640, 480)
+assert OPENARM_WRIST["resolution"] == (1280, 720)
+PY
+    record "PASS" "OpenARM contract" "240/30 Hz, 16-D, three calibrated native camera resolutions, pinned asset manifest"
+  else
+    record "FAIL" "OpenARM contract" "timing, dimension, or camera contract invalid"
+  fi
+fi
+
 if [[ -n "${policy_dir}" && "${skip_policy}" != "true" ]]; then
 if python3 - <<PY; then
 from pathlib import Path
@@ -172,6 +213,20 @@ import yaml
 
 policy_dir = Path("${policy_dir}")
 cfg = yaml.safe_load((policy_dir / "deploy.yml").read_text()) or {}
+if cfg.get("policy_name") == "LeRobot_Pi05_OpenArm":
+    expected = "695abe40dbf3aac04efda59c1501d748681fa0fb"
+    assert cfg.get("checkpoint_revision") == expected
+    assert cfg.get("action_dim") == 16
+    assert cfg.get("chunk_size") == 30
+    assert cfg.get("prompt") == "Fold the T-shirt properly."
+    checkpoint = policy_dir / cfg["checkpoint_path"]
+    assert (checkpoint / ".revision").read_text().strip() == expected
+    for required in (
+        "config.json", "model.safetensors", "policy_preprocessor.json", "policy_postprocessor.json",
+        "policy_preprocessor_step_3_normalizer_processor.safetensors",
+        "policy_postprocessor_step_0_unnormalizer_processor.safetensors",
+    ):
+        assert (checkpoint / required).is_file(), required
 processor = cfg.get("processor_path")
 if processor:
     path = Path(processor).expanduser()
@@ -180,7 +235,7 @@ if processor:
     if not path.exists():
         raise SystemExit(f"missing processor_path: {path}")
 PY
-  record "PASS" "policy processor" "deploy.yml processor_path exists"
+  record "PASS" "policy processor" "checkpoint revision and saved processors validated"
 else
   record "FAIL" "policy processor" "deploy.yml processor_path is missing"
 fi
@@ -204,6 +259,11 @@ elif command -v conda >/dev/null 2>&1; then
   envs="$(conda env list | awk 'NF && $1 !~ /^#/ {print $1}')"
   if grep -qx "${sim_env}" <<< "${envs}"; then
     record "PASS" "sim conda env" "${sim_env}"
+    if conda run -n "${sim_env}" python -c 'import torch; assert torch.cuda.is_available(); torch.ones(1, device="cuda")' >/dev/null; then
+      record "PASS" "sim CUDA" "${sim_env} can execute a CUDA operation"
+    else
+      record "FAIL" "sim CUDA" "${sim_env} cannot execute a CUDA operation"
+    fi
   else
     record "FAIL" "sim conda env" "${sim_env} not found"
   fi
@@ -213,6 +273,11 @@ elif command -v conda >/dev/null 2>&1; then
     record "WARN" "policy conda env" "policy env is path/uv; conda check skipped"
   elif grep -qx "${policy_env}" <<< "${envs}"; then
     record "PASS" "policy conda env" "${policy_env}"
+    if conda run -n "${policy_env}" python -c 'import torch; assert torch.cuda.is_available(); torch.ones(1, device="cuda")' >/dev/null; then
+      record "PASS" "policy CUDA" "${policy_env} can execute a CUDA operation"
+    else
+      record "FAIL" "policy CUDA" "${policy_env} cannot execute a CUDA operation"
+    fi
   else
     record "FAIL" "policy conda env" "${policy_env} not found"
   fi

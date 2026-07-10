@@ -1,0 +1,20 @@
+config_name: openarm_cloth_folding
+layout_config_name: arx_x5
+
+config:
+  sim: openarm_cloth_folding
+  scene: openarm_cloth_folding
+  robot: dual_openarm
+  camera: openarm_cloth_folding
+
+observation:
+  collect_freq: 30
+  robot:
+    joint_states: true
+    world_ee_state: true
+  vision:
+    approximate_depth: false
+    depth: false
+    intrinsic_matrix: false
+    extrinsic_matrix: false
+    shape: true
