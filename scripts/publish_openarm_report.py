@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ruff: noqa: E501
-"""Build the two-rig OpenARM report and atomically repoint the stable site."""
+"""Build the validated DYNA OpenARM report and atomically repoint the stable site."""
 
 from __future__ import annotations
 
@@ -18,12 +18,6 @@ OPENARM_REVISION = "bad82e23716e6941c2de78ccb978f57c78b37734"
 HARDWARE_REVISION = "ffe34b93c070343042eb9412fbfeffce16139947"
 ARTICLE_REVISION = "170e1d479579e0b4be1afe0c99ebf868b24803db"
 RIGS = {
-    "policy": {
-        "title": "Policy-original",
-        "profile": "openarm_policy_original",
-        "base": "Fafeicy OV2710 · 140° · f 327.4045 px",
-        "meaning": "Authoritative checkpoint integration",
-    },
     "dyna": {
         "title": "DYNA counterpart",
         "profile": "openarm_dyna",
@@ -33,8 +27,8 @@ RIGS = {
 }
 CAMERAS = (
     ("Base / fixture", "cam_head", "base"),
-    ("Left wrist / −90°", "cam_left_wrist", "left_wrist"),
-    ("Right wrist / +90°", "cam_right_wrist", "right_wrist"),
+    ("Left wrist / CAD image-up", "cam_left_wrist", "left_wrist"),
+    ("Right wrist / mirrored CAD image-up", "cam_right_wrist", "right_wrist"),
 )
 
 
@@ -97,12 +91,12 @@ def build_html(runs: dict[str, Path]) -> str:
 .cameras{{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}}.camera{{background:var(--panel);border:1px solid var(--ink);padding:10px}}.camera-label{{display:flex;justify-content:space-between;gap:12px;margin-bottom:9px;font-family:"Courier New",monospace;font-size:12px}}.camera-label span{{color:#53656e}}img,video{{display:block;width:100%;border:1px solid var(--line);background:#000}}video{{margin-top:9px;max-height:56vh}}
 .ledger,.warnings{{margin-top:70px}}h3{{font:800 20px "Arial Narrow",sans-serif;text-transform:uppercase}}table{{width:100%;border-collapse:collapse;background:var(--panel)}}td{{padding:11px 13px;border:1px solid var(--line);vertical-align:top}}td:first-child{{width:230px;font-family:"Courier New",monospace;color:var(--cyan)}}pre{{white-space:pre-wrap;background:var(--ink);color:#eaf1f3;padding:16px;overflow:auto}}a{{color:#006e87}}a:focus-visible,video:focus-visible{{outline:4px solid var(--amber);outline-offset:3px}}
 @media(max-width:950px){{.hero,.rig-head{{grid-template-columns:1fr}}.cameras{{grid-template-columns:1fr}}dl{{grid-template-columns:1fr}}dl div{{border-left:0;border-top:1px solid var(--line)}}}}
-</style></head><body><main><header class="hero"><div><p class="eyebrow">RoboDojo · OpenARM · seed 0 · two calibrated rigs</p><h1>One stand.<br>Two optical domains.</h1><p>The upstream fixture fixes the viewpoint. The policy-original and DYNA sensors differ only where the hardware differs; official episode frames validate orientation and coverage without fitting the rig.</p></div><div class="axis"><span>UPSTREAM CAMERA-STAND AXIS</span></div></header>
+</style></head><body><main><header class="hero"><div><p class="eyebrow">RoboDojo · OpenARM · seed 0 · DYNA counterpart</p><h1>CAD frames.<br>One optical domain.</h1><p>The upstream fixture fixes the base viewpoint. Every sensor is parented at identity to a named holder optical frame; official episode frames validate orientation and coverage without fitting the rig.</p></div><div class="axis"><span>UPSTREAM CAMERA-STAND AXIS</span></div></header>
 {''.join(blocks)}
 <section class="ledger"><p class="eyebrow">Pinned protocol</p><h2>Calibration ledger</h2><table>
 <tr><td>Policy</td><td>folding_final@{MODEL_REVISION} · LeRobot@{LEROBOT_REVISION} · RTC 30/20/5.0 LINEAR · 30→90 Hz · 240 Hz 3/3/2</td></tr>
 <tr><td>Embodiment</td><td>OpenARM@{OPENARM_REVISION} · hardware changes@{HARDWARE_REVISION} · 5 cm extension · enlarged jaws · right-first 16-D</td></tr>
-<tr><td>Mounts</td><td>Base: official <code>head camera holder v4.stl</code> on upstream <code>Geometry.camera_stand</code>; CAD optical center local [0,−0.318554,0.051066], Rx120°, roll 180°. Wrists: official mirrored Arducam holders on logical link-7 end-effector mounts; CAD aperture plus 35–50 mm side-specific lens offsets and preserved left −90° / right +90° optical rolls.</td></tr>
+<tr><td>Mounts</td><td>Base: official <code>head camera holder v4.stl</code> mated to the upstream <code>Geometry.camera_stand</code> terminal plate. Wrists: official Arducam four-hole holder frames mated symmetrically to logical left/right hand plates. Cameras are identity children of generated <code>OpticalFrame</code> prims; runtime optical roll is zero.</td></tr>
 <tr><td>Validation</td><td>level2_final_quality3@{DATASET_REVISION} — orientation and coverage oracle only</td></tr>
 <tr><td>Sources</td><td><a href="https://huggingface.co/spaces/lerobot/robot-folding/tree/{ARTICLE_REVISION}">Pinned LeRobot hardware article</a> · <a href="https://huggingface.co/datasets/lerobot/openarms-hardware-modifications/tree/{HARDWARE_REVISION}">Pinned camera-holder CAD</a> · <a href="https://moonlakeai.slack.com/archives/C0BCJPA3T9R/p1782508159343489">DYNA Slack note</a> · <a href="https://www.waveshare.com/wiki/OV2710_2MP_USB_Camera_%28A%29">Waveshare SKU 14121</a></td></tr>
 </table></section><section class="warnings"><p class="eyebrow">Retained diagnostics</p><h2>Runtime warnings</h2>{''.join(warning_blocks)}</section></main></body></html>"""
@@ -110,11 +104,10 @@ def build_html(runs: dict[str, Path]) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("policy_run", type=Path)
     parser.add_argument("dyna_run", type=Path)
     parser.add_argument("--stable-root", type=Path, default=Path(".cache/openarm_report_site"))
     args = parser.parse_args()
-    runs = {"policy": args.policy_run.resolve(), "dyna": args.dyna_run.resolve()}
+    runs = {"dyna": args.dyna_run.resolve()}
     for slug, rig in RIGS.items():
         read_run(runs[slug], rig["profile"])
 

@@ -16,6 +16,11 @@ import subprocess
 import cv2
 import numpy as np
 
+try:
+    from scripts.assets.openarm_camera_calibration import calibration_manifest
+except ModuleNotFoundError:  # direct `python scripts/...` invocation
+    from assets.openarm_camera_calibration import calibration_manifest
+
 DATASET = "lerobot-data-collection/level2_final_quality3"
 REVISION = "2e1b2e913cd367d74dc4481736954eed4a051ddc"
 CAMERAS = {
@@ -119,6 +124,10 @@ def image_metrics(path: Path) -> dict:
             "left": float(np.mean(gray[:, :border] < 70)),
             "right": float(np.mean(gray[:, -border:] < 70)),
         },
+        "bright_surface_first_row": float(np.argmax(np.mean(gray > 205, axis=1) > 0.5) / height),
+        "bright_surface_last_row": float(
+            np.max(np.flatnonzero(np.mean(gray > 205, axis=1) > 0.5), initial=0) / height
+        ),
     }
 
 
@@ -127,12 +136,20 @@ def orientation_failures(camera: str, metrics: dict) -> list[str]:
     edge = metrics["edge_dark_fraction"]
     failures = []
     if camera == "base":
-        if edge["top"] <= edge["bottom"] + 0.05:
-            failures.append("base: robot silhouette is not confined predominantly to the top edge")
-        if edge["bottom"] > 0.55:
-            failures.append("base: bottom working-surface boundary is occluded")
+        if not 0.01 <= metrics["dark_fraction"] < 0.35:
+            failures.append("base: garment/robot silhouette coverage is outside the semantic envelope")
+        if metrics["bright_fraction"] < 0.35:
+            failures.append("base: complete bright working surface is not visible")
+        if metrics["bright_surface_first_row"] > 0.3:
+            failures.append("base: working surface begins too low; top robot region dominates")
+        if not 0.65 < metrics["bright_surface_last_row"] < 0.99:
+            failures.append("base: lower working-surface boundary is not visible")
     if camera in ("left_wrist", "right_wrist"):
-        if edge["bottom"] <= edge["top"] + 0.05:
+        # The black garment can meet the top border in a matched state, so use
+        # a signed entry-edge margin instead of requiring an arbitrary 5% gap.
+        # The CAD/asymmetric-landmark gate below supplies the orientation sign;
+        # RGB still has to show measurably more hardware at the bottom edge.
+        if edge["bottom"] <= edge["top"] + 0.01:
             failures.append(f"{camera}: gripper/holder silhouette does not enter from the bottom")
         if metrics["dark_fraction"] >= 0.35:
             failures.append(f"{camera}: gripper/holder silhouette occupies at least 35% of the frame")
@@ -140,6 +157,25 @@ def orientation_failures(camera: str, metrics: dict) -> list[str]:
             failures.append(f"{camera}: holder silhouette spans both lateral edges")
         if edge["top"] > 0.55:
             failures.append(f"{camera}: no clear table/garment contact region remains above the jaw")
+    return failures
+
+
+def cad_frame_failures() -> list[str]:
+    """Reject the other valid-looking 90-degree wrist orientations structurally."""
+    calibration = calibration_manifest()
+    left = np.asarray(calibration["wrist"]["left_optical_frame_matrix"], dtype=float)[:3, :3]
+    right = np.asarray(calibration["wrist"]["right_optical_frame_matrix"], dtype=float)[:3, :3]
+    failures = []
+    for side, rotation in (("left", left), ("right", right)):
+        if not np.allclose(rotation.T @ rotation, np.eye(3), atol=1e-8) or np.linalg.det(rotation) < 0.999999:
+            failures.append(f"{side}_wrist: CAD optical frame is not a right-handed rotation")
+    if not np.allclose(left[:, 2], right[:, 2], atol=1e-8):
+        failures.append("wrists: mirrored holders do not preserve the optical axis")
+    if not np.allclose(left[:, :2], -right[:, :2], atol=1e-8):
+        failures.append("wrists: asymmetric up/right landmarks do not form a physical mirror")
+    corrections = calibration["dyna_effective_wrist_correction_deg"]
+    if corrections != {"left": 90.0, "right": -90.0}:
+        failures.append("wrists: effective correction is not left +90 / right -90 degrees")
     return failures
 
 
@@ -207,6 +243,7 @@ def main() -> None:
         "passed": True,
         "failures": [],
     }
+    report["failures"].extend(cad_frame_failures())
 
     for camera, config in CAMERAS.items():
         video = find_video(args.run_dir, config["sim"])

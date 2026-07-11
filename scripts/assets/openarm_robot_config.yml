@@ -3,6 +3,7 @@ base_link: openarm_body_link
 left:
   camera_mount_links:
     left_wrist_camera_holder: openarm_left_link7
+    left_hand_camera_mount: openarm_left_hand
   ee_joints: openarm_left_joint7
   ee_link: openarm_left_link7
   arm_joints_name:
@@ -23,6 +24,7 @@ left:
 right:
   camera_mount_links:
     right_wrist_camera_holder: openarm_right_link7
+    right_hand_camera_mount: openarm_right_hand
   ee_joints: openarm_right_joint7
   ee_link: openarm_right_link7
   arm_joints_name:

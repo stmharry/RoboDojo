@@ -84,16 +84,65 @@ def sheet(rows: list[tuple[str, list[Path]]], output: Path) -> None:
 
 def anchor_diagram(output: Path) -> None:
     manifest = calibration_manifest()
-    canvas = np.full((760, 1200, 3), 248, dtype=np.uint8)
-    cv2.putText(canvas, "OpenARM camera holders: CAD-derived frames", (35, 55), cv2.FONT_HERSHEY_SIMPLEX, 1.1, (25, 25, 25), 2)
-    entries = (
-        ("HEAD / head camera holder v4.stl", manifest["head"], 110),
-        ("WRISTS / arducam_holder.step + .stl", manifest["wrist"], 420),
+    canvas = np.full((940, 1600, 3), 248, dtype=np.uint8)
+    cv2.putText(
+        canvas,
+        "OpenARM camera holders: CAD-derived frames",
+        (35, 55),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        1.1,
+        (25, 25, 25),
+        2,
     )
-    for title, values, y in entries:
-        cv2.putText(canvas, title, (45, y), cv2.FONT_HERSHEY_SIMPLEX, 0.78, (0, 80, 180), 2)
-        for row, (key, value) in enumerate(values.items(), start=1):
-            cv2.putText(canvas, f"{key}: {value}", (65, y + 42 * row), cv2.FONT_HERSHEY_SIMPLEX, 0.53, (35, 35, 35), 1)
+
+    def matrix_lines(name: str, matrix) -> list[str]:
+        rows = np.asarray(matrix, dtype=float)
+        return [name] + ["  [" + "  ".join(f"{value: .6f}" for value in row) + "]" for row in rows]
+
+    panels = (
+        (
+            "HEAD / head camera holder v4.stl",
+            [
+                "parent: upstream camera_stand terminal plate (setup-dependent)",
+                f"mount origin CAD mm: {manifest['head']['mount_origin_mm']}",
+                f"aperture origin CAD mm: {manifest['head']['optical_origin_mm']}",
+                *matrix_lines("MountFrame -> OpticalFrame", manifest["head"]["optical_frame_matrix"]),
+            ],
+            45,
+            105,
+        ),
+        (
+            "LEFT WRIST / arducam_holder.step + .stl",
+            [
+                "parent: OpenARM left hand mounting plate (CAD/mechanical)",
+                *matrix_lines("MountFrame -> OpticalFrame", manifest["wrist"]["left_optical_frame_matrix"]),
+                "effective correction from legacy: +90 deg; runtime roll: 0 deg",
+            ],
+            45,
+            500,
+        ),
+        (
+            "RIGHT WRIST / physically mirrored holder",
+            [
+                "parent: OpenARM right hand mounting plate (CAD/mechanical)",
+                *matrix_lines("MountFrame -> OpticalFrame", manifest["wrist"]["right_optical_frame_matrix"]),
+                "effective correction from legacy: -90 deg; runtime roll: 0 deg",
+            ],
+            810,
+            500,
+        ),
+    )
+    for title, lines, x, y in panels:
+        cv2.putText(canvas, title, (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.68, (0, 80, 180), 2)
+        for row, line in enumerate(lines, start=1):
+            cv2.putText(canvas, line, (x + 15, y + 35 * row), cv2.FONT_HERSHEY_SIMPLEX, 0.43, (35, 35, 35), 1)
+    # Explicit axis legend matches the authored USD camera convention.
+    cv2.arrowedLine(canvas, (1350, 270), (1460, 270), (40, 40, 210), 4)
+    cv2.arrowedLine(canvas, (1350, 270), (1350, 160), (40, 170, 40), 4)
+    cv2.arrowedLine(canvas, (1350, 270), (1270, 345), (210, 70, 30), 4)
+    cv2.putText(canvas, "+X right", (1465, 275), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (40, 40, 210), 1)
+    cv2.putText(canvas, "+Y up", (1355, 155), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (40, 170, 40), 1)
+    cv2.putText(canvas, "-Z look", (1170, 370), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (210, 70, 30), 1)
     cv2.imwrite(str(output), canvas)
 
 
@@ -102,6 +151,7 @@ def main() -> None:
     parser.add_argument("run_dir", type=Path, help="zero-action or rollout directory")
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--cache-dir", type=Path, default=Path(".cache/openarm_camera_calibration"))
+    parser.add_argument("--previous-run-dir", type=Path, help="optional pre-fix DYNA run for before/after sheets")
     args = parser.parse_args()
     cache = args.cache_dir
     output = args.output_dir
@@ -122,11 +172,20 @@ def main() -> None:
     for camera, config in CAMERAS.items():
         video = find_video(args.run_dir, config["sim"])
         sim_frames = extract_frames(str(video), output / "rendered" / camera)
+        previous_frames = None
+        if args.previous_run_dir:
+            previous_video = find_video(args.previous_run_dir, config["sim"])
+            previous_frames = extract_frames(str(previous_video), output / "previous" / camera)
         dataset_frames = extract_frames(reference_url(camera), cache / DATASET_REVISION / camera)
         sheet(
             [("official article envelope", [blog_paths[camera]]), ("CAD-derived render", [sim_frames[0]])],
             output / f"{camera}_blog_contact_sheet.png",
         )
+        if previous_frames:
+            sheet(
+                [("previous DYNA frame", [previous_frames[0]]), ("CAD-frame DYNA frame", [sim_frames[0]])],
+                output / f"{camera}_before_after_contact_sheet.png",
+            )
         sheet(
             [("dataset states 0 / 10 / 30", dataset_frames), ("simulation captures 0 / 10 / 30", sim_frames)],
             output / f"{camera}_matched_state_contact_sheet.png",
@@ -135,6 +194,7 @@ def main() -> None:
             "blog_url": blog_url(BLOG_IMAGES[camera]),
             "dataset_video_url": reference_url(camera),
             "render_video": str(video),
+            "previous_render_video": str(previous_video) if args.previous_run_dir else None,
         }
 
     report = {
@@ -143,12 +203,20 @@ def main() -> None:
         "hardware_revision": HARDWARE_REVISION,
         "dataset_revision": DATASET_REVISION,
         "calibration": calibration_manifest(),
+        "provenance": {
+            "cad_derived": ["holder mesh frame", "mount holes", "aperture center", "optical forward/up/right"],
+            "setup_dependent_nominal": ["upstream RoboDojo camera-stand world pose"],
+            "not_fitted": ["focal length", "principal point", "robot geometry", "camera extrinsics"],
+        },
         "matched_states": states,
         "cameras": cameras,
         "matched_state_capture": {
             "environment_variable": "ROBODOJO_OPENARM_CALIBRATION_STATES",
             "value_file": str(output / "matched_state_environment.json"),
-            "note": "The evaluator writes states 0, 10, and 30 immediately before those observations; no image fitting is performed.",
+            "note": (
+                "The evaluator writes states 0, 10, and 30 immediately before those observations; "
+                "no image fitting is performed."
+            ),
         },
     }
     report_path = output / "camera_calibration.json"

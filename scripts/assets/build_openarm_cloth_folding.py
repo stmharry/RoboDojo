@@ -9,16 +9,17 @@ from isaacsim import SimulationApp
 
 simulation_app = SimulationApp({"headless": True})
 
-from pxr import Gf, Usd, UsdGeom, UsdPhysics  # noqa: E402
-import trimesh  # noqa: E402
-
 from openarm_camera_calibration import (  # noqa: E402
     HEAD_HOLDER,
     WRIST_HOLDER,
     calibration_manifest,
     head_points_m,
+    holder_optical_frame,
     wrist_points_m,
 )
+from pxr import Gf, Usd, UsdGeom, UsdPhysics  # noqa: E402
+from scipy.spatial.transform import Rotation  # noqa: E402
+import trimesh  # noqa: E402
 
 
 def sha256(path: Path) -> str:
@@ -67,7 +68,7 @@ def add_mesh(stage: Usd.Stage, parent_path: str, name: str, stl_path: Path, coll
     return path
 
 
-def build_holder_asset(stl_path: Path, output: Path, transform_points, prim_name: str) -> dict:
+def build_holder_asset(stl_path: Path, output: Path, transform_points, prim_name: str, side: str) -> dict:
     """Author a holder in its CAD-derived attachment frame."""
     loaded = trimesh.load_mesh(stl_path, force="mesh")
     if not isinstance(loaded, trimesh.Trimesh):
@@ -79,6 +80,13 @@ def build_holder_asset(stl_path: Path, output: Path, transform_points, prim_name
     stage = Usd.Stage.CreateNew(str(output))
     root = UsdGeom.Xform.Define(stage, f"/{prim_name}")
     stage.SetDefaultPrim(root.GetPrim())
+    UsdGeom.Xform.Define(stage, f"/{prim_name}/MountFrame")
+    optical_frame = UsdGeom.Xform.Define(stage, f"/{prim_name}/OpticalFrame")
+    optical_matrix = holder_optical_frame(side)
+    xyzw = Rotation.from_matrix(optical_matrix[:3, :3]).as_quat()
+    optical_xform = UsdGeom.Xformable(optical_frame)
+    optical_xform.AddTranslateOp().Set(Gf.Vec3d(*optical_matrix[:3, 3].tolist()))
+    optical_xform.AddOrientOp().Set(Gf.Quatf(float(xyzw[3]), *[float(value) for value in xyzw[:3]]))
     mesh = UsdGeom.Mesh.Define(stage, f"/{prim_name}/geometry")
     mesh.CreatePointsAttr([Gf.Vec3f(*point) for point in vertices])
     mesh.CreateFaceVertexCountsAttr([3] * len(loaded.faces))
@@ -91,6 +99,9 @@ def build_holder_asset(stl_path: Path, output: Path, transform_points, prim_name
         "file": output.name,
         "prim": f"/{prim_name}",
         "mesh": f"/{prim_name}/geometry",
+        "mount_frame": f"/{prim_name}/MountFrame",
+        "optical_frame": f"/{prim_name}/OpticalFrame",
+        "optical_frame_matrix": optical_matrix.tolist(),
         "collision": "convexHull",
         "attachment_anchor_embedded": anchor_embedded,
         "bounds_m": [vertices.min(axis=0).tolist(), vertices.max(axis=0).tolist()],
@@ -169,18 +180,21 @@ def main() -> None:
             args.output_root / "head_camera_holder.usd",
             head_points_m,
             "head_camera_holder",
+            "head",
         ),
         "left_wrist": build_holder_asset(
             args.hardware_root / WRIST_HOLDER.filename,
             args.output_root / "left_wrist_camera_holder.usd",
             lambda points: wrist_points_m(points, "left"),
             "left_wrist_camera_holder",
+            "left",
         ),
         "right_wrist": build_holder_asset(
             args.hardware_root / WRIST_HOLDER.filename,
             args.output_root / "right_wrist_camera_holder.usd",
             lambda points: wrist_points_m(points, "right"),
             "right_wrist_camera_holder",
+            "right",
         ),
     }
 

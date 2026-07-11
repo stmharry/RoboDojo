@@ -3,7 +3,9 @@
 RoboDojo exposes two sensor profiles over one embodiment, scene, policy tensor
 contract, and upstream camera stand. `openarm_cloth_folding` is the checkpoint's
 policy-original rig. `openarm_cloth_folding_dyna` changes only the base sensor
-projection to represent the DYNA hardware and is a domain-gap diagnostic.
+projection to represent the DYNA hardware and is the evaluated counterpart.
+Both profiles use the generated CAD holder hierarchy; only DYNA is run and
+published by the workflow below.
 
 Camera configuration is normalized into four layers: sensor identity and stream,
 mount target and optical roll, projection, and capture key/annotators. Scene and
@@ -20,7 +22,7 @@ PYTHONPATH=. conda run -n lerobot-pi05 python \
   XPolicyLab/policy/LeRobot_Pi05_OpenArm/smoke_test.py
 uv run --locked bash scripts/robodojo.sh doctor \
   --policy-dir XPolicyLab/policy/LeRobot_Pi05_OpenArm \
-  --task fold_clothes --env-cfg openarm_cloth_folding \
+  --task fold_clothes --env-cfg openarm_cloth_folding_dyna \
   --ckpt folding_final --policy-env lerobot-pi05
 ```
 
@@ -30,13 +32,12 @@ uv run --locked bash scripts/robodojo.sh doctor \
 OMNI_KIT_ACCEPT_EULA=YES uv run --locked bash scripts/robodojo.sh eval \
   --policy-dir XPolicyLab/policy/LeRobot_Pi05_OpenArm \
   --task fold_clothes --ckpt folding_final \
-  --env-cfg openarm_cloth_folding --action-type joint --seed 0 \
+  --env-cfg openarm_cloth_folding_dyna --action-type joint --seed 0 \
   --policy-gpu 0 --env-gpu 1 --policy-env lerobot-pi05 \
   --eval-num 1
 ```
 
-Repeat the evaluation with `--env-cfg openarm_cloth_folding_dyna` for the DYNA
-diagnostic. The adapter follows LeRobot's pinned real-robot evaluation loop: one
+The adapter follows LeRobot's pinned real-robot evaluation loop: one
 `predict_action_chunk` call per inference, asynchronous Real-Time Chunking with
 a 30-action queue, execution horizon 20, guidance 5.0, LINEAR prefix attention,
 relative-prefix re-anchoring, and 30→90 Hz action interpolation. The simulator
@@ -54,12 +55,12 @@ ROBODOJO_OPENARM_ZERO_ACTION=1 ROBODOJO_OPENARM_SMOKE_STEPS=30 \
   uv run --locked bash scripts/robodojo.sh eval \
   --policy-dir XPolicyLab/policy/LeRobot_Pi05_OpenArm \
   --task fold_clothes --ckpt folding_final \
-  --env-cfg openarm_cloth_folding --action-type joint --seed 0 \
+  --env-cfg openarm_cloth_folding_dyna --action-type joint --seed 0 \
   --policy-gpu 0 --env-gpu 1 --policy-env lerobot-pi05 \
   --eval-num 1
 
 uv run --locked python scripts/validate_openarm_visuals.py \
-  /path/to/generated/run --profile-id openarm_policy_original --allow-partial
+  /path/to/generated/run --profile-id openarm_dyna --allow-partial
 ```
 
 Generate the CAD-anchor diagrams, pinned article contact sheets, dataset-state
@@ -77,9 +78,8 @@ to `camera_calibration/matched_state_environment.json` as
 states immediately before observations 0, 10, and 30; this affects only the
 calibration harness and never a policy rollout.
 
-For the second profile, pass `openarm_cloth_folding_dyna` to evaluation and
-`--profile-id openarm_dyna` to validation. The tracked asymmetric harness makes
-the three roll conventions inspectable without transposing landscape tensors:
+The tracked asymmetric harness makes the three optical-frame conventions
+inspectable without transposing landscape tensors:
 
 ```bash
 uv run --locked python scripts/render_camera_orientation_harness.py
@@ -99,12 +99,12 @@ The tracked source manifest pins OpenARM Isaac Lab at
 `bad82e23716e6941c2de78ccb978f57c78b37734` and the supplied hardware changes
 at `ffe34b93c070343042eb9412fbfeffce16139947`. The builder checksums and
 instantiates `head camera holder v4.stl` and `arducam_holder.step/.stl`, records
-their mounting-hole and optical frames, and authors collision-enabled holder
-USDs. The head holder is attached to the upstream `Geometry.camera_stand`; its
-CAD-derived sensor center is fixture-local `[0, -0.318554, 0.051066]` with
-`Rx(120°)` and a 180° optical roll. Wrist holders resolve through logical
-end-effector aliases and retain the policy's left −90° and right +90° rolls,
-with the physical lens offset from the jaw centerline. Isaac Sim 5.1's tiled
+named `MountFrame` and `OpticalFrame` prims, and authors collision-enabled
+holder USDs. The head holder mounting plane is mated to the preserved upstream
+`Geometry.camera_stand` terminal plate. Wrist four-hole mount frames resolve
+through logical OpenARM hand-plate aliases with complete mirrored physical
+transforms. All cameras are identity children of generated optical frames and
+use zero runtime optical roll. Isaac Sim 5.1's tiled
 Replicator path renders its native OpenCV-fisheye schema black, so the manager
 uses a calibrated pinhole backing projection and applies the same explicit
 equidistant model deterministically to captured RGB frames.

@@ -12,6 +12,15 @@ VALID_MOUNT_KINDS = frozenset({"world", "robot_link", "scene_fixture"})
 VALID_PROJECTION_MODELS = frozenset({"pinhole", "opencvFisheye"})
 
 
+def hardware_camera_parent(hardware_path: str, camera_frame: str | None) -> str:
+    """Resolve a named camera frame below an instantiated holder prim."""
+    if not camera_frame:
+        return hardware_path.rsplit("/", 1)[0]
+    if camera_frame.startswith("/") or ".." in camera_frame.split("/"):
+        raise ValueError("hardware camera frame must be a relative prim path")
+    return hardware_path.rstrip("/") + "/" + camera_frame.strip("/")
+
+
 @dataclass(frozen=True)
 class CameraSpec:
     observation_key: str
@@ -51,6 +60,14 @@ class CameraSpec:
                 raise ValueError(f"{self.observation_key}: invalid mount hardware position")
             if len(hardware.get("orientation", [0, 0, 0])) not in (3, 4):
                 raise ValueError(f"{self.observation_key}: invalid mount hardware orientation")
+            camera_frame = hardware.get("camera_frame")
+            if camera_frame is not None and (
+                not isinstance(camera_frame, str)
+                or not camera_frame
+                or camera_frame.startswith("/")
+                or ".." in camera_frame.split("/")
+            ):
+                raise ValueError(f"{self.observation_key}: mount hardware camera_frame must be a relative prim path")
 
     def runtime_camera(self) -> dict[str, Any]:
         """Flatten the normalized contract for the existing Isaac camera implementation."""
@@ -83,6 +100,7 @@ class CameraSpec:
                 mount_hardware_position=list(hardware.get("position", [0.0, 0.0, 0.0])),
                 mount_hardware_orientation=list(hardware.get("orientation", [0.0, 0.0, 0.0])),
                 mount_hardware_collision=bool(hardware.get("collision", True)),
+                mount_hardware_camera_frame=hardware.get("camera_frame"),
             )
         return {key: value for key, value in result.items() if value is not None}
 
@@ -144,6 +162,7 @@ def _legacy_camera_spec(name: str, section: Mapping[str, Any], frequency: float)
             "position": list(camera.get("mount_hardware_position", [0, 0, 0])),
             "orientation": list(camera.get("mount_hardware_orientation", [0, 0, 0])),
             "collision": bool(camera.get("mount_hardware_collision", True)),
+            "camera_frame": camera.get("mount_hardware_camera_frame"),
         }
     projection = {
         "model": camera.get("lens_distortion_model", "pinhole"),

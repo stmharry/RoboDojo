@@ -4,10 +4,11 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from scipy.spatial.transform import Rotation
 import yaml
 
 from env.camera_manager.mount_registry import CameraMountRegistry, apply_optical_roll, compose_pose
-from env.camera_manager.rig_spec import CameraSpec, normalize_camera_rig
+from env.camera_manager.rig_spec import CameraSpec, hardware_camera_parent, normalize_camera_rig
 from env.scene_manager.appearance_overrides import apply_appearance_overrides
 from scripts.assets.openarm_camera_calibration import (
     HEAD_CAD_TO_FIXTURE,
@@ -15,6 +16,7 @@ from scripts.assets.openarm_camera_calibration import (
     WRIST_HOLDER,
     WRIST_LINK_SENSOR_POSES,
     calibration_manifest,
+    holder_optical_frame,
     wrist_points_m,
 )
 
@@ -36,6 +38,8 @@ def test_openarm_timing_and_dimensions():
     robot_config = yaml.safe_load((ROOT / "scripts/assets/openarm_robot_config.yml").read_text())
     assert robot_config["left"]["camera_mount_links"]["left_wrist_camera_holder"] == "openarm_left_link7"
     assert robot_config["right"]["camera_mount_links"]["right_wrist_camera_holder"] == "openarm_right_link7"
+    assert robot_config["left"]["camera_mount_links"]["left_hand_camera_mount"] == "openarm_left_hand"
+    assert robot_config["right"]["camera_mount_links"]["right_hand_camera_mount"] == "openarm_right_hand"
 
 
 @pytest.mark.parametrize(
@@ -58,29 +62,46 @@ def test_openarm_camera_profiles(name, profile, vendor, fov, focal):
     assert base.projection["fx"] == focal
     assert base.mount["kind"] == "scene_fixture"
     assert base.mount["target"] == "camera_stand"
-    assert base.mount["optical_roll_deg"] == 180.0
     assert base.mount["basis"] == "lerobot_head_camera_holder_v4_optical_frame"
     assert base.mount["hardware"]["asset"].endswith("head_camera_holder.usd")
     assert left.sensor["vendor"] == right.sensor["vendor"] == "Arducam"
     assert left.sensor["stream_resolution"] == right.sensor["stream_resolution"] == [1280, 720]
-    assert left.mount["optical_roll_deg"] == -90.0
-    assert right.mount["optical_roll_deg"] == 90.0
-    assert left.mount["target"] == "robot0/left_wrist_camera_holder"
-    assert right.mount["target"] == "robot0/right_wrist_camera_holder"
-    assert left.mount["position"] == [0.05, 0.0, 0.12]
-    assert right.mount["position"] == [0.035, 0.0, 0.12]
-    assert left.mount["orientation"] == right.mount["orientation"] == [180.0, 0.0, 90.0]
+    assert base.mount["position"] == [0.0, 0.0, 0.0]
+    assert base.mount["orientation"] == [0.0, 0.0, 0.0]
+    assert base.mount["optical_roll_deg"] == 0.0
+    assert base.mount["hardware"]["camera_frame"] == "OpticalFrame"
+    assert left.mount["target"] == "robot0/left_hand_camera_mount"
+    assert right.mount["target"] == "robot0/right_hand_camera_mount"
+    for wrist in (left, right):
+        assert wrist.mount["position"] == [0.0, 0.0, 0.0]
+        assert wrist.mount["orientation"] == [0.0, 0.0, 0.0]
+        assert wrist.mount["optical_roll_deg"] == 0.0
+        assert wrist.mount["hardware"]["camera_frame"] == "OpticalFrame"
+    assert left.mount["hardware"]["position"] == [0.0425, -0.0568268697, -0.0165119239]
+    assert right.mount["hardware"]["position"] == [0.0425, 0.0568268697, -0.0165119239]
+    assert left.mount["hardware"]["orientation"] == [-140.0, 0.0, 180.0]
+    assert right.mount["hardware"]["orientation"] == [140.0, 0.0, 0.0]
 
 
 def test_cad_head_pose_hangs_from_upstream_fixture_tip():
-    world_position, world_orientation = compose_pose(
+    holder_position, holder_orientation = compose_pose(
         [0.0, -0.47, 0.765],
         [-90.0, 0.0, 0.0],
-        [0.0, -0.31855376, 0.05106626],
-        [120.0, 0.0, 0.0],
+        [0.0, -0.5875, 0.0647],
+        [10.0, 0.0, 0.0],
     )
-    assert np.allclose(world_position, [0.0, -0.41893374, 1.08355376], atol=1e-6)
-    expected = compose_pose([0, 0, 0], [0, 0, 0], [0, 0, 0], [30, 0, 0])[1]
+    optical = holder_optical_frame("head")
+    xyzw = Rotation.from_matrix(optical[:3, :3]).as_quat()
+    world_position, world_orientation = compose_pose(
+        holder_position,
+        holder_orientation,
+        optical[:3, 3],
+        xyzw[[3, 0, 1, 2]],
+    )
+    assert np.allclose(world_position, [0.0, -0.42893374, 1.10087426], atol=1e-6)
+    expected = compose_pose(
+        [0, 0, 0], [0, 0, 0], [0, 0, 0], apply_optical_roll([30, 0, 0], 180)
+    )[1]
     assert abs(np.dot(world_orientation, expected)) == pytest.approx(1.0)
 
 
@@ -89,7 +110,15 @@ def test_pinned_cad_anchors_and_mirrored_holder_geometry():
     assert np.linalg.det(HEAD_CAD_TO_FIXTURE) == pytest.approx(1.0)
     assert HEAD_HOLDER.optical_position_m() == pytest.approx([0.0, 0.24369901916, -0.0669690397])
     assert WRIST_HOLDER.optical_position_m() == pytest.approx([0.0, 0.0669370412, 0.0086344558])
-    assert WRIST_HOLDER.optical_direction_mount() == pytest.approx([0.0, -0.6427876097, 0.7660444431])
+    assert WRIST_HOLDER.optical_direction_mount() == pytest.approx([0.0, 0.6427876097, -0.7660444431])
+    for side in ("head", "left", "right"):
+        rotation = holder_optical_frame(side)[:3, :3]
+        assert rotation.T @ rotation == pytest.approx(np.eye(3), abs=1e-9)
+        assert np.linalg.det(rotation) == pytest.approx(1.0)
+    left_frame = holder_optical_frame("left")
+    right_frame = holder_optical_frame("right")
+    assert right_frame[0, 3] == pytest.approx(-left_frame[0, 3])
+    assert right_frame[:3, 2] == pytest.approx(left_frame[:3, 2])
     sample = np.array([[1.0, 2.0, 3.0], [20.0, -5.0, 7.0]])
     left = wrist_points_m(sample, "left")
     right = wrist_points_m(sample, "right")
@@ -112,6 +141,46 @@ def test_optical_rolls_are_distinct_physical_orientations():
     assert np.dot(left, right) == pytest.approx(0.0, abs=1e-7)
     assert not np.allclose(base, left)
     assert not np.allclose(base, right)
+
+
+def test_named_hardware_camera_frame_is_relative_and_parented():
+    assert hardware_camera_parent("/World/Holder", "OpticalFrame") == "/World/Holder/OpticalFrame"
+    with pytest.raises(ValueError, match="relative"):
+        hardware_camera_parent("/World/Holder", "../Camera")
+    rig = load_rig("openarm_cloth_folding_dyna")
+    runtime = rig.runtime_config()
+    for key in ("cam_head", "cam_left_wrist", "cam_right_wrist"):
+        camera = runtime[key].camera
+        assert camera.mount_hardware_camera_frame == "OpticalFrame"
+        assert list(camera.pos) == [0.0, 0.0, 0.0]
+        assert list(camera.ori) == [0.0, 0.0, 0.0]
+
+
+def test_wrist_holder_attachments_mirror_and_point_along_contact_axis():
+    positions = {}
+    rotations = {}
+    attachments = {
+        "left": ([0.0425, -0.0568268697, -0.0165119239], [-140.0, 0.0, 180.0]),
+        "right": ([0.0425, 0.0568268697, -0.0165119239], [140.0, 0.0, 0.0]),
+    }
+    for side, (translation, euler) in attachments.items():
+        attachment = Rotation.from_euler("XYZ", euler, degrees=True).as_matrix()
+        optical = holder_optical_frame(side)
+        rotations[side] = attachment @ optical[:3, :3]
+        positions[side] = np.asarray(translation) + attachment @ optical[:3, 3]
+    assert positions["left"] == pytest.approx(positions["right"], abs=1e-8)
+    assert positions["left"] == pytest.approx([0.0425, 0.0, 0.0199], abs=1e-8)
+    assert rotations["left"] == pytest.approx(rotations["right"], abs=1e-8)
+    legacy_base = Rotation.from_euler("XYZ", [180.0, 0.0, 90.0], degrees=True)
+    for side, legacy_roll, expected in (("left", -90.0, 90.0), ("right", 90.0, -90.0)):
+        legacy = legacy_base * Rotation.from_euler("Z", legacy_roll, degrees=True)
+        correction = legacy.inv() * Rotation.from_matrix(rotations[side])
+        assert correction.as_rotvec(degrees=True)[2] == pytest.approx(expected, abs=1e-8)
+    # The hand is 100.1 mm ahead of link 7, reconstructing the documented
+    # 120 mm link-7 camera center without an independent sensor offset.
+    assert positions["left"] + [0.0, 0.0, 0.1001] == pytest.approx(
+        [0.0425, 0.0, 0.12], abs=1e-8
+    )
 
 
 def test_appearance_overlay_cannot_remove_or_mutate_task_objects():

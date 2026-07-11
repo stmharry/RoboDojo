@@ -10,13 +10,14 @@ from isaacsim.core.utils.semantics import add_labels, remove_labels
 from isaacsim.core.utils.stage import add_reference_to_stage, get_current_stage
 from isaacsim.core.utils.string import find_unique_string_name
 from isaacsim.sensors.camera import Camera
-from pxr import Gf, UsdGeom
 import numpy as np
 from numpy import ndarray
 from omegaconf import DictConfig, OmegaConf
+from pxr import Gf, UsdGeom
 import torch
 
 from env.camera_manager.mount_registry import apply_optical_roll, orientation_quaternion
+from env.camera_manager.rig_spec import hardware_camera_parent
 from env.environment.isaac.isaac_rl_env import IsaacRLEnv
 from env.global_configs import *
 from env.seeding import seed_everywhere
@@ -220,6 +221,7 @@ class CameraManager:
                     else env_name
                 )
                 hardware_asset = camera_config.camera.get("mount_hardware_asset")
+                camera_parent_path = parent_path
                 if hardware_asset:
                     hardware_path = find_unique_string_name(
                         parent_path + "/" + f"CameraHolder_{cam_id}",
@@ -241,8 +243,15 @@ class CameraManager:
                         Gf.Quatf(float(orientation[0]), *[float(value) for value in orientation[1:]])
                     )
                     self.mount_hardware_paths[env_id].append(hardware_path)
+                    camera_frame = camera_config.camera.get("mount_hardware_camera_frame")
+                    if camera_frame:
+                        camera_parent_path = hardware_camera_parent(hardware_path, str(camera_frame))
+                        if not is_prim_path_valid(camera_parent_path):
+                            raise ValueError(
+                                f"camera hardware frame {camera_parent_path} does not exist in {asset_path}"
+                            )
                 cur_camera_xform_path = find_unique_string_name(
-                    parent_path + "/" + f"Camera_{cam_id}",
+                    camera_parent_path + "/" + f"Camera_{cam_id}",
                     is_unique_fn=lambda x: not is_prim_path_valid(x),
                 )
                 self.cameras_xform_path[env_id].append(cur_camera_xform_path)

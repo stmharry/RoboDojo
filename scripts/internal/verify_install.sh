@@ -196,7 +196,6 @@ assert base["type"] == "openarm_base"
 assert base["projection"]["model"] == "opencvFisheye"
 assert base["mount"]["kind"] == "scene_fixture"
 assert base["mount"]["target"] == "camera_stand"
-assert base["mount"]["optical_roll_deg"] == 180.0
 assert base["mount"]["basis"] == "lerobot_head_camera_holder_v4_optical_frame"
 assert base["mount"]["hardware"]["asset"].endswith("head_camera_holder.usd")
 if camera_name == "openarm_cloth_folding":
@@ -209,19 +208,33 @@ else:
     assert base["sensor"]["vendor"] == "Waveshare"
     assert base["sensor"]["diagonal_fov_deg"] == 145.0
     assert base["projection"]["fx"] == 316.1146
-for key, roll in (("cam_left_wrist", -90.0), ("cam_right_wrist", 90.0)):
+assert base["mount"]["position"] == [0.0, 0.0, 0.0]
+assert base["mount"]["orientation"] == [0.0, 0.0, 0.0]
+assert base["mount"]["optical_roll_deg"] == 0.0
+assert base["mount"]["hardware"]["camera_frame"] == "OpticalFrame"
+expected_rolls = {"cam_left_wrist": 0.0, "cam_right_wrist": 0.0}
+assert cameras["cam_left_wrist"]["mount"]["target"] == "robot0/left_hand_camera_mount"
+assert cameras["cam_right_wrist"]["mount"]["target"] == "robot0/right_hand_camera_mount"
+for key, roll in expected_rolls.items():
     wrist_camera = cameras[key]
     assert wrist_camera["sensor"]["vendor"] == "Arducam"
     assert wrist_camera["sensor"]["stream_resolution"] == [1280, 720]
     assert wrist_camera["mount"]["optical_roll_deg"] == roll
     assert wrist_camera["mount"]["basis"] == "lerobot_arducam_holder_optical_frame"
     assert wrist_camera["mount"]["hardware"]["collision"] is True
+    assert wrist_camera["mount"]["hardware"]["camera_frame"] == "OpticalFrame"
+    assert wrist_camera["mount"]["position"] == [0.0, 0.0, 0.0]
+    assert wrist_camera["mount"]["orientation"] == [0.0, 0.0, 0.0]
 assert "remove_fixtures" not in scene.get("appearance_overrides", {})
 assert manifest["upper_arm_extension_m"] == 0.05
 assert len(manifest["joint_paths"]) == 2
 assert len(manifest["jaw_paths"]) == 4
 assert len(manifest["cover_paths"]) == 4
 assert set(manifest["camera_holders"]) == {"head", "left_wrist", "right_wrist"}
+for holder in manifest["camera_holders"].values():
+    assert holder["mount_frame"].endswith("/MountFrame")
+    assert holder["optical_frame"].endswith("/OpticalFrame")
+    assert len(holder["optical_frame_matrix"]) == 4
 assert manifest["camera_calibration"]["blog_space_revision"] == "170e1d479579e0b4be1afe0c99ebf868b24803db"
 assert manifest["sources"]["head camera holder v4.stl"] == "959ae5e0ad6e0870465e361df30db3d1bbdeebb9ba8001274c3ce9e1712f03d3"
 assert manifest["sources"]["arducam_holder.step"] == "b51c4d565afe4a632c61af15b42a9319c9361271c98840ccd9c670a893b7291d"
