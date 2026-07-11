@@ -41,11 +41,10 @@ bash scripts/robodojo.sh summarize --output /local/path/summary.md
 Do not put AWS credentials in this repository or `.env`. The storage helper
 uses the standard AWS CLI credential provider chain. The mount must remain
 read-only even when the publishing IAM user has prefix-scoped write access.
-For Docker on mv-53, set
-`ROBODOJO_AWS_ENV_FILE=/home/harry/.aws/robodojo.env`; the file must use Docker
-`KEY=VALUE` syntax and is passed with `--env-file` without its contents being
-logged. A protected named profile via `AWS_PROFILE` and `~/.aws` remains an
-alternative.
+On mv-53, use `AWS_PROFILE=robodojo-runtime`. The Docker smoke helper passes the
+profile name and mounts `~/.aws` read-only. A protected Docker-compatible
+`ROBODOJO_AWS_ENV_FILE` remains supported for hosts that cannot use a named
+profile, but it is not required in the project `.env`.
 
 ## Publication
 

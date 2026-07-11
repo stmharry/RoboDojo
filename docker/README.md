@@ -192,11 +192,10 @@ container read-only and provide a separate local scratch mount:
 
 The image includes AWS CLI for explicit publication. Supply credentials through
 the runtime's protected AWS configuration, never through the image or source
-tree. On mv-53, point `ROBODOJO_AWS_ENV_FILE` at the protected Docker-compatible
-`KEY=VALUE` file (for example `/home/harry/.aws/robodojo.env`); the smoke runner
-passes it with Docker's `--env-file` without reading or printing its contents.
-As an alternative, set `AWS_PROFILE` and provide the corresponding protected
-`~/.aws` configuration. Active video streams and resume state remain under `/scratch/robodojo`;
+tree. On mv-53, set `AWS_PROFILE=robodojo-runtime`; the smoke runner passes the
+profile name and mounts the corresponding protected `~/.aws` configuration
+read-only. `ROBODOJO_AWS_ENV_FILE` remains available for hosts that need a
+Docker-compatible `KEY=VALUE` file. Active video streams and resume state remain under `/scratch/robodojo`;
 completed runs publish to `runs/eval_result/RoboDojo/`. The container never
 changes ownership or writes through `/storage/robodojo`.
 
