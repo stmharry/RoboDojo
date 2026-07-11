@@ -75,3 +75,10 @@ def test_explicit_checkpoint_label_is_validated():
     assert storage.checkpoint_label("/some/path", "release-1") == "release-1"
     with pytest.raises(ValueError):
         storage.checkpoint_label("/some/path", "../escape")
+
+
+def test_docker_storage_supports_protected_env_file_and_named_profile():
+    smoke = (storage.REPO_ROOT / "docker/smoke_docker.sh").read_text(encoding="utf-8")
+    assert '[[ -r "${ROBODOJO_AWS_ENV_FILE}" ]]' in smoke
+    assert 'storage_mounts+=( --env-file "${ROBODOJO_AWS_ENV_FILE}" )' in smoke
+    assert 'storage_mounts+=( -e "AWS_PROFILE=${AWS_PROFILE}" )' in smoke

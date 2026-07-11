@@ -33,6 +33,11 @@ unchanged. `ROBO_DOJO_DATA_ROOT` remains a legacy data-root fallback.
 Do not put AWS credentials in this repository or `.env`. The storage helper
 uses the standard AWS CLI credential provider chain. The mount must remain
 read-only even when the publishing IAM user has prefix-scoped write access.
+For Docker on mv-53, set
+`ROBODOJO_AWS_ENV_FILE=/home/harry/.aws/robodojo.env`; the file must use Docker
+`KEY=VALUE` syntax and is passed with `--env-file` without its contents being
+logged. A protected named profile via `AWS_PROFILE` and `~/.aws` remains an
+alternative.
 
 ## Publication
 

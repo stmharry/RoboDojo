@@ -213,6 +213,11 @@ phase_eval() {
             -e ROBODOJO_LOCAL_SCRATCH_ROOT=/scratch/robodojo
             -e "ROBODOJO_S3_URI=${ROBODOJO_S3_URI:?set ROBODOJO_S3_URI for storage publication}"
         )
+        if [[ -n "${ROBODOJO_AWS_ENV_FILE:-}" ]]; then
+            [[ -r "${ROBODOJO_AWS_ENV_FILE}" ]] \
+                || fail eval "ROBODOJO_AWS_ENV_FILE is not readable: ${ROBODOJO_AWS_ENV_FILE}"
+            storage_mounts+=( --env-file "${ROBODOJO_AWS_ENV_FILE}" )
+        fi
         [[ -n "${AWS_PROFILE:-}" ]] && storage_mounts+=( -e "AWS_PROFILE=${AWS_PROFILE}" )
         [[ -d "${HOME}/.aws" ]] && storage_mounts+=( -v "${HOME}/.aws:/root/.aws:ro" )
     else
