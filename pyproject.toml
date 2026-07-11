@@ -3,9 +3,94 @@ name = "robodojo"
 version = "0.2.0"
 description = "RoboDojo robot simulation benchmark (eval-only release)"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.12"
 license = "MIT"
 authors = [{ name = "Yue Chen", email = "yuechen020614@gmail.com" }]
+dependencies = [
+    "chardet>=3,<6",
+    "click==8.1.7",
+    "ffmpeg",
+    "filelock==3.13.1",
+    "fsspec==2024.6.1",
+    "h5py>=3.8",
+    "huggingface-hub",
+    "ipython<9",
+    "isaaclab",
+    "isaaclab-assets",
+    "isaaclab-contrib",
+    "isaaclab-mimic",
+    "isaaclab-rl",
+    "isaaclab-tasks",
+    "isaacsim[all,extscache]==5.1.0",
+    "matplotlib",
+    "msgpack-numpy>=0.4.8",
+    "msgpack>=1.0.8",
+    "numpy==1.26.0",
+    "networkx==3.3",
+    "nvidia-curobo[cu12]",
+    "onnx>=1.18,<1.22",
+    "open3d",
+    "opencv-python-headless==4.11.0.86",
+    "packaging==23.0",
+    "pillow==11.3.0",
+    "psutil==5.9.8",
+    "pydantic>=2.5",
+    "pyyaml>=6",
+    "scikit-learn",
+    "scipy==1.15.3",
+    "stable-baselines3<2.8",
+    "starlette==0.45.3",
+    "torch==2.7.0",
+    "torchaudio==2.7.0",
+    "torchvision==0.22.0",
+    "transforms3d",
+    "typing-extensions==4.12.2",
+    "virtualenv==20.30.0",
+    "warp-lang==1.11.0",
+    "websockets==12.0",
+    "wheel==0.45.1",
+]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.2.0",
+    "pytest>=8.0",
+    "ruff>=0.11.7",
+]
+
+[tool.uv]
+package = false
+environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
+# Preserve legacy runtime repins whose index metadata conflicts with either the
+# installed Isaac Sim wheel metadata or the vendored IsaacLab metadata. The
+# previous staged installer restored both after installing IsaacLab/CuRobo.
+override-dependencies = [
+    "filelock==3.13.1",
+    "fsspec==2024.6.1",
+    "networkx==3.3",
+    "starlette==0.45.3",
+]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }
+torchvision = { index = "pytorch-cu128" }
+torchaudio = { index = "pytorch-cu128" }
+isaaclab = { path = "third_party/IsaacLab/source/isaaclab", editable = true }
+isaaclab-assets = { path = "third_party/IsaacLab/source/isaaclab_assets", editable = true }
+isaaclab-contrib = { path = "third_party/IsaacLab/source/isaaclab_contrib", editable = true }
+isaaclab-mimic = { path = "third_party/IsaacLab/source/isaaclab_mimic", editable = true }
+isaaclab-rl = { path = "third_party/IsaacLab/source/isaaclab_rl", editable = true }
+isaaclab-tasks = { path = "third_party/IsaacLab/source/isaaclab_tasks", editable = true }
+nvidia-curobo = { path = "third_party/curobo", editable = true }
+
+[[tool.uv.index]]
+name = "nvidia"
+url = "https://pypi.nvidia.com"
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
 
 [tool.ruff]
 line-length = 120
@@ -54,3 +139,7 @@ force-sort-within-sections = true
 
 [tool.ruff.format]
 docstring-code-format = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

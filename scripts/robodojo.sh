@@ -87,7 +87,6 @@ run_eval() {
   local policy_gpu="0"
   local env_gpu="0"
   local policy_env=""
-  local eval_env="RoboDojo"
   local policy_dir=""
   local eval_num="${EVAL_NUM:-}"
   local dry_run="false"
@@ -104,7 +103,6 @@ run_eval() {
       --policy-gpu) need_value "$@"; policy_gpu="$2"; shift 2 ;;
       --env-gpu) need_value "$@"; env_gpu="$2"; shift 2 ;;
       --policy-env) need_value "$@"; policy_env="$2"; shift 2 ;;
-      --eval-env) need_value "$@"; eval_env="$2"; shift 2 ;;
       --policy-dir) need_value "$@"; policy_dir="$(abs_path "$2")"; shift 2 ;;
       --eval-num) need_value "$@"; eval_num="$2"; shift 2 ;;
       --dry-run) dry_run="true"; shift ;;
@@ -126,7 +124,6 @@ Common options:
   --seed NUM            Eval seed / layout seed (default: 0)
   --policy-gpu ID       Policy server GPU (default: 0)
   --env-gpu ID          Isaac Sim GPU (default: 0)
-  --eval-env ENV        Simulator conda env (default: RoboDojo)
   --dry-run             Print command without running it
 
 Split / multi-machine: use `robodojo.sh server` + `robodojo.sh client` (see docs/SPLIT_EVAL.md).
@@ -162,7 +159,6 @@ EOF
       "${policy_gpu}"
       "${env_gpu}"
       "${policy_env}"
-      "${eval_env}"
     )
   else
     eval_args=(
@@ -175,7 +171,6 @@ EOF
       "${policy_gpu}"
       "${env_gpu}"
       "${policy_env}"
-      "${eval_env}"
     )
   fi
 

@@ -3,15 +3,16 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+export OMNI_KIT_ACCEPT_EULA="${OMNI_KIT_ACCEPT_EULA:-YES}"
+export ACCEPT_EULA="${ACCEPT_EULA:-Y}"
+export PRIVACY_CONSENT="${PRIVACY_CONSENT:-Y}"
 
 policy_dir=""
 env_cfg="arx_x5"
 task_name="stack_bowls"
 ckpt_name=""
-sim_env="RoboDojo"
 policy_env=""
 skip_isaac="false"
-skip_conda="false"
 skip_policy="false"
 summary_path=""
 
@@ -24,11 +25,9 @@ Options:
   --env-cfg NAME        env_cfg stem to validate (default: arx_x5)
   --task NAME           Task name to validate (default: stack_bowls)
   --ckpt NAME           Optional checkpoint directory under policy checkpoints
-  --sim-env NAME        Simulator conda env for Isaac imports (default: RoboDojo)
-  --policy-env NAME     Optional policy conda env to check
+  --policy-env NAME     Optional policy environment to check
   --summary PATH        Write JSON summary to PATH
   --skip-isaac          Skip isaacsim/isaaclab import check
-  --skip-conda          Skip conda env existence checks
   --skip-policy         Skip policy-dir/deploy/checkpoint checks
   -h, --help            Show this help
 EOF
@@ -56,11 +55,9 @@ while [[ $# -gt 0 ]]; do
     --env-cfg) need_value "$@"; env_cfg="$2"; shift 2 ;;
     --task) need_value "$@"; task_name="$2"; shift 2 ;;
     --ckpt) need_value "$@"; ckpt_name="$2"; shift 2 ;;
-    --sim-env) need_value "$@"; sim_env="$2"; shift 2 ;;
     --policy-env) need_value "$@"; policy_env="$2"; shift 2 ;;
     --summary) need_value "$@"; summary_path="$2"; shift 2 ;;
     --skip-isaac) skip_isaac="true"; shift ;;
-    --skip-conda) skip_conda="true"; shift ;;
     --skip-policy) skip_policy="true"; shift ;;
     -h|--help) usage; exit 0 ;;
     *)
@@ -289,51 +286,67 @@ else
   record "FAIL" "python import" "cannot import env.global_configs"
 fi
 
-if [[ "${skip_conda}" == "true" ]]; then
-  record "WARN" "conda envs" "skipped by --skip-conda"
-elif command -v conda >/dev/null 2>&1; then
-  envs="$(conda env list | awk 'NF && $1 !~ /^#/ {print $1}')"
-  if grep -qx "${sim_env}" <<< "${envs}"; then
-    record "PASS" "sim conda env" "${sim_env}"
-    if conda run -n "${sim_env}" python -c 'import torch; assert torch.cuda.is_available(); torch.ones(1, device="cuda")' >/dev/null; then
-      record "PASS" "sim CUDA" "${sim_env} can execute a CUDA operation"
-    else
-      record "FAIL" "sim CUDA" "${sim_env} cannot execute a CUDA operation"
-    fi
+VENV_PYTHON="${ROOT_DIR}/.venv/bin/python"
+if command -v uv >/dev/null 2>&1; then
+  record "PASS" "uv" "$(uv --version)"
+  if uv lock --directory "${ROOT_DIR}" --check >/dev/null; then
+    record "PASS" "uv lock" "uv.lock matches pyproject.toml"
   else
-    record "FAIL" "sim conda env" "${sim_env} not found"
-  fi
-  if [[ -z "${policy_env}" ]]; then
-    record "WARN" "policy conda env" "skipped; pass --policy-env to validate"
-  elif [[ "${policy_env}" == "uv" || "${policy_env}" == */* ]]; then
-    record "WARN" "policy conda env" "policy env is path/uv; conda check skipped"
-  elif grep -qx "${policy_env}" <<< "${envs}"; then
-    record "PASS" "policy conda env" "${policy_env}"
-    if conda run -n "${policy_env}" python -c 'import torch; assert torch.cuda.is_available(); torch.ones(1, device="cuda")' >/dev/null; then
-      record "PASS" "policy CUDA" "${policy_env} can execute a CUDA operation"
-    else
-      record "FAIL" "policy CUDA" "${policy_env} cannot execute a CUDA operation"
-    fi
-  else
-    record "FAIL" "policy conda env" "${policy_env} not found"
+    record "FAIL" "uv lock" "uv.lock is missing or stale"
   fi
 else
-  record "FAIL" "conda" "conda command not found"
+  record "FAIL" "uv" "uv command not found"
+fi
+
+if [[ -x "${VENV_PYTHON}" ]]; then
+  record "PASS" "sim uv env" "${ROOT_DIR}/.venv"
+  set +e
+  pip_check_output="$(uv pip check --python "${VENV_PYTHON}" 2>&1)"
+  pip_check_status=$?
+  set -e
+  if [[ "${pip_check_status}" -eq 0 ]]; then
+    record "PASS" "uv package check" "all installed metadata is compatible"
+  elif [[ "${pip_check_output}" == *"Found 1 incompatibility"* \
+      && "${pip_check_output}" == *'isaaclab` requires `starlette==0.49.1'* \
+      && "${pip_check_output}" != *"Found 2 incompatibilities"* ]]; then
+    record "WARN" "uv package check" "known Isaac Sim/IsaacLab Starlette metadata conflict; locked runtime uses 0.45.3"
+  else
+    record "FAIL" "uv package check" "${pip_check_output//$'\n'/; }"
+  fi
+  if "${VENV_PYTHON}" -c 'import torch; assert torch.cuda.is_available(); torch.ones(1, device="cuda")' >/dev/null; then
+    record "PASS" "sim CUDA" ".venv can execute a CUDA operation"
+  else
+    record "FAIL" "sim CUDA" ".venv cannot execute a CUDA operation"
+  fi
+else
+  record "FAIL" "sim uv env" "run uv sync --locked"
+fi
+
+if [[ -z "${policy_env}" ]]; then
+  record "WARN" "policy env" "skipped; pass --policy-env to validate"
+elif [[ -x "${policy_env}/bin/python" ]]; then
+  record "PASS" "policy env" "${policy_env}"
+elif command -v conda >/dev/null 2>&1 && conda env list | awk 'NF && $1 !~ /^#/ {print $1}' | grep -qx "${policy_env}"; then
+  record "PASS" "policy env" "conda:${policy_env}"
+elif [[ "${policy_env}" == "uv" ]]; then
+  record "PASS" "policy env" "policy launcher-managed uv environment"
+else
+  record "FAIL" "policy env" "not a uv/path/Conda environment: ${policy_env}"
 fi
 
 if [[ "${skip_isaac}" == "true" ]]; then
   record "WARN" "Isaac imports" "skipped by --skip-isaac"
-elif command -v conda >/dev/null 2>&1; then
-  if conda run -n "${sim_env}" python - <<'PY'; then
+elif [[ -x "${VENV_PYTHON}" ]]; then
+  if "${VENV_PYTHON}" - <<'PY'; then
 import isaacsim  # noqa: F401
 import isaaclab  # noqa: F401
 PY
-    record "PASS" "Isaac imports" "isaacsim and isaaclab import in ${sim_env}"
+    record "PASS" "Isaac imports" "isaacsim and isaaclab import in .venv"
   else
-    record "FAIL" "Isaac imports" "isaacsim/isaaclab import failed in ${sim_env}"
+    record "FAIL" "Isaac imports" "isaacsim/isaaclab import failed in .venv"
   fi
 else
-  record "FAIL" "Isaac imports" "conda unavailable; cannot check ${sim_env}"
+  record "FAIL" "Isaac imports" ".venv unavailable"
 fi
 
 if [[ -n "${summary_path}" ]]; then

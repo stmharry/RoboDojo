@@ -23,9 +23,6 @@ for name in 'J3-J4_Cover front extended.stl' 'J3-J4_Cover back extended.stl' 'ja
     -o "${HARDWARE_DIR}/${name}"
 done
 
-CONDA_BASE="${CONDA_BASE:-${HOME}/miniconda3}"
-source "${CONDA_BASE}/etc/profile.d/conda.sh"
-conda activate RoboDojo
 OMNI_KIT_ACCEPT_EULA=YES python "${ROOT_DIR}/scripts/assets/build_openarm_cloth_folding.py" \
   --source-root "${SOURCE_DIR}" \
   --hardware-root "${HARDWARE_DIR}" \

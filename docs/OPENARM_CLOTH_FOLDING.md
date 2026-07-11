@@ -18,7 +18,7 @@ bash XPolicyLab/policy/LeRobot_Pi05_OpenArm/install.sh lerobot-pi05
 bash XPolicyLab/policy/LeRobot_Pi05_OpenArm/download_checkpoint.sh lerobot-pi05
 PYTHONPATH=. conda run -n lerobot-pi05 python \
   XPolicyLab/policy/LeRobot_Pi05_OpenArm/smoke_test.py
-bash scripts/robodojo.sh doctor \
+uv run --locked bash scripts/robodojo.sh doctor \
   --policy-dir XPolicyLab/policy/LeRobot_Pi05_OpenArm \
   --task fold_clothes --env-cfg openarm_cloth_folding \
   --ckpt folding_final --policy-env lerobot-pi05
@@ -27,12 +27,12 @@ bash scripts/robodojo.sh doctor \
 ## One recorded episode
 
 ```bash
-OMNI_KIT_ACCEPT_EULA=YES bash scripts/robodojo.sh eval \
+OMNI_KIT_ACCEPT_EULA=YES uv run --locked bash scripts/robodojo.sh eval \
   --policy-dir XPolicyLab/policy/LeRobot_Pi05_OpenArm \
   --task fold_clothes --ckpt folding_final \
   --env-cfg openarm_cloth_folding --action-type joint --seed 0 \
   --policy-gpu 0 --env-gpu 1 --policy-env lerobot-pi05 \
-  --eval-env RoboDojo --eval-num 1
+  --eval-num 1
 ```
 
 Repeat the evaluation with `--env-cfg openarm_cloth_folding_dyna` for the DYNA
@@ -51,14 +51,14 @@ its camera streams against pinned reference frames:
 ```bash
 ROBODOJO_OPENARM_ZERO_ACTION=1 ROBODOJO_OPENARM_SMOKE_STEPS=30 \
   OMNI_KIT_ACCEPT_EULA=YES \
-  bash scripts/robodojo.sh eval \
+  uv run --locked bash scripts/robodojo.sh eval \
   --policy-dir XPolicyLab/policy/LeRobot_Pi05_OpenArm \
   --task fold_clothes --ckpt folding_final \
   --env-cfg openarm_cloth_folding --action-type joint --seed 0 \
   --policy-gpu 0 --env-gpu 1 --policy-env lerobot-pi05 \
-  --eval-env RoboDojo --eval-num 1
+  --eval-num 1
 
-conda run -n RoboDojo python scripts/validate_openarm_visuals.py \
+uv run --locked python scripts/validate_openarm_visuals.py \
   /path/to/generated/run --profile-id openarm_policy_original --allow-partial
 ```
 
@@ -67,7 +67,7 @@ For the second profile, pass `openarm_cloth_folding_dyna` to evaluation and
 the three roll conventions inspectable without transposing landscape tensors:
 
 ```bash
-conda run -n RoboDojo python scripts/render_camera_orientation_harness.py
+uv run --locked python scripts/render_camera_orientation_harness.py
 ```
 
 The validator streams frames 0, 10, and 30 directly from the pinned episode

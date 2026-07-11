@@ -4,6 +4,9 @@ set -euo pipefail
 # Ensure project root is on PYTHONPATH so first-party imports like `env`, `task`, and `utils` work.
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export PYTHONPATH="${PROJECT_ROOT}:${PROJECT_ROOT}/XPolicyLab:${PYTHONPATH:-}"
+export OMNI_KIT_ACCEPT_EULA="${OMNI_KIT_ACCEPT_EULA:-YES}"
+export ACCEPT_EULA="${ACCEPT_EULA:-Y}"
+export PRIVACY_CONSENT="${PRIVACY_CONSENT:-Y}"
 echo "[INFO] PYTHONPATH=${PYTHONPATH}"
 
 # Usage:

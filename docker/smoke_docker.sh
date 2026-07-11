@@ -18,7 +18,7 @@
 #   ROBODOJO_IMAGE=robodojo:cuda12.8  ROBODOJO_SMOKE_TASK=stack_bowls
 #   ROBODOJO_SMOKE_POLICY=demo_policy ROBODOJO_SMOKE_PORT=6060
 #   ROBODOJO_SMOKE_ENV_CFG=arx_x5     ROBODOJO_SMOKE_ACTION_TYPE=joint
-#   ROBODOJO_SMOKE_EVAL_NUM=1         ROBODOJO_CONDA_ENV=RoboDojo
+#   ROBODOJO_SMOKE_EVAL_NUM=1
 
 set -uo pipefail
 
@@ -33,7 +33,6 @@ PORT="${ROBODOJO_SMOKE_PORT:-6060}"
 ENV_CFG="${ROBODOJO_SMOKE_ENV_CFG:-arx_x5}"
 ACTION_TYPE="${ROBODOJO_SMOKE_ACTION_TYPE:-joint}"
 EVAL_NUM="${ROBODOJO_SMOKE_EVAL_NUM:-1}"
-CONDA_ENV="${ROBODOJO_CONDA_ENV:-RoboDojo}"
 CUDA_BASE_IMAGE="${ROBODOJO_CUDA_BASE_IMAGE:-nvidia/cuda:12.8.1-base-ubuntu22.04}"
 
 # ── China mirror build args (resolved at run time; ROBODOJO_CN_MIRRORS=1/0) ───
@@ -51,9 +50,7 @@ resolve_build_args() {
     if [[ "${CN_MIRRORS}" == "1" ]]; then
         BUILD_ARGS=(
             --build-arg "UBUNTU_MIRROR=${ROBODOJO_UBUNTU_MIRROR:-mirrors.tuna.tsinghua.edu.cn}"
-            --build-arg "PIP_INDEX_URL=${ROBODOJO_PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}"
-            --build-arg "MINICONDA_URL=${ROBODOJO_MINICONDA_URL:-https://mirrors.tuna.tsinghua.edu.cn/anaconda/miniconda/Miniconda3-latest-Linux-x86_64.sh}"
-            --build-arg "CONDA_CHANNEL_MIRROR=${ROBODOJO_CONDA_CHANNEL_MIRROR:-https://mirrors.tuna.tsinghua.edu.cn/anaconda}"
+            --build-arg "PYPI_INDEX_URL=${ROBODOJO_PYPI_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}"
         )
     fi
 }
@@ -141,15 +138,8 @@ phase_build() {
 
 phase_server() {
     phase server "${SERVER_LOG}"
-    local conda_base
-    conda_base="$(conda info --base 2>/dev/null || echo "${HOME}/miniconda3")"
-    # shellcheck disable=SC1091
-    source "${conda_base}/etc/profile.d/conda.sh" 2>/dev/null \
-        || fail server "cannot source conda from ${conda_base}"
-    conda activate "${CONDA_ENV}" 2>/dev/null || fail server "cannot activate conda env '${CONDA_ENV}'"
-
     PYTHONPATH="${ROOT_DIR}:${ROOT_DIR}/XPolicyLab" \
-    nohup python "${ROOT_DIR}/XPolicyLab/setup_policy_server.py" \
+    nohup uv run --directory "${ROOT_DIR}" --locked python "${ROOT_DIR}/XPolicyLab/setup_policy_server.py" \
         --config_path "${ROOT_DIR}/XPolicyLab/policy/${POLICY}/deploy.yml" \
         --protocol ws \
         --overrides port="${PORT}" host=127.0.0.1 dataset_name=RoboDojo \

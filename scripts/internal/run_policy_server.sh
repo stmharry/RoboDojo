@@ -17,7 +17,7 @@ env_cfg_type=$4
 action_type=$5
 seed=$6
 policy_gpu_id=$7
-policy_conda_env=$8
+policy_env=$8
 policy_server_port=$9
 policy_server_host="${10:-0.0.0.0}"
 
@@ -47,6 +47,6 @@ exec bash setup_eval_policy_server.sh \
   "${action_type}" \
   "${seed}" \
   "${policy_gpu_id}" \
-  "${policy_conda_env}" \
+  "${policy_env}" \
   "${policy_server_port}" \
   "${policy_server_host}"

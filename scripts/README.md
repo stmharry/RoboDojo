@@ -5,11 +5,14 @@
 | Script | Purpose |
 | --- | --- |
 | [robodojo.sh](robodojo.sh) | Main CLI: `doctor`, `eval`, `client`, `smoke`, `benchmark`, `summarize`, `tasks` |
-| [install.sh](install.sh) | One-time environment setup (conda, Isaac Sim, submodules) |
+| [install.sh](install.sh) | One-time locked uv setup (Python 3.11, Isaac Sim, submodules) |
 | [init_assets.sh](init_assets.sh) | Download robot/object assets |
 | [eval_policy.sh](eval_policy.sh) | Isaac Sim eval client (called by `robodojo.sh client` and XPolicyLab) |
 
 ## Typical eval flow
+
+Run native commands as `uv run --locked bash scripts/robodojo.sh …` so the
+simulator always uses the committed lockfile.
 
 ```text
 robodojo.sh eval

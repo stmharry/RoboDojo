@@ -55,6 +55,26 @@ XPolicyLab/            policy server and policy integrations
 Assets/                downloaded robot, object, material, and layout assets
 ```
 
+## 🚀 Local Setup
+
+RoboDojo uses a locked [uv](https://docs.astral.sh/uv/) environment with Python
+3.11. Initialize the pinned submodules and simulator environment with:
+
+```bash
+bash scripts/install.sh --install
+```
+
+After setup, run every native command through the lockfile:
+
+```bash
+uv run --locked bash scripts/robodojo.sh doctor --skip-policy
+uv run --locked bash scripts/robodojo.sh tasks
+```
+
+The simulator environment is always the repository's `.venv`. Policy servers
+remain independent and `--policy-env` may identify a uv project, environment
+path, or policy-specific Conda environment.
+
 ## 🔌 Policy Integration
 
 Policies live in [XPolicyLab](https://github.com/XPolicyLab/XPolicyLab/blob/main/README.md), which owns policy structure, dependencies, checkpoint layout, and server behavior. RoboDojo only assumes a policy directory provides:

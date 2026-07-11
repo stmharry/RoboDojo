@@ -22,20 +22,25 @@
 ARG CUDA_IMAGE=nvidia/cuda:12.8.1-cudnn-devel-ubuntu22.04
 FROM ${CUDA_IMAGE}
 
+COPY --from=ghcr.io/astral-sh/uv:0.11.21 /uv /uvx /bin/
+
 SHELL ["/bin/bash", "-c"]
 
 ENV DEBIAN_FRONTEND=noninteractive \
     NVIDIA_VISIBLE_DEVICES=all \
     NVIDIA_DRIVER_CAPABILITIES=all \
     CUDA_HOME=/usr/local/cuda \
-    PATH=/usr/local/cuda/bin:/root/miniconda3/bin:${PATH} \
+    PATH=/workspace/RoboDojo/.venv/bin:/usr/local/cuda/bin:${PATH} \
     LD_LIBRARY_PATH=/usr/local/cuda/lib64:${LD_LIBRARY_PATH} \
     OMNI_KIT_ACCEPT_EULA=YES \
     ACCEPT_EULA=Y \
     PRIVACY_CONSENT=Y \
     TERM=xterm-256color \
-    PIP_USER=0 \
     PYTHONNOUSERSITE=1 \
+    UV_LINK_MODE=copy \
+    UV_PROJECT_ENVIRONMENT=/workspace/RoboDojo/.venv \
+    UV_PYTHON_INSTALL_DIR=/opt/uv/python \
+    SETUPTOOLS_SCM_PRETEND_VERSION_FOR_NVIDIA_CUROBO=0.0.post1.dev100 \
     FORCE_CUDA=1 \
     TORCH_CUDA_ARCH_LIST="7.0;7.5;8.0;8.6;8.9;9.0+PTX"
 
@@ -43,16 +48,12 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # The image is unchanged for normal builds. On a China network, enable mirrors:
 #   docker build \
 #     --build-arg UBUNTU_MIRROR=mirrors.tuna.tsinghua.edu.cn \
-#     --build-arg PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
-#     --build-arg MINICONDA_URL=https://mirrors.tuna.tsinghua.edu.cn/anaconda/miniconda/Miniconda3-latest-Linux-x86_64.sh \
-#     --build-arg CONDA_CHANNEL_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/anaconda \
+#     --build-arg PYPI_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
 #     -t robodojo:cuda12.8 .
 # (docker/smoke_docker.sh sets all of these when ROBODOJO_CN_MIRRORS=1.)
 ARG UBUNTU_MIRROR=""
-ARG PIP_INDEX_URL="https://pypi.org/simple"
-ARG MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh"
-ARG CONDA_CHANNEL_MIRROR=""
-ENV PIP_INDEX_URL=${PIP_INDEX_URL}
+ARG PYPI_INDEX_URL="https://pypi.org/simple"
+ENV UV_DEFAULT_INDEX=${PYPI_INDEX_URL}
 
 # ── System dependencies ──────────────────────────────────────────────────────
 # setup_system() from scripts/install.sh (cmake, build-essential, ffmpeg) plus
@@ -118,65 +119,15 @@ EOF
 
 WORKDIR /workspace/RoboDojo
 
-# ── Miniconda + RoboDojo env ─────────────────────────────────────────────────
-# setup_conda() from scripts/install.sh: Miniconda under $HOME/miniconda3 and a
-# Python 3.11 env named `RoboDojo` (the simulator conda env used by all scripts).
-RUN wget -q "${MINICONDA_URL}" -O /tmp/miniconda.sh && \
-    bash /tmp/miniconda.sh -b -p /root/miniconda3 && \
-    rm -f /tmp/miniconda.sh && \
-    conda config --set always_yes yes && \
-    if [ -n "${CONDA_CHANNEL_MIRROR}" ]; then \
-        conda config --add default_channels "${CONDA_CHANNEL_MIRROR}/pkgs/main" && \
-        conda config --add default_channels "${CONDA_CHANNEL_MIRROR}/pkgs/r" && \
-        conda config --set show_channel_urls yes && \
-        conda config --set channel_alias "${CONDA_CHANNEL_MIRROR}/cloud"; \
-    fi && \
-    (conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main || true) && \
-    (conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r || true) && \
-    conda create -n RoboDojo python=3.11 -y && \
-    conda clean -afy
-
-# Run every subsequent build step inside the RoboDojo env.
-SHELL ["conda", "run", "--no-capture-output", "-n", "RoboDojo", "/bin/bash", "-c"]
-
-# ── Base pip dependencies ────────────────────────────────────────────────────
-# setup_base_deps() from scripts/install.sh. requirements.txt is copied on its
-# own so this layer caches independently of the rest of the source tree.
-COPY scripts/requirements.txt /workspace/RoboDojo/scripts/requirements.txt
-RUN python -m pip install --upgrade pip && \
-    python -m pip install -r scripts/requirements.txt && \
-    python -m pip install opencv-python-headless==4.11.0.86 pillow matplotlib "scipy==1.15.3" scikit-learn && \
-    python -m pip install numpy==1.26.0
-
-# ── PyTorch (cu128) + Isaac Sim 5.1 ──────────────────────────────────────────
-# setup_isaacsim() from scripts/install.sh.
-RUN python -m pip install "numpy==1.26.0" "typing_extensions==4.12.2" "filelock==3.13.1" && \
-    python -m pip install torch==2.7.0 torchvision==0.22.0 torchaudio==2.7.0 \
-        --index-url https://download.pytorch.org/whl/cu128 && \
-    python -m pip install "isaacsim[all,extscache]==5.1.0" --extra-index-url https://pypi.nvidia.com
-
-# ── IsaacLab + CuRobo (built from the vendored submodules) ───────────────────
-# setup_isaaclab() + setup_curobo() + repin_after_curobo() from
-# scripts/install.sh. The submodules are COPYed in; their `.git` submodule pointer
-# files are stripped later (see below) so we never touch git at build/run time.
-# Only third_party/ is copied here so a source edit does not invalidate these
-# expensive build layers.
+# ── Locked uv environment ─────────────────────────────────────────────────────
+# Copy dependency metadata and local editable sources before application code so
+# the expensive Isaac Sim/IsaacLab/CuRobo layer remains cached across source edits.
+COPY pyproject.toml uv.lock README.md LICENSE /workspace/RoboDojo/
 COPY third_party/ /workspace/RoboDojo/third_party/
-# `--install none` installs all core IsaacLab extensions but skips the RL learning
-# frameworks (rl_games/rsl_rl/skrl/sb3). RoboDojo eval does not use them, and
-# rl_games is pulled from git+github (unreachable/timeouts on some networks).
-RUN cd third_party/IsaacLab && ./isaaclab.sh --install none
-RUN cd third_party/curobo && \
-    python -m pip uninstall -y nvidia-curobo curobo 2>/dev/null || true && \
-    python -m pip install -e ".[cu12]" --no-build-isolation
-RUN python -m pip install \
-        "numpy==1.26.0" \
-        "packaging==23.0" \
-        "typing_extensions==4.12.2" \
-        "filelock==3.13.1" \
-        "websockets==12.0" \
-        "scipy==1.15.3" \
-        "warp-lang==1.11.0"
+# Submodule .git files point outside the Docker context. Remove them before uv
+# asks setuptools-scm to build the local editable CuRobo package.
+RUN find /workspace/RoboDojo/third_party -name .git -prune -exec rm -rf {} + 2>/dev/null; true
+RUN uv python install 3.11 && uv sync --locked --no-dev --no-cache
 
 # ── RoboDojo source + XPolicyLab client/adapter code ─────────────────────────
 # Explicit copies (not `COPY .`) so we do not clobber the compiled artifacts
@@ -189,16 +140,6 @@ COPY src/ /workspace/RoboDojo/src/
 COPY utils/ /workspace/RoboDojo/utils/
 COPY scripts/ /workspace/RoboDojo/scripts/
 COPY XPolicyLab/ /workspace/RoboDojo/XPolicyLab/
-COPY pyproject.toml README.md LICENSE /workspace/RoboDojo/
-
-# ── Strip broken submodule .git pointers ─────────────────────────────────────
-# Vendored submodules are copied with their `.git` files (a submodule `.git` is a
-# FILE, so `.dockerignore`'s `.git/` directory rule misses it). curobo detects its
-# version via setuptools_scm whenever a `.git` exists, which raises LookupError at
-# import time in-image (no real git repo behind the pointer) and crashes eval.
-# Removing them makes curobo fall back to the installed package version. This is a
-# late, cheap layer so the expensive IsaacLab/curobo build layers stay cached.
-RUN find /workspace/RoboDojo/third_party -name .git -prune -exec rm -rf {} + 2>/dev/null; true
 
 # ── Headless RTX render deps + single Vulkan ICD (late, cheap layers) ─────────
 SHELL ["/bin/bash", "-c"]

@@ -42,7 +42,7 @@ eval_result/                 runtime eval output
 
 ## Eval Commands & Flow
 
-**CLI** (`bash scripts/robodojo.sh <command>`):
+**CLI** (`uv run --locked bash scripts/robodojo.sh <command>`):
 
 | Command | Purpose |
 | :-- | :-- |
@@ -80,15 +80,15 @@ robodojo.sh client  →  scripts/eval_policy.sh  →  src/eval_client/main.py
 Fast validation:
 
 ```bash
-bash scripts/robodojo.sh doctor --skip-isaac --skip-conda --skip-policy
-bash scripts/robodojo.sh eval --policy-dir XPolicyLab/policy/<POLICY> --task stack_bowls --ckpt <CKPT> --policy-env <ENV> --dry-run
-bash scripts/robodojo.sh smoke --policy-dir XPolicyLab/policy/<POLICY> --ckpt <CKPT> --policy-env <ENV> --only stack_bowls,push_T --dry-run
+uv run --locked bash scripts/robodojo.sh doctor --skip-isaac --skip-policy
+uv run --locked bash scripts/robodojo.sh eval --policy-dir XPolicyLab/policy/<POLICY> --task stack_bowls --ckpt <CKPT> --policy-env <ENV> --dry-run
+uv run --locked bash scripts/robodojo.sh smoke --policy-dir XPolicyLab/policy/<POLICY> --ckpt <CKPT> --policy-env <ENV> --only stack_bowls,push_T --dry-run
 ```
 
 Full eval-infrastructure acceptance is **sequential**, not parallel:
 
 ```bash
-bash scripts/robodojo.sh smoke --policy-dir XPolicyLab/policy/<POLICY> --ckpt <CKPT> --policy-env <ENV> --fail-fast
+uv run --locked bash scripts/robodojo.sh smoke --policy-dir XPolicyLab/policy/<POLICY> --ckpt <CKPT> --policy-env <ENV> --fail-fast
 ```
 
 New code imports from `env.*`.
@@ -98,7 +98,7 @@ New code imports from `env.*`.
 - **54 runnable task configs** (42 base + 12 `_random` generalization variants).
 - Registration is dynamic: `task_registry.load_task_class(task_name)` imports `task.RoboDojo.tasks.<task_name>` and expects class name == module name.
 - Config path: `task/RoboDojo/config/<task_name>.yml`.
-- Inventory: `bash scripts/robodojo.sh tasks` or `python scripts/internal/task_inventory.py --format json --check`.
+- Inventory: `uv run --locked bash scripts/robodojo.sh tasks` or `uv run --locked python scripts/internal/task_inventory.py --format json --check`.
 - `task/RoboDojo/demos/` (e.g. `dlc`) is outside the benchmark inventory scan.
 
 ## Naming
@@ -167,8 +167,8 @@ Use the **smallest loop** that proves the current change.
 
 ```bash
 bash -n scripts/robodojo.sh scripts/eval_policy.sh
-python scripts/internal/task_inventory.py --format json --check
-bash scripts/robodojo.sh doctor --skip-isaac --skip-conda --skip-policy
+uv run --locked python scripts/internal/task_inventory.py --format json --check
+uv run --locked bash scripts/robodojo.sh doctor --skip-isaac --skip-policy
 ruff check .
 git diff --check
 ```
@@ -176,13 +176,13 @@ git diff --check
 ### Dry-run eval path (no Isaac, no policy server)
 
 ```bash
-bash scripts/robodojo.sh eval \
+uv run --locked bash scripts/robodojo.sh eval \
   --policy-dir XPolicyLab/policy/<POLICY_NAME> \
   --task stack_bowls \
   --ckpt <CKPT_NAME> \
   --policy-env <POLICY_ENV> \
   --dry-run
-bash scripts/robodojo.sh smoke \
+uv run --locked bash scripts/robodojo.sh smoke \
   --policy-dir XPolicyLab/policy/<POLICY_NAME> \
   --ckpt <CKPT_NAME> \
   --policy-env <POLICY_ENV> \
@@ -193,7 +193,7 @@ bash scripts/robodojo.sh smoke \
 ### Runtime (Isaac Sim + policy ready)
 
 ```bash
-bash scripts/robodojo.sh eval \
+uv run --locked bash scripts/robodojo.sh eval \
   --policy-dir XPolicyLab/policy/<POLICY_NAME> \
   --task stack_bowls \
   --ckpt <CKPT_NAME> \
@@ -244,7 +244,7 @@ Type-specific red flags to check first:
 
 When creating a PR (`gh pr create`):
 - Title: `[Scope] type: description (≤70 chars)`
-- Body: summary bullets, affected tasks, test plan (`bash scripts/robodojo.sh eval ...` or task-specific eval).
+- Body: summary bullets, affected tasks, test plan (`uv run --locked bash scripts/robodojo.sh eval ...` or task-specific eval).
 
 ---
 

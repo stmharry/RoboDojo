@@ -13,7 +13,6 @@ seed="0"
 policy_gpu="0"
 env_gpu="0"
 policy_env=""
-eval_env="RoboDojo"
 eval_num="1"
 policy_dir=""
 run_id="$(date +%Y-%m-%d_%H-%M-%S)_smoke"
@@ -53,7 +52,6 @@ Options:
   --policy-gpu ID     GPU id for policy server (default: 0)
   --env-gpu ID        GPU id for Isaac Sim client (default: 0)
   --policy-env NAME   Policy conda env or uv env path (required)
-  --eval-env NAME     Simulator conda env (default: RoboDojo)
   --policy-dir PATH   Policy directory containing eval.sh (required)
   -h, --help          Show this help
 
@@ -100,7 +98,6 @@ while [[ $# -gt 0 ]]; do
     --policy-gpu) need_value "$@"; policy_gpu="$2"; shift 2 ;;
     --env-gpu) need_value "$@"; env_gpu="$2"; shift 2 ;;
     --policy-env) need_value "$@"; policy_env="$2"; shift 2 ;;
-    --eval-env) need_value "$@"; eval_env="$2"; shift 2 ;;
     --policy-dir) need_value "$@"; policy_dir="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *)
@@ -301,7 +298,6 @@ for task in "${TASKS[@]}"; do
     --policy-gpu "${policy_gpu}"
     --env-gpu "${env_gpu}"
     --policy-env "${policy_env}"
-    --eval-env "${eval_env}"
     --policy-dir "${policy_dir}"
   )
   if [[ "${eval_num}" != "native" ]]; then

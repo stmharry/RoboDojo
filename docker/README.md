@@ -8,7 +8,7 @@ client talks to it over the default WebSocket transport (`protocol: ws` in
 `deploy.yml`), so one image can evaluate any policy.
 
 - Base image: `nvidia/cuda:12.8.1-cudnn-devel-ubuntu22.04` (Ubuntu 22.04 + CUDA 12.8)
-- Conda env inside the image: `RoboDojo` (Python 3.11)
+- Locked uv env inside the image: `/workspace/RoboDojo/.venv` (Python 3.11)
 - Project root inside the container: `/workspace/RoboDojo`
 
 ```mermaid
@@ -33,8 +33,9 @@ bash docker/smoke_docker.sh run             # build the image, run a demo eval, 
 ```
 
 The last command prints a per-phase `PASS/FAIL` table and writes a result file.
-(Step 4 uses the bundled demo server, which needs the native `RoboDojo` env. No
-native env? Build the image and jump to [step 5](#5-evaluate-your-own-policy).)
+(Step 4 uses the bundled demo server, which needs the native locked uv
+environment. Run `bash scripts/install.sh --install` first, or build the image
+and jump to [step 5](#5-evaluate-your-own-policy).)
 
 Everything below explains each step and how to plug in your own policy.
 
@@ -112,9 +113,9 @@ checks the reward, and writes a valid result:
 
 Watch progress live from a second terminal with `bash docker/smoke_docker.sh monitor`.
 
-> **Note:** `smoke_docker.sh` launches the demo server **on the host** using the
-> native `RoboDojo` conda env (from `scripts/install.sh`). If you don't have the
-> native env and only want Docker, skip this step and go to
+> **Note:** `smoke_docker.sh` launches the demo server **on the host** with
+> `uv run --locked`. If you don't have the native `.venv` and only want Docker,
+> skip this step and go to
 > [step 5](#5-evaluate-your-own-policy), pointing the eval at any policy server you
 > run yourself — the demo server is only a convenience.
 
@@ -230,8 +231,8 @@ libs) and pins a **single Vulkan ICD** via `ENV VK_ICD_FILENAMES` /
 GPU wedge RTX init on the first frame). This requires `--gpus all` and
 `NVIDIA_DRIVER_CAPABILITIES=all` (set by default).
 
-**Build args.** `CUDA_IMAGE` (base image), plus the China mirrors `UBUNTU_MIRROR`,
-`PIP_INDEX_URL`, `MINICONDA_URL`, `CONDA_CHANNEL_MIRROR` (see the `Dockerfile`
+**Build args.** `CUDA_IMAGE` (base image), plus the China mirrors `UBUNTU_MIRROR`
+and `PYPI_INDEX_URL` (see the `Dockerfile`
 header and [Appendix B](#appendix-b-china-networks)).
 
 **Validate the image without a policy server**
@@ -258,8 +259,6 @@ is told, via `ROBODOJO_CN_MIRRORS=1`) a China network. For a manual `docker buil
 ```bash
 docker build \
   --build-arg UBUNTU_MIRROR=mirrors.tuna.tsinghua.edu.cn \
-  --build-arg PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
-  --build-arg MINICONDA_URL=https://mirrors.tuna.tsinghua.edu.cn/anaconda/miniconda/Miniconda3-latest-Linux-x86_64.sh \
-  --build-arg CONDA_CHANNEL_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/anaconda \
+  --build-arg PYPI_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
   -t robodojo:cuda12.8 .
 ```
