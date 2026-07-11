@@ -30,6 +30,14 @@ runs/smoke/
 roots. With no storage variables, the existing repository-local defaults are
 unchanged. `ROBO_DOJO_DATA_ROOT` remains a legacy data-root fallback.
 
+Summaries always read the durable evaluation root, but storage mode writes the
+generated Markdown to local scratch at `runs/reports/_summary.md`. Override the
+destination with `ROBODOJO_SUMMARY_PATH` or, at highest precedence:
+
+```bash
+bash scripts/robodojo.sh summarize --output /local/path/summary.md
+```
+
 Do not put AWS credentials in this repository or `.env`. The storage helper
 uses the standard AWS CLI credential provider chain. The mount must remain
 read-only even when the publishing IAM user has prefix-scoped write access.

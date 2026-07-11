@@ -18,6 +18,7 @@ STORAGE_ENV = [
     "ROBODOJO_EVAL_WORK_ROOT",
     "ROBODOJO_RUN_ROOT",
     "ROBODOJO_RUN_WORK_ROOT",
+    "ROBODOJO_SUMMARY_PATH",
 ]
 
 
@@ -33,6 +34,7 @@ def test_unset_storage_preserves_repo_local_defaults():
     assert storage.eval_root() == storage.REPO_ROOT / "eval_result" / "RoboDojo"
     assert storage.eval_work_root() == storage.eval_root()
     assert storage.run_root() == storage.REPO_ROOT / "smoke_results"
+    assert storage.summary_path() == storage.REPO_ROOT / "eval_result" / "RoboDojo" / "_summary.md"
 
 
 def test_canonical_storage_layout_and_local_work(monkeypatch, tmp_path):
@@ -49,6 +51,7 @@ def test_canonical_storage_layout_and_local_work(monkeypatch, tmp_path):
     assert storage.eval_work_root() == scratch / "eval_result" / "RoboDojo"
     assert storage.run_root() == durable / "runs"
     assert storage.run_work_root() == scratch / "runs"
+    assert storage.summary_path() == scratch / "runs" / "reports" / "_summary.md"
 
 
 def test_exact_overrides_and_legacy_data_precedence(monkeypatch, tmp_path):
@@ -59,6 +62,14 @@ def test_exact_overrides_and_legacy_data_precedence(monkeypatch, tmp_path):
     monkeypatch.setenv("ROBODOJO_EVAL_ROOT", str(tmp_path / "eval"))
     assert storage.data_root() == tmp_path / "current"
     assert storage.eval_root() == tmp_path / "eval"
+
+
+def test_summary_path_override_precedence(monkeypatch, tmp_path):
+    monkeypatch.setenv("ROBODOJO_STORAGE_ROOT", str(tmp_path / "mount"))
+    monkeypatch.setenv("ROBODOJO_LOCAL_SCRATCH_ROOT", str(tmp_path / "scratch"))
+    monkeypatch.setenv("ROBODOJO_SUMMARY_PATH", str(tmp_path / "environment.md"))
+    assert storage.summary_path() == tmp_path / "environment.md"
+    assert storage.summary_path(tmp_path / "cli.md") == tmp_path / "cli.md"
 
 
 @pytest.mark.parametrize(

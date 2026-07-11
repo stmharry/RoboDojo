@@ -27,6 +27,7 @@ Rules:
     score        = sum(scores) / count * 100
 """
 
+import argparse
 import json
 import os
 from pathlib import Path
@@ -35,11 +36,10 @@ import statistics
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from utils.storage import eval_root, storage_mode
+from utils.storage import eval_root, storage_mode, summary_path
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT = str(eval_root())
-OUTPUT_MD = os.path.join(ROOT, "_summary.md")
 
 SEED_RE = re.compile(r"^(\d+)_")
 STANDALONE_EPISODES = 50
@@ -197,7 +197,18 @@ def is_paired_task(task, random_of):
     return task in GENERALIZATION_TASKS and task in random_of
 
 
-def main():
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description="Aggregate RoboDojo evaluation results into Markdown.")
+    parser.add_argument(
+        "--output",
+        help="Markdown output path (default: ROBODOJO_SUMMARY_PATH or a writable local path)",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv=None):
+    args = parse_args(argv)
+    output_md = summary_path(args.output)
     if not os.path.isdir(ROOT):
         raise SystemExit(
             f"Eval result directory not found: {ROOT}\n"
@@ -252,13 +263,13 @@ def main():
                 policy, _embodiment, seed = key
                 record(policy, task, seed, sr, score)
 
-    write_markdown(data, gen_split)
+    write_markdown(data, gen_split, output_md)
     n_cells = sum(len(seeds) for tasks in data.values() for seeds in tasks.values())
     complete = sum(1 for p in data if policy_is_complete(p, data))
     tested = sum(1 for p in data if policy_progress(p, data)[0] > 0)
     print(
         f"Wrote {len(data)} policy tables ({n_cells} filled cells, "
-        f"{tested} in overview, {complete} complete) to {OUTPUT_MD}"
+        f"{tested} in overview, {complete} complete) to {output_md}"
     )
 
 
@@ -650,7 +661,7 @@ def format_seed_avg_row(policy_data):
     return cells
 
 
-def write_markdown(data, gen_split):
+def write_markdown(data, gen_split, output_md):
     lines = ["# RoboDojo Evaluation Summary", ""]
     lines += build_overview(data)
     lines += build_generalization_split(gen_split)
@@ -675,7 +686,8 @@ def write_markdown(data, gen_split):
         lines.append("| " + " | ".join(format_seed_avg_row(policy_data)) + " |")
         lines.append("")
 
-    with open(OUTPUT_MD, "w") as fh:
+    output_md.parent.mkdir(parents=True, exist_ok=True)
+    with output_md.open("w", encoding="utf-8") as fh:
         fh.write("\n".join(lines) + "\n")
 
 

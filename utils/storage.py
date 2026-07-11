@@ -87,6 +87,18 @@ def run_work_root() -> Path:
     return run_root()
 
 
+def summary_path(override: os.PathLike[str] | str | None = None) -> Path:
+    """Writable Markdown summary path, separate from durable inputs."""
+    if override is not None:
+        return Path(os.path.expanduser(os.fspath(override))).resolve()
+    configured = _env_path("ROBODOJO_SUMMARY_PATH")
+    if configured:
+        return configured
+    if storage_mode():
+        return run_work_root() / "reports" / "_summary.md"
+    return eval_root() / "_summary.md"
+
+
 def s3_uri() -> str | None:
     value = os.environ.get("ROBODOJO_S3_URI", "").strip().rstrip("/")
     return value or None
