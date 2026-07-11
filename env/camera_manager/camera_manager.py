@@ -3,7 +3,6 @@ from copy import deepcopy
 import os
 from typing import List, Tuple
 
-import carb
 from isaacsim.core.prims import SingleGeometryPrim
 from isaacsim.core.simulation_manager import SimulationManager
 from isaacsim.core.utils.prims import is_prim_path_valid
@@ -16,6 +15,7 @@ from numpy import ndarray
 from omegaconf import DictConfig, OmegaConf
 import torch
 
+from env.camera_manager.mount_registry import apply_optical_roll
 from env.environment.isaac.isaac_rl_env import IsaacRLEnv
 from env.global_configs import *
 from env.seeding import seed_everywhere
@@ -51,6 +51,7 @@ class CameraManager:
         camera_config: DictConfig,
         device: torch.device,
         seeds_per_env: Sequence[int] | None = None,
+        mount_registry=None,
     ):
         """
         Initialize the CameraManager with the number of environments, camera configuration and device.
@@ -61,6 +62,7 @@ class CameraManager:
         self.camera_config = camera_config
         self.init_config = camera_config
         self.device = device
+        self.mount_registry = mount_registry
         self.sim: IsaacRLEnv = None
         self.cameras: List[List[Camera]] = []  # List of cameras for all environments
         self.cameras_xform_path: List[List[str]] = []  # List of camera xforms path
@@ -197,16 +199,15 @@ class CameraManager:
             self.camera_config = OmegaConf.create(config)
             for camera_name, camera_config in self.camera_config.items():
                 self.camera_names[env_id].append(camera_name)
-                if camera_config.camera.get("mount_link") is not None:
-                    cur_camera_xform_path = find_unique_string_name(
-                        env_name + "/" + camera_config.camera.mount_link + "/" + f"Camera_{cam_id}",
-                        is_unique_fn=lambda x: not is_prim_path_valid(x),
-                    )
-                else:
-                    cur_camera_xform_path = find_unique_string_name(
-                        env_name + f"/Camera_{cam_id}",
-                        is_unique_fn=lambda x: not is_prim_path_valid(x),
-                    )
+                parent_path = (
+                    self.mount_registry.resolve_parent_path(env_id, camera_config.camera)
+                    if self.mount_registry is not None
+                    else env_name
+                )
+                cur_camera_xform_path = find_unique_string_name(
+                    parent_path + "/" + f"Camera_{cam_id}",
+                    is_unique_fn=lambda x: not is_prim_path_valid(x),
+                )
                 self.cameras_xform_path[env_id].append(cur_camera_xform_path)
 
                 random_cfg = None
@@ -258,7 +259,7 @@ class CameraManager:
                     self.cameras_xform[env_id].append(cur_camera_xform)
 
                     cur_camera_path = cur_camera_xform_path + args_info["path"]
-                    cur_camera_resolution = args_info["resolution"]
+                    cur_camera_resolution = tuple(camera_config.camera.get("stream_resolution", args_info["resolution"]))
                     cur_camera = Camera(
                         prim_path=cur_camera_path,
                         resolution=cur_camera_resolution,
@@ -288,7 +289,7 @@ class CameraManager:
                     self._set_camera_semantics(cur_camera_xform, camera_name, camera_config)
                     self.cameras_xform[env_id].append(cur_camera_xform)
                     cur_camera_path = cur_camera_xform_path + args_info["path"]
-                    cur_camera_resolution = args_info["resolution"]
+                    cur_camera_resolution = tuple(camera_config.camera.get("stream_resolution", args_info["resolution"]))
                     cur_camera = Camera(
                         prim_path=cur_camera_path,
                         resolution=cur_camera_resolution,
@@ -320,7 +321,7 @@ class CameraManager:
                     )
                     self.cameras_xform[env_id].append(cur_camera_xform)
                     cur_camera_path = cur_camera_xform_path + f"/{camera_name}"
-                    cur_camera_resolution = args_info["resolution"]
+                    cur_camera_resolution = tuple(camera_config.camera.get("stream_resolution", args_info["resolution"]))
                     cur_camera = Camera(
                         prim_path=cur_camera_path,
                         resolution=cur_camera_resolution,
@@ -446,6 +447,13 @@ class CameraManager:
                         orientation = torch.tensor(camera_config.camera.ori)
                 else:
                     orientation = euler_angles_to_quat(torch.tensor([0, 0, 0]))
+                orientation = torch.as_tensor(
+                    apply_optical_roll(
+                        orientation.detach().cpu().numpy(),
+                        float(camera_config.camera.get("optical_roll_deg", 0.0)),
+                    ),
+                    dtype=torch.float32,
+                )
                 if hasattr(camera_config.camera, "pos") and camera_config.camera.pos is not None:
                     position = torch.tensor(camera_config.camera.pos)
                 else:
@@ -485,7 +493,7 @@ class CameraManager:
         args_info = REAL_MAP.get(camera_cfg.camera.type, None)
         if args_info is None or "focal_length" not in args_info or "horizontal_aperture" not in args_info:
             return np.eye(3, dtype=np.float64)
-        width, height = args_info["resolution"]
+        width, height = camera_cfg.camera.get("stream_resolution", args_info["resolution"])
         fx = (width * args_info["focal_length"]) / args_info["horizontal_aperture"]
         cx, cy = width / 2.0, height / 2.0
         return np.array([[fx, 0, cx], [0, fx, cy], [0, 0, 1]], dtype=np.float64)

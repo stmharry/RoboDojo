@@ -1,27 +1,26 @@
 default_frequency: 30
-annotator: &annotators
+annotator:
   common:
     enabled: true
     rgb_capture: {type: rgb, device: cpu}
 
 camera_rig:
-  profile_id: openarm_policy_original
+  profile_id: openarm_dyna
   cameras:
     cam_head:
       role: base
       type: openarm_base
       mesh: pinhole
       sensor:
-        vendor: Fafeicy
-        model: OV2710
+        vendor: Waveshare
+        model: OV2710_2MP_USB_Camera_A_SKU_14121
         native_resolution: [1920, 1080]
         stream_resolution: [640, 480]
         fps: 30
-        diagonal_fov_deg: 140.0
+        diagonal_fov_deg: 145.0
       mount:
         kind: scene_fixture
         target: camera_stand
-        # Fixture-local reconstruction of upstream world [0,-0.41,1.308], Rx(30).
         position: [0.0, -0.543, 0.060]
         orientation: [120.0, 0.0, 0.0]
         optical_roll_deg: 180.0
@@ -31,10 +30,10 @@ camera_rig:
         backend: pinhole_postprocess
         cx: 320.0
         cy: 240.0
-        fx: 327.4045
-        fy: 327.4045
+        fx: 316.1146
+        fy: 316.1146
         distortion_coefficients: [0.0, 0.0, 0.0, 0.0]
-    cam_left_wrist: &left_wrist
+    cam_left_wrist:
       role: left_wrist
       type: openarm_wrist
       mesh: pinhole

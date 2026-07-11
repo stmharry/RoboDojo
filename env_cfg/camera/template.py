@@ -44,4 +44,12 @@ OPENARM_WRIST = {
     "vertical_aperture": 12.375,
     "clipping_range": (0.005, 10.0),
 }
+CAMERA_TYPE_RESOLUTIONS = {
+    "Gemini_345Lg": GEMINI_345LG["resolution"],
+    "third_view": THIRD_VIEW["resolution"],
+    "d435": D435["resolution"],
+    "large_d435": LARGE_D435["resolution"],
+    "openarm_base": OPENARM_BASE["resolution"],
+    "openarm_wrist": OPENARM_WRIST["resolution"],
+}
 PINHOLE = {"position": (0.0, 0.0, 0.0), "orientation": (1.0, 0.0, 0.0, 0.0)}

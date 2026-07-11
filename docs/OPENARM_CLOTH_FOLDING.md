@@ -1,8 +1,14 @@
-# Protocol-corrected OpenARM cloth folding
+# Layered OpenARM cloth-folding camera rigs
 
-This profile mirrors the documented LeRobot cloth-folding setup: dual OpenARM with
-the 5 cm upper-arm extension and larger jaws, a white folding table, one base
-camera, two wrist cameras, and a native LeRobot π0.5 checkpoint.
+RoboDojo exposes two sensor profiles over one embodiment, scene, policy tensor
+contract, and upstream camera stand. `openarm_cloth_folding` is the checkpoint's
+policy-original rig. `openarm_cloth_folding_dyna` changes only the base sensor
+projection to represent the DYNA hardware and is a domain-gap diagnostic.
+
+Camera configuration is normalized into four layers: sensor identity and stream,
+mount target and optical roll, projection, and capture key/annotators. Scene and
+robot managers publish fixture and link mounts; the camera manager resolves them.
+Existing flat camera YAML remains supported by the legacy normalizer.
 
 ## Setup
 
@@ -29,7 +35,8 @@ OMNI_KIT_ACCEPT_EULA=YES bash scripts/robodojo.sh eval \
   --eval-env RoboDojo --eval-num 1
 ```
 
-The adapter follows LeRobot's pinned real-robot evaluation loop: one
+Repeat the evaluation with `--env-cfg openarm_cloth_folding_dyna` for the DYNA
+diagnostic. The adapter follows LeRobot's pinned real-robot evaluation loop: one
 `predict_action_chunk` call per inference, asynchronous Real-Time Chunking with
 a 30-action queue, execution horizon 20, guidance 5.0, LINEAR prefix attention,
 relative-prefix re-anchoring, and 30→90 Hz action interpolation. The simulator
@@ -52,7 +59,15 @@ ROBODOJO_OPENARM_ZERO_ACTION=1 ROBODOJO_OPENARM_SMOKE_STEPS=30 \
   --eval-env RoboDojo --eval-num 1
 
 conda run -n RoboDojo python scripts/validate_openarm_visuals.py \
-  /path/to/generated/run --allow-partial
+  /path/to/generated/run --profile-id openarm_policy_original --allow-partial
+```
+
+For the second profile, pass `openarm_cloth_folding_dyna` to evaluation and
+`--profile-id openarm_dyna` to validation. The tracked asymmetric harness makes
+the three roll conventions inspectable without transposing landscape tensors:
+
+```bash
+conda run -n RoboDojo python scripts/render_camera_orientation_harness.py
 ```
 
 The validator streams frames 0, 10, and 30 directly from the pinned episode
@@ -67,10 +82,11 @@ right-first 16-D state/action ordering, saved normalization processors, and
 
 The tracked source manifest pins OpenARM Isaac Lab at
 `bad82e23716e6941c2de78ccb978f57c78b37734` and the supplied hardware changes
-at `ffe34b93c070343042eb9412fbfeffce16139947`. Camera placement, fisheye
-intrinsics, and orientation derive from the documented physical mounting roles,
-published camera/lens specifications, and OpenARM CAD. They remain explicit in
-the camera and generated robot configuration YAML. Isaac Sim 5.1's tiled
+at `ffe34b93c070343042eb9412fbfeffce16139947`. The base camera is a child of the
+downloaded `Geometry.camera_stand`, at fixture-local `[0, -0.543, 0.060]`,
+`Rx(120°)`, which reconstructs upstream world `[0, -0.41, 1.308]`, `Rx(30°)`.
+Its 180° optical roll places the embodiment at the top. Left and right wrist
+rolls are −90° and +90°. Isaac Sim 5.1's tiled
 Replicator path renders its native OpenCV-fisheye schema black, so the manager
 uses a calibrated pinhole backing projection and applies the same explicit
 equidistant model deterministically to captured RGB frames.
@@ -80,6 +96,8 @@ Authoritative references:
 - [Official folding setup](https://huggingface.co/spaces/lerobot/robot-folding)
 - [Pinned LeRobot evaluation script](https://github.com/huggingface/lerobot/blob/1396b9fab7aecddd10006c33c47a487ffdcb54b4/examples/rtc/eval_with_real_robot.py)
 - [Pinned checkpoint model card](https://huggingface.co/lerobot-data-collection/folding_final/blob/695abe40dbf3aac04efda59c1501d748681fa0fb/README.md)
+- [DYNA camera note](https://moonlakeai.slack.com/archives/C0BCJPA3T9R/p1782508159343489)
+- [Waveshare OV2710 Camera (A), SKU 14121](https://www.waveshare.com/wiki/OV2710_2MP_USB_Camera_%28A%29)
 
 Validation-only references:
 

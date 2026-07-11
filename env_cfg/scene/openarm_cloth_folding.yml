@@ -31,14 +31,10 @@ Ground:
     compliant_contact_stiffness: 0.0
     compliant_contact_damping: 0.0
 
-# Applied after the downloaded evaluation layout is loaded. Only fixture and
-# appearance keys are accepted; garment pose/physics and reward inputs cannot
-# be changed through this overlay.
-layout_overrides:
-  # The fold_clothes layout is shared with ARX X5 and contains that robot's
-  # freestanding camera mast. This is the only geometry category that the
-  # fixture override API permits removing.
-  remove_fixtures: [Geometry.camera_stand]
+# Applied after the downloaded evaluation layout is loaded. Only appearance
+# keys are accepted; fixtures, garment pose/physics, and reward inputs cannot
+# be changed through this overlay. The upstream Geometry.camera_stand remains.
+appearance_overrides:
   Room:
     default: Simple_Room_nolight
   Table:

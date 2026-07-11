@@ -599,6 +599,20 @@ class SceneManager:
                     continue
                 self.spawn_category_objects(env_id, cat_name, objects_cfg[physics_type][cat_name], exclude_types)
 
+    def resolve_camera_fixture_mount(self, env_id: int, fixture_label: str) -> str:
+        """Resolve a scene-published fixture label to its current prim path."""
+        matches = []
+        records_by_type = self.layout_manager.object_records_by_type
+        for object_type in ("Rigid", "Dynamic", "Geometry", "Articulation"):
+            records = records_by_type[object_type].layout_records_by_env[env_id]
+            matches.extend(record for record in records if record.get("label") == fixture_label)
+        if len(matches) != 1:
+            raise ValueError(f"camera fixture label {fixture_label!r} resolved to {len(matches)} instances")
+        prim_path = matches[0].get("prim_path")
+        if not prim_path:
+            raise ValueError(f"camera fixture {fixture_label!r} has no prim path")
+        return prim_path
+
     def close(self):
         self.layout_manager.close()
         for env_id in range(self.num_envs):

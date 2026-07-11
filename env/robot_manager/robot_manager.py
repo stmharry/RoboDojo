@@ -6,7 +6,7 @@ from typing import List, Literal
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.scene import InteractiveSceneCfg
 import numpy as np
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 import torch
 import transforms3d as t3d
 
@@ -426,16 +426,42 @@ class RobotManager:
         self.robot_init_joint = [dict() for _ in range(self.num_envs)]
         self.set_robot_init_pose()
 
-    def _load_camera_cfg(self, config: DictConfig):
-        was_struct = OmegaConf.is_struct(config)
-        OmegaConf.set_struct(config, False)
+    def get_camera_link_mounts(self, env_id: int) -> dict[str, str]:
+        """Publish stable logical link names that camera rigs may target."""
+        result = {}
+        scene_robot_index = 0
+        for index, robot in enumerate(self.robot_list):
+            if self.use_scene_cfg[index]:
+                robot_mount_name = f"robot{scene_robot_index}"
+                scene_robot_index += 1
+            else:
+                robot_mount_name = f"robot{scene_robot_index - 1}"
+            links = {robot.base_link, robot.ee_link_name}
+            for camera in getattr(robot, "camera", None) or []:
+                links.add(camera["link"])
+            for link in links:
+                target = f"{robot_mount_name}/{link}"
+                result[target] = f"/World/envs/env_{env_id}/{target}"
+        return result
+
+    def resolve_camera_link_mount(self, env_id: int, link_target: str) -> str:
+        """Resolve a robot-published logical link mount to an environment prim path."""
+        mounts = self.get_camera_link_mounts(env_id)
+        if link_target not in mounts:
+            raise ValueError(f"camera link target {link_target!r} is not published by the robot manager")
+        return mounts[link_target]
+
+    def get_camera_configs(self) -> dict:
+        """Return legacy robot-mounted camera sections without mutating the rig config."""
+        result = {}
 
         def _get_robot_mount_name(i: int, idx: int):
             if not self.use_scene_cfg[i]:
                 return f"robot{idx - 1}", idx
             return f"robot{idx}", idx + 1
 
-        def _apply_camera_cfg(camera_cfg: dict, target_cfg: dict, robot_mount_name: str):
+        def _camera_section(camera_cfg: dict, robot_mount_name: str):
+            target_cfg = {}
             target_cfg["mount_link"] = f"{robot_mount_name}/{camera_cfg['link']}"
             pos = camera_cfg.get("pos", None)
             if pos is not None:
@@ -443,9 +469,9 @@ class RobotManager:
             ori = camera_cfg.get("ori", None)
             if ori is not None:
                 target_cfg["ori"] = ori
-            type = camera_cfg.get("type", None)
-            if type is not None:
-                target_cfg["type"] = type
+            camera_type = camera_cfg.get("type", None)
+            if camera_type is not None:
+                target_cfg["type"] = camera_type
             mesh = camera_cfg.get("mesh", None)
             if mesh is not None:
                 target_cfg["mesh"] = mesh
@@ -460,49 +486,43 @@ class RobotManager:
                 "sensor_model",
                 "mount_basis",
                 "published_diagonal_fov_deg",
+                "optical_roll_deg",
+                "native_resolution",
+                "stream_resolution",
+                "sensor_vendor",
+                "sensor_fps",
             ):
                 if key in camera_cfg:
                     target_cfg[key] = camera_cfg[key]
+            return {"camera": target_cfg}
 
-        try:
-            # wrist camera
-            idx = 0
-            for i, robot in enumerate(self.robot_list):
-                if robot.type != "target":
-                    continue
-                robot_mount_name, idx = _get_robot_mount_name(i, idx)
-                camera_cfg = getattr(robot, "camera", None)
-                if camera_cfg is None:
-                    continue
-
-                for camera in camera_cfg:
-                    name = camera.get("name", None)
-                    if name.endswith("_wrist"):
-                        if self.target_arm_nums == 1:
-                            camera_name = name
-                        elif self.target_arm_nums == 2:
-                            camera_name = (
-                                name.replace("cam_", "cam_left_", 1)
-                                if i == 0
-                                else name.replace("cam_", "cam_right_", 1)
-                            )
-                        else:
-                            camera_name = f"{name}{i}"
-                    elif not self.use_scene_cfg[i]:
-                        continue
-                    else:
+        idx = 0
+        for i, robot in enumerate(self.robot_list):
+            if robot.type != "target":
+                continue
+            robot_mount_name, idx = _get_robot_mount_name(i, idx)
+            camera_cfg = getattr(robot, "camera", None)
+            if camera_cfg is None:
+                continue
+            for camera in camera_cfg:
+                name = camera.get("name", None)
+                if name.endswith("_wrist"):
+                    if self.target_arm_nums == 1:
                         camera_name = name
-
-                    config[camera_name] = {
-                        "camera": {},
-                    }
-                    _apply_camera_cfg(
-                        camera,
-                        config[camera_name]["camera"],
-                        robot_mount_name,
-                    )
-        finally:
-            OmegaConf.set_struct(config, was_struct)
+                    elif self.target_arm_nums == 2:
+                        camera_name = (
+                            name.replace("cam_", "cam_left_", 1)
+                            if i == 0
+                            else name.replace("cam_", "cam_right_", 1)
+                        )
+                    else:
+                        camera_name = f"{name}{i}"
+                elif not self.use_scene_cfg[i]:
+                    continue
+                else:
+                    camera_name = name
+                result[camera_name] = _camera_section(camera, robot_mount_name)
+        return result
 
     def _setup_robot_key(self):
         idx = 0

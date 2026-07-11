@@ -1,6 +1,8 @@
 from typing import Any, List
 
 from env.camera_manager.camera_manager import CameraManager
+from env.camera_manager.mount_registry import CameraMountRegistry
+from env.camera_manager.rig_spec import normalize_camera_rig
 from env.environment.base_env import BaseEnv
 from env.robot_manager.control_manager import ControlSeq
 from env.robot_manager.robot_manager import RobotManager
@@ -42,14 +44,16 @@ class TaskEnv(BaseEnv):
             task_config=config.task_env,
         )
 
-        self.robot_manager._load_camera_cfg(config.camera)
-        self.capture_config = config.camera
-        self.camera_config = config.camera
+        robot_cameras = self.robot_manager.get_camera_configs()
+        self.camera_rig = normalize_camera_rig(config.camera, robot_cameras=robot_cameras)
+        self.capture_config = self.camera_rig.runtime_config()
+        self.camera_config = self.capture_config
         self.camera_manager = CameraManager(
             self.num_envs,
             self.camera_config,
             self.device,
             seeds_per_env=self.env_seed_list,
+            mount_registry=CameraMountRegistry(self.scene_manager, self.robot_manager),
         )
         from env.camera_manager.capture.tiled_capture_manager import TiledCaptureManager
 

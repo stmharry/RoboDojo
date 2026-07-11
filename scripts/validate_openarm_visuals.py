@@ -105,6 +105,7 @@ def image_metrics(path: Path) -> dict:
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     height, width = gray.shape
     center = gray[height // 4 : 3 * height // 4, width // 4 : 3 * width // 4]
+    border = max(8, min(height, width) // 20)
     return {
         "p01": float(np.percentile(gray, 1)),
         "p99": float(np.percentile(gray, 99)),
@@ -112,7 +113,27 @@ def image_metrics(path: Path) -> dict:
         "dark_fraction": float(np.mean(gray < 45)),
         "bright_fraction": float(np.mean(gray > 205)),
         "center_dark_fraction": float(np.mean(center < 45)),
+        "edge_dark_fraction": {
+            "top": float(np.mean(gray[:border] < 70)),
+            "bottom": float(np.mean(gray[-border:] < 70)),
+            "left": float(np.mean(gray[:, :border] < 70)),
+            "right": float(np.mean(gray[:, -border:] < 70)),
+        },
     }
+
+
+def orientation_failures(camera: str, metrics: dict) -> list[str]:
+    """Coarse asymmetric-landmark gates; episode pixels never define camera poses."""
+    edge = metrics["edge_dark_fraction"]
+    failures = []
+    if camera == "base" and edge["top"] <= edge["bottom"] + 0.05:
+        failures.append("base: embodiment landmark is not predominantly at the top edge")
+    if camera in ("left_wrist", "right_wrist"):
+        horizontal_entry = edge["left"] + edge["right"]
+        vertical_entry = edge["top"] + edge["bottom"]
+        if horizontal_entry <= vertical_entry + 0.15:
+            failures.append(f"{camera}: jaw/link structures enter vertically instead of from the image sides")
+    return failures
 
 
 def histogram_distance(left: Path, right: Path) -> float:
@@ -137,7 +158,10 @@ def contact_sheet(reference: list[Path], rendered: list[Path], output: Path, lab
     for title, paths in (("official validation frames", reference), ("rendered rollout", rendered)):
         images = [cv2.imread(str(path), cv2.IMREAD_COLOR) for path in paths]
         target_height = 240
-        images = [cv2.resize(image, (round(image.shape[1] * target_height / image.shape[0]), target_height)) for image in images]
+        images = [
+            cv2.resize(image, (round(image.shape[1] * target_height / image.shape[0]), target_height))
+            for image in images
+        ]
         row = cv2.hconcat(images)
         cv2.putText(row, title, (12, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 180, 255), 2)
         rows.append(row)
@@ -162,6 +186,7 @@ def main() -> None:
     parser.add_argument("--cache-dir", type=Path, default=Path(".cache/openarm_visual_reference"))
     parser.add_argument("--report-dir", type=Path)
     parser.add_argument("--allow-partial", action="store_true", help="accept non-501-frame zero-action smoke videos")
+    parser.add_argument("--profile-id", required=True, choices=("openarm_policy_original", "openarm_dyna"))
     args = parser.parse_args()
     report_dir = args.report_dir or args.run_dir / "visual_validation"
     cache_root = args.cache_dir / REVISION
@@ -169,6 +194,7 @@ def main() -> None:
         "dataset": DATASET,
         "dataset_revision": REVISION,
         "role": "validation_only_not_geometry_or_camera_authority",
+        "camera_profile": args.profile_id,
         "cameras": {},
         "observations": [],
         "passed": True,
@@ -196,7 +222,10 @@ def main() -> None:
             if metrics["std"] < 12.0:
                 report["failures"].append(f"{camera} frame {index}: image is effectively blank")
             if metrics["dark_fraction"] < 0.01 or metrics["bright_fraction"] < 0.01:
-                report["failures"].append(f"{camera} frame {index}: lacks both dark garment/hardware and bright workspace")
+                report["failures"].append(
+                    f"{camera} frame {index}: lacks both dark garment/hardware and bright workspace"
+                )
+        report["failures"].extend(orientation_failures(camera, rendered_metrics[0]))
         # Distribution distance is diagnostic only. Making it a pass/fail
         # target would turn the episode into a camera-pose fitting oracle,
         # contrary to the protocol's authority hierarchy.

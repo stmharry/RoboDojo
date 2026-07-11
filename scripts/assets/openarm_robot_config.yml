@@ -18,27 +18,6 @@ left:
     mimic: [openarm_left_finger_joint2, 1.0, 0.0]
   gripper_scale: [0.0, 0.044]
   physical_gripper_interface: true
-  camera:
-    - link: openarm_left_link7
-      name: cam_wrist
-      type: openarm_wrist
-      mesh: pinhole
-      sensor_model: Arducam_IMX708_102deg_fixed_focus
-      mount_basis: end_effector_contact_axis
-      # Link origin lies inside the wrist shell; the documented direct mount's
-      # optical center clears the shell at +0.12 m on the contact axis while
-      # retaining the jaws at the image periphery.
-      pos: [0.0, 0.0, 0.12]
-      ori: [180.0, 0.0, 0.0]
-      lens_distortion_model: opencvFisheye
-      projection_backend: pinhole_postprocess
-      published_diagonal_fov_deg: 102.0
-      cx: 640.0
-      cy: 360.0
-      # Equidistant focal pixels from the published 102-degree diagonal FOV.
-      fx: 824.9654
-      fy: 824.9654
-      distortion_coefficients: [0.0, 0.0, 0.0, 0.0]
 right:
   ee_joints: openarm_right_joint7
   ee_link: openarm_right_link7
@@ -57,20 +36,3 @@ right:
     mimic: [openarm_right_finger_joint2, 1.0, 0.0]
   gripper_scale: [0.0, 0.044]
   physical_gripper_interface: true
-  camera:
-    - link: openarm_right_link7
-      name: cam_wrist
-      type: openarm_wrist
-      mesh: pinhole
-      sensor_model: Arducam_IMX708_102deg_fixed_focus
-      mount_basis: end_effector_contact_axis
-      pos: [0.0, 0.0, 0.12]
-      ori: [180.0, 0.0, 0.0]
-      lens_distortion_model: opencvFisheye
-      projection_backend: pinhole_postprocess
-      published_diagonal_fov_deg: 102.0
-      cx: 640.0
-      cy: 360.0
-      fx: 824.9654
-      fy: 824.9654
-      distortion_coefficients: [0.0, 0.0, 0.0, 0.0]

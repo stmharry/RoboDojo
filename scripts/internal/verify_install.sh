@@ -165,7 +165,7 @@ else
   record "FAIL" "env_cfg references" "missing referenced env_cfg file"
 fi
 
-if [[ "${env_cfg}" == "openarm_cloth_folding" ]]; then
+if [[ "${env_cfg}" == "openarm_cloth_folding" || "${env_cfg}" == "openarm_cloth_folding_dyna" ]]; then
   check_path file "${ROOT_DIR}/Assets/Robots/openarm/manifest.json" "OpenARM asset manifest"
   check_path file "${ROOT_DIR}/Assets/Robots/openarm/openarm_bimanual_cloth_folding.usd" "OpenARM functional-twin USD"
   check_path file "${ROOT_DIR}/Assets/Robots/openarm/robot_config.yml" "OpenARM robot config"
@@ -178,26 +178,40 @@ import yaml
 root = Path("${ROOT_DIR}")
 env = yaml.safe_load((root / "env_cfg/openarm_cloth_folding.yml").read_text())
 sim = yaml.safe_load((root / "env_cfg/sim/openarm_cloth_folding.yml").read_text())
-camera = yaml.safe_load((root / "env_cfg/camera/openarm_cloth_folding.yml").read_text())
+camera_name = env["config"]["camera"]
+camera = yaml.safe_load((root / "env_cfg/camera" / f"{camera_name}.yml").read_text())
 scene = yaml.safe_load((root / "env_cfg/scene/openarm_cloth_folding.yml").read_text())
-wrist = yaml.safe_load((root / "scripts/assets/openarm_robot_config.yml").read_text())
 info = json.loads((root / "env_cfg/robot/_robot_info.json").read_text())["dual_openarm"]
 manifest = json.loads((root / "Assets/Robots/openarm/manifest.json").read_text())
 sources = json.loads((root / "scripts/assets/openarm_sources.json").read_text())
 assert env["observation"]["collect_freq"] == 30
 assert abs(1.0 / (sim["dt"] * 30) - 8.0) < 1e-9
 assert sum(info["arm_dim"]) + sum(info["ee_dim"]) == 16
-assert camera["cam_head"]["camera"]["type"] == "openarm_base"
-assert camera["cam_head"]["camera"]["lens_distortion_model"] == "opencvFisheye"
-assert camera["cam_head"]["camera"]["sensor_model"] == "Fafeicy_HBV-1716WA_OV2710"
-assert camera["cam_head"]["camera"]["mount_link"] == "robot0/openarm_body_link"
-assert camera["cam_head"]["camera"]["published_diagonal_fov_deg"] == 140.0
-assert all(key in camera["cam_head"]["camera"] for key in ("cx", "cy", "fx", "fy"))
-assert scene["layout_overrides"]["remove_fixtures"] == ["Geometry.camera_stand"]
-for side in ("left", "right"):
-    wrist_camera = wrist[side]["camera"][0]
-    assert wrist_camera["sensor_model"] == "Arducam_IMX708_102deg_fixed_focus"
-    assert wrist_camera["published_diagonal_fov_deg"] == 102.0
+rig = camera["camera_rig"]
+cameras = rig["cameras"]
+assert list(cameras) == ["cam_head", "cam_left_wrist", "cam_right_wrist"]
+base = cameras["cam_head"]
+assert base["type"] == "openarm_base"
+assert base["projection"]["model"] == "opencvFisheye"
+assert base["mount"]["kind"] == "scene_fixture"
+assert base["mount"]["target"] == "camera_stand"
+assert base["mount"]["optical_roll_deg"] == 180.0
+if camera_name == "openarm_cloth_folding":
+    assert rig["profile_id"] == "openarm_policy_original"
+    assert base["sensor"]["vendor"] == "Fafeicy"
+    assert base["sensor"]["diagonal_fov_deg"] == 140.0
+    assert base["projection"]["fx"] == 327.4045
+else:
+    assert rig["profile_id"] == "openarm_dyna"
+    assert base["sensor"]["vendor"] == "Waveshare"
+    assert base["sensor"]["diagonal_fov_deg"] == 145.0
+    assert base["projection"]["fx"] == 316.1146
+for key, roll in (("cam_left_wrist", -90.0), ("cam_right_wrist", 90.0)):
+    wrist_camera = cameras[key]
+    assert wrist_camera["sensor"]["vendor"] == "Arducam"
+    assert wrist_camera["sensor"]["stream_resolution"] == [1280, 720]
+    assert wrist_camera["mount"]["optical_roll_deg"] == roll
+assert "remove_fixtures" not in scene.get("appearance_overrides", {})
 assert manifest["upper_arm_extension_m"] == 0.05
 assert len(manifest["joint_paths"]) == 2
 assert len(manifest["jaw_paths"]) == 4
