@@ -1,0 +1,90 @@
+from pathlib import Path
+import subprocess
+import sys
+
+from typer.testing import CliRunner
+
+from robodojo.cli import app
+from robodojo.core.models import ServerRequest
+from robodojo.core.paths import RepositoryPaths, discover_repository_root
+from robodojo.core.settings import RuntimeSettings
+from robodojo.server.orchestration import server_command
+
+ROOT = Path(__file__).resolve().parents[1]
+runner = CliRunner()
+
+
+def test_cli_exposes_the_unified_command_surface():
+    result = runner.invoke(app, ["--help"])
+    assert result.exit_code == 0
+    for command in ("eval", "server", "client", "smoke", "storage", "assets", "data", "docker"):
+        assert command in result.stdout
+
+
+def test_server_dry_run_validates_and_builds_adapter_argv(tmp_path):
+    policy = tmp_path / "Policy"
+    policy.mkdir()
+    adapter = policy / "setup_eval_policy_server.sh"
+    adapter.write_text("#!/usr/bin/env bash\n", encoding="utf-8")
+    request = ServerRequest(
+        policy_dir=policy,
+        task="stack_bowls",
+        checkpoint="run-1",
+        policy_env="policy-env",
+        port=19000,
+    )
+    command = server_command(request, 19000)
+    assert command[:2] == ["bash", str(adapter)]
+    assert command[-2:] == ["19000", "0.0.0.0"]
+
+
+def test_server_cli_rejects_invalid_port(tmp_path):
+    policy = tmp_path / "Policy"
+    policy.mkdir()
+    (policy / "setup_eval_policy_server.sh").write_text("", encoding="utf-8")
+    result = runner.invoke(
+        app,
+        [
+            "server",
+            "--policy-dir",
+            str(policy),
+            "--task",
+            "stack_bowls",
+            "--ckpt",
+            "run-1",
+            "--policy-env",
+            "env",
+            "--policy-port",
+            "70000",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code == 2
+    assert "less than or equal to 65535" in result.output
+
+
+def test_repository_root_precedence(monkeypatch, tmp_path):
+    fake = tmp_path / "fake"
+    fake.mkdir()
+    (fake / "pyproject.toml").write_text('[project]\nname = "robodojo"\n', encoding="utf-8")
+    monkeypatch.setenv("ROBODOJO_ROOT", str(fake))
+    assert discover_repository_root() == fake
+    assert RepositoryPaths.resolve(ROOT).root == ROOT
+
+
+def test_runtime_settings_env_overrides_dotenv(monkeypatch, tmp_path):
+    root = tmp_path / "repo"
+    root.mkdir()
+    (root / "pyproject.toml").write_text('[project]\nname = "robodojo"\n', encoding="utf-8")
+    (root / ".env").write_text("ROBODOJO_EVAL_ROOT=/from-file\n", encoding="utf-8")
+    monkeypatch.setenv("ROBODOJO_EVAL_ROOT", "/from-process")
+    settings = RuntimeSettings.load(RepositoryPaths.resolve(root))
+    assert settings.eval_root == Path("/from-process")
+
+
+def test_server_imports_work_without_simulator_extra():
+    code = (
+        "import sys; from robodojo.server.orchestration import server_command; "
+        "assert not any(name.startswith(('isaacsim', 'isaaclab', 'torch')) for name in sys.modules)"
+    )
+    subprocess.run([sys.executable, "-c", code], cwd=ROOT, check=True)

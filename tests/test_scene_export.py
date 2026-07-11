@@ -4,7 +4,7 @@ import subprocess
 
 import pytest
 
-from src.scene_export.contracts import ExportIdentity, calculate_fov_degrees, completed_export_matches
+from robodojo.client.scene_export.contracts import ExportIdentity, calculate_fov_degrees, completed_export_matches
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -34,11 +34,10 @@ def test_completed_export_requires_exact_identity(tmp_path):
 def test_scene_only_eval_dry_run_bypasses_policy_orchestrator(tmp_path):
     policy_dir = tmp_path / "TestPolicy"
     policy_dir.mkdir()
-    (policy_dir / "eval.sh").write_text("#!/usr/bin/env bash\n", encoding="utf-8")
+    (policy_dir / "setup_eval_policy_server.sh").write_text("#!/usr/bin/env bash\n", encoding="utf-8")
     result = subprocess.run(
         [
-            "bash",
-            str(ROOT / "scripts/robodojo.sh"),
+            str(ROOT / ".venv/bin/robodojo"),
             "eval",
             "--policy-dir",
             str(policy_dir),
@@ -62,19 +61,18 @@ def test_scene_only_eval_dry_run_bypasses_policy_orchestrator(tmp_path):
         capture_output=True,
         text=True,
     )
-    assert "scripts/eval_policy.sh" in result.stdout
+    assert "robodojo.client.evaluation.main" in result.stdout
     assert "ROBODOJO_EXPORT_SCENE_ONLY=true" in result.stdout
-    assert "scripts/internal/run_policy_eval.sh" not in result.stdout
+    assert "setup_eval_policy_server.sh" not in result.stdout
 
 
 def test_export_and_continue_keeps_policy_orchestrator(tmp_path):
     policy_dir = tmp_path / "TestPolicy"
     policy_dir.mkdir()
-    (policy_dir / "eval.sh").write_text("#!/usr/bin/env bash\n", encoding="utf-8")
+    (policy_dir / "setup_eval_policy_server.sh").write_text("#!/usr/bin/env bash\n", encoding="utf-8")
     result = subprocess.run(
         [
-            "bash",
-            str(ROOT / "scripts/robodojo.sh"),
+            str(ROOT / ".venv/bin/robodojo"),
             "eval",
             "--policy-dir",
             str(policy_dir),
@@ -92,12 +90,12 @@ def test_export_and_continue_keeps_policy_orchestrator(tmp_path):
         capture_output=True,
         text=True,
     )
-    assert "scripts/internal/run_policy_eval.sh" in result.stdout
-    assert "scripts/eval_policy.sh" not in result.stdout
+    assert "setup_eval_policy_server.sh" in result.stdout
+    assert "robodojo.client.evaluation.main" in result.stdout
 
 
 def test_export_hook_precedes_rollout():
-    source = (ROOT / "src/eval_client/main.py").read_text(encoding="utf-8")
+    source = (ROOT / "src/robodojo/client/evaluation/main.py").read_text(encoding="utf-8")
     reset = source.index("env.reset(seed=env.env_seeds)")
     export = source.index("export_scene_snapshot(env, export_dir", reset)
     rollout = source.index("env.run_eval()", export)

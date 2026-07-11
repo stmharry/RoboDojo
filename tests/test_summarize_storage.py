@@ -50,7 +50,7 @@ def test_summarize_reads_durable_tree_and_writes_local_scratch(tmp_path):
     environment.pop("ROBODOJO_SUMMARY_PATH", None)
 
     result = subprocess.run(
-        ["bash", str(ROOT / "scripts/robodojo.sh"), "summarize"],
+        [str(ROOT / ".venv/bin/robodojo"), "summarize"],
         cwd=ROOT,
         env=environment,
         check=False,
@@ -80,7 +80,7 @@ def test_cli_output_overrides_environment_and_creates_parents(tmp_path):
     output = tmp_path / "nested/cli/summary.md"
 
     result = subprocess.run(
-        ["bash", str(ROOT / "scripts/robodojo.sh"), "summarize", "--output", str(output)],
+        [str(ROOT / ".venv/bin/robodojo"), "summarize", "--output", str(output)],
         cwd=ROOT,
         env=environment,
         check=False,

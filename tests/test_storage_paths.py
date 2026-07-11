@@ -1,9 +1,8 @@
-
 import subprocess
 
 import pytest
 
-from utils import storage
+from robodojo.core import storage
 
 STORAGE_ENV = [
     "ROBODOJO_STORAGE_ROOT",
@@ -91,10 +90,10 @@ def test_explicit_checkpoint_label_is_validated():
 
 
 def test_docker_storage_supports_protected_env_file_and_named_profile():
-    smoke = (storage.REPO_ROOT / "docker/smoke_docker.sh").read_text(encoding="utf-8")
-    assert '[[ -r "${ROBODOJO_AWS_ENV_FILE}" ]]' in smoke
-    assert 'storage_mounts+=( --env-file "${ROBODOJO_AWS_ENV_FILE}" )' in smoke
-    assert 'storage_mounts+=( -e "AWS_PROFILE=${AWS_PROFILE}" )' in smoke
+    source = (storage.REPO_ROOT / "src/robodojo/workflows/docker.py").read_text(encoding="utf-8")
+    assert "ROBODOJO_AWS_ENV_FILE" in source
+    assert "AWS_PROFILE" in source
+    assert '"--env-file"' in source
 
 
 def test_documented_data_compatibility_link_is_gitignored():

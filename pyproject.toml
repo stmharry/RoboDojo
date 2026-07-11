@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "robodojo"
 version = "0.2.0"
@@ -7,8 +11,15 @@ requires-python = ">=3.11,<3.12"
 license = "MIT"
 authors = [{ name = "Yue Chen", email = "yuechen020614@gmail.com" }]
 dependencies = [
+    "pydantic>=2.5",
+    "pydantic-settings>=2.2",
+    "pyyaml>=6",
+    "typer>=0.12",
+]
+
+[project.optional-dependencies]
+sim = [
     "chardet>=3,<6",
-    "click==8.1.7",
     "ffmpeg",
     "filelock==3.13.1",
     "fsspec==2024.6.1",
@@ -34,8 +45,6 @@ dependencies = [
     "packaging==23.0",
     "pillow==11.3.0",
     "psutil==5.9.8",
-    "pydantic>=2.5",
-    "pyyaml>=6",
     "scikit-learn",
     "scipy==1.15.3",
     "stable-baselines3<2.8",
@@ -51,6 +60,9 @@ dependencies = [
     "wheel==0.45.1",
 ]
 
+[project.scripts]
+robodojo = "robodojo.cli:app"
+
 [dependency-groups]
 dev = [
     "pre-commit>=4.2.0",
@@ -59,7 +71,7 @@ dev = [
 ]
 
 [tool.uv]
-package = false
+package = true
 environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
 # Preserve legacy runtime repins whose index metadata conflicts with either the
 # installed Isaac Sim wheel metadata or the vendored IsaacLab metadata. The
@@ -120,20 +132,18 @@ ignore = [
     "E402",  # module-level import not at top (common in env bootstrap)
     "UP006", # Dict vs dict (legacy annotations in env/)
     "UP035", # typing.List/Dict — legacy annotations in env/
-    "F403",  # legacy star imports (GLOBAL_CONFIGS, etc.) — migrate explicitly later
-    "F405",  # symbols from star imports — migrate explicitly later
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
-"src/eval_client/main.py" = ["E402"]  # late first-party imports after AppLauncher bootstrap
-"src/eval_client/eval_env.py" = ["E501"]
-"env/**/*.py" = ["E501"]  # oversized modules; split in dedicated refactors
-"task/**/*.py" = ["E501"]  # dense reward expressions; refactor with task helpers later
-"utils/save_file.py" = ["E501"]
+"src/robodojo/client/evaluation/main.py" = ["E402"]  # late imports after AppLauncher bootstrap
+"src/robodojo/client/evaluation/eval_env.py" = ["E501"]
+"src/robodojo/client/environment/**/*.py" = ["E501"]
+"src/robodojo/client/tasks/**/*.py" = ["E501"]
+"src/robodojo/client/utils/save_file.py" = ["E501"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["env", "task", "utils", "src"]
+known-first-party = ["robodojo"]
 combine-as-imports = true
 force-sort-within-sections = true
 

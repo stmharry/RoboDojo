@@ -4,27 +4,26 @@
 
 RoboDojo is a unified sim-and-real robotics benchmark built on NVIDIA Isaac Sim / IsaacLab. Policy evaluation runs via XPolicyLab and the shared simulation stack.
 
-Contributors maintain **Tasks** (scene + reward logic), shared **env** / **env_cfg** configs, and eval infrastructure under **scripts/** and **src/eval_client/**.
+Contributors maintain task/environment code under `src/robodojo/client`, typed
+orchestration under `src/robodojo/core` and `src/robodojo/server`, and YAML
+configuration under `configs` and `task/RoboDojo/config`.
 
 Human-facing docs: https://robodojo-benchmark.com/doc/
 
 ## Repository Layout
 
 ```
-task/RoboDojo/
-  config/<task_name>.yml     task scene/object config
-  tasks/<task_name>.py       task logic (inherits TaskEnv)
-  task_registry.py           dynamic task loader
-  demos/                     non-inventory demos (e.g. dlc)
-env/                         TaskEnv backbone and managers
-env_cfg/                     robot / scene / sim / camera YAML
-src/eval_client/             eval client (main.py, eval_env.py)
-utils/                       paths, save/load, pipeline helpers
-scripts/                     robodojo.sh, install.sh, init_assets.sh, internal/
+src/robodojo/core/           lightweight paths, settings, models, storage, processes
+src/robodojo/server/         policy adapter orchestration; never imports Isaac
+src/robodojo/client/         simulator managers, tasks, eval client, scene export
+src/robodojo/workflows/      install, download, storage, result, Docker workflows
+configs/         robot / scene / sim / camera YAML
+task/RoboDojo/config/        task scene/object YAML
+scripts/eval_policy.sh       private XPolicyLab compatibility shim
 docker/                      container eval (see docker/README.md)
 XPolicyLab/                  policy server + deploy (submodule)
 third_party/                 IsaacLab, curobo (submodules)
-Assets/                      robot/object assets (scripts/init_assets.sh; not in git)
+Assets/                      robot/object assets (robodojo assets download; not in git)
 eval_result/                 runtime eval output
 ```
 
@@ -32,9 +31,9 @@ eval_result/                 runtime eval output
 
 | Own in RoboDojo | Own in XPolicyLab |
 | :-- | :-- |
-| `env/`, `env_cfg/`, `task/RoboDojo/`, `src/eval_client/` | Policy code, checkpoints, `deploy.yml`, policy server |
-| `scripts/robodojo.sh`, `scripts/eval_policy.sh` | `XPolicyLab/policy/<POLICY>/eval.sh`, `setup_eval_*` scripts |
-| `utils/`, install/assets scripts | Policy-specific dependencies and training |
+| `src/robodojo/`, `configs/`, `task/RoboDojo/config/` | Policy code, checkpoints, `deploy.yml`, policy server |
+| Typer CLI and private `scripts/eval_policy.sh` shim | `XPolicyLab/policy/<POLICY>/setup_eval_*` scripts |
+| Root install/assets/storage workflows | Policy-specific dependencies and training |
 
 - Submodule URL: `https://github.com/XPolicyLab/XPolicyLab.git` (branch `main`).
 - Update the gitlink pin intentionally; do not edit submodule contents unless updating the pin.
@@ -42,7 +41,7 @@ eval_result/                 runtime eval output
 
 ## Eval Commands & Flow
 
-**CLI** (`uv run --locked bash scripts/robodojo.sh <command>`):
+**CLI** (`uv run --extra sim --locked robodojo <command>`):
 
 | Command | Purpose |
 | :-- | :-- |
@@ -58,10 +57,10 @@ eval_result/                 runtime eval output
 **Single-machine eval:**
 
 ```
-robodojo.sh eval
-  → scripts/internal/run_policy_eval.sh
-    → (cd policy_dir) setup_eval_policy_server.sh   # policy server
-    → setup_eval_env_client.sh                    # sim client → src/eval_client/main.py
+robodojo eval
+  → robodojo.server orchestration
+    → (cd policy_dir) setup_eval_policy_server.sh
+    → robodojo.client.evaluation.main
 ```
 
 - Policy `eval.sh` must exist under `--policy-dir` (used for validation and optional `expert_num`); `robodojo eval` does **not** invoke `eval.sh` directly.
@@ -71,8 +70,8 @@ robodojo.sh eval
 **Split eval:**
 
 ```
-robodojo.sh server  →  scripts/internal/run_policy_server.sh
-robodojo.sh client  →  scripts/eval_policy.sh  →  src/eval_client/main.py
+robodojo server  →  XPolicyLab setup_eval_policy_server.sh
+robodojo client  →  robodojo.client.evaluation.main
 ```
 
 **Docker:** sim client in container, policy server on host — see `docker/README.md`.
@@ -80,31 +79,32 @@ robodojo.sh client  →  scripts/eval_policy.sh  →  src/eval_client/main.py
 Fast validation:
 
 ```bash
-uv run --locked bash scripts/robodojo.sh doctor --skip-isaac --skip-policy
-uv run --locked bash scripts/robodojo.sh eval --policy-dir XPolicyLab/policy/<POLICY> --task stack_bowls --ckpt <CKPT> --policy-env <ENV> --dry-run
-uv run --locked bash scripts/robodojo.sh smoke --policy-dir XPolicyLab/policy/<POLICY> --ckpt <CKPT> --policy-env <ENV> --only stack_bowls,push_T --dry-run
+uv run --extra sim --locked robodojo doctor --skip-policy
+uv run --extra sim --locked robodojo eval --policy-dir XPolicyLab/policy/<POLICY> --task stack_bowls --ckpt <CKPT> --policy-env <ENV> --dry-run
+uv run --extra sim --locked robodojo smoke --policy-dir XPolicyLab/policy/<POLICY> --ckpt <CKPT> --policy-env <ENV> --only stack_bowls,push_T --dry-run
 ```
 
 Full eval-infrastructure acceptance is **sequential**, not parallel:
 
 ```bash
-uv run --locked bash scripts/robodojo.sh smoke --policy-dir XPolicyLab/policy/<POLICY> --ckpt <CKPT> --policy-env <ENV> --fail-fast
+uv run --extra sim --locked robodojo smoke --policy-dir XPolicyLab/policy/<POLICY> --ckpt <CKPT> --policy-env <ENV> --fail-fast
 ```
 
-New code imports from `env.*`.
+New code imports through the `robodojo.*` namespace. Core and server code must
+not import `robodojo.client` or simulator dependencies.
 
 ## Tasks
 
 - **54 runnable task configs** (42 base + 12 `_random` generalization variants).
-- Registration is dynamic: `task_registry.load_task_class(task_name)` imports `task.RoboDojo.tasks.<task_name>` and expects class name == module name.
+- Registration is dynamic: `tasks_registry.load_task_class(task_name)` imports `robodojo.client.tasks.<task_name>` and expects class name == module name.
 - Config path: `task/RoboDojo/config/<task_name>.yml`.
-- Inventory: `uv run --locked bash scripts/robodojo.sh tasks` or `uv run --locked python scripts/internal/task_inventory.py --format json --check`.
+- Inventory: `uv run --locked robodojo tasks --format json --check`.
 - `task/RoboDojo/demos/` (e.g. `dlc`) is outside the benchmark inventory scan.
 
 ## Naming
 
-- **Config / scripts**: lowercase `snake_case` — `env_cfg/`, `utils/`, `scripts/`
-- **Python packages/directories**: `snake_case` — `env/robot_manager/`, `env/scene_manager/objects/`
+- **Config / scripts**: lowercase `snake_case` — `configs/`, `utils/`, `scripts/`
+- **Python packages/directories**: `snake_case` under `src/robodojo/`
 - **Python module files**: `snake_case.py` — `task_env.py`, `obs_manager.py`
 - **Python classes**: **PascalCase** — `RewardManager`, `TaskEnv`
 - **Tasks**: filename, YAML name, exported env class, and layout/result paths must match. Most tasks use lowercase `snake_case`; **`play_Xylophone`**, **`swap_T`**, **`push_T`**, and **`push_T_random`** match uppercase asset names.
@@ -166,9 +166,9 @@ Use the **smallest loop** that proves the current change.
 ### Docs / scripts / config only
 
 ```bash
-bash -n scripts/robodojo.sh scripts/eval_policy.sh
-uv run --locked python scripts/internal/task_inventory.py --format json --check
-uv run --locked bash scripts/robodojo.sh doctor --skip-isaac --skip-policy
+bash -n scripts/eval_policy.sh
+uv run --locked robodojo tasks --format json --check
+uv run --extra sim --locked robodojo doctor --skip-policy
 ruff check .
 git diff --check
 ```
@@ -176,13 +176,13 @@ git diff --check
 ### Dry-run eval path (no Isaac, no policy server)
 
 ```bash
-uv run --locked bash scripts/robodojo.sh eval \
+uv run --extra sim --locked robodojo eval \
   --policy-dir XPolicyLab/policy/<POLICY_NAME> \
   --task stack_bowls \
   --ckpt <CKPT_NAME> \
   --policy-env <POLICY_ENV> \
   --dry-run
-uv run --locked bash scripts/robodojo.sh smoke \
+uv run --extra sim --locked robodojo smoke \
   --policy-dir XPolicyLab/policy/<POLICY_NAME> \
   --ckpt <CKPT_NAME> \
   --policy-env <POLICY_ENV> \
@@ -193,7 +193,7 @@ uv run --locked bash scripts/robodojo.sh smoke \
 ### Runtime (Isaac Sim + policy ready)
 
 ```bash
-uv run --locked bash scripts/robodojo.sh eval \
+uv run --extra sim --locked robodojo eval \
   --policy-dir XPolicyLab/policy/<POLICY_NAME> \
   --task stack_bowls \
   --ckpt <CKPT_NAME> \
@@ -224,7 +224,7 @@ Smoke/benchmark acceptance: each task must exit `0` **and** write `_result.json`
 - [ ] Commit messages: `[Scope] type: desc`
 - [ ] No `print`, `breakpoint`, or commented-out debug code
 - [ ] New files follow Naming rules above
-- [ ] For scripts/eval infrastructure, run `robodojo.sh doctor` and at least dry-run `robodojo.sh smoke` before requesting review
+- [ ] For eval infrastructure, run `robodojo doctor` and at least dry-run `robodojo smoke` before requesting review
 
 ---
 
@@ -244,7 +244,7 @@ Type-specific red flags to check first:
 
 When creating a PR (`gh pr create`):
 - Title: `[Scope] type: description (≤70 chars)`
-- Body: summary bullets, affected tasks, test plan (`uv run --locked bash scripts/robodojo.sh eval ...` or task-specific eval).
+- Body: summary bullets, affected tasks, test plan (`uv run --extra sim --locked robodojo eval ...` or task-specific eval).
 
 ---
 

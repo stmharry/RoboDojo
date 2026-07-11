@@ -35,7 +35,7 @@ generated Markdown to local scratch at `runs/reports/_summary.md`. Override the
 destination with `ROBODOJO_SUMMARY_PATH` or, at highest precedence:
 
 ```bash
-bash scripts/robodojo.sh summarize --output /local/path/summary.md
+robodojo summarize --output /local/path/summary.md
 ```
 
 Do not put AWS credentials in this repository or `.env`. The storage helper
@@ -51,23 +51,23 @@ profile, but it is not required in the project `.env`.
 Inspect the configured read mount, local scratch, and AWS CLI availability:
 
 ```bash
-bash scripts/robodojo_storage.sh doctor
+robodojo storage doctor
 # Equivalent read-only status check:
-bash scripts/robodojo_storage.sh status
+robodojo storage status
 ```
 
-The wrapper is managed by `uv` and executes against the locked project
-environment with `--frozen --no-sync`; it never creates a separate tool venv.
+Run storage commands through `uv run --locked robodojo storage ...`; they use
+the same lightweight locked project environment as the rest of the CLI.
 
 Publish materialized payloads (never Git/LFS metadata or tool cache layouts):
 
 ```bash
-bash scripts/robodojo_storage.sh publish-assets /local/stage/Assets
-bash scripts/robodojo_storage.sh publish-data RoboDojo_demo /local/stage/RoboDojo_demo
-bash scripts/robodojo_storage.sh publish-checkpoint SmolVLA run-10000 /local/stage/run-10000
-bash scripts/robodojo_storage.sh publish-reference-cache openarm REVISION /local/stage/reference
+robodojo storage publish-assets /local/stage/Assets
+robodojo storage publish-data RoboDojo_demo /local/stage/RoboDojo_demo
+robodojo storage publish-checkpoint SmolVLA run-10000 /local/stage/run-10000
+robodojo storage publish-reference-cache openarm REVISION /local/stage/reference
 # Generic form for an approved canonical subpath:
-bash scripts/robodojo_storage.sh publish /local/stage/payload datasets/example
+robodojo storage publish /local/stage/payload datasets/example
 ```
 
 The helper uploads `_MANIFEST.json` and then `_COMPLETE.json` last. Completed
@@ -88,18 +88,18 @@ only after its writer has closed it. Policies that need POSIX behavior or lower
 latency can materialize a completed checkpoint locally:
 
 ```bash
-bash scripts/robodojo_storage.sh materialize-checkpoint SmolVLA run-10000 /local/runtime/run-10000
+robodojo storage materialize-checkpoint SmolVLA run-10000 /local/runtime/run-10000
 # Generic alias for a completed manifested payload:
-bash scripts/robodojo_storage.sh hydrate /storage/robodojo/model_weights/SmolVLA/run-10000 /local/runtime/run-10000
+robodojo storage hydrate /storage/robodojo/model_weights/SmolVLA/run-10000 /local/runtime/run-10000
 ```
 
 Optional compatibility links are local-only and must name their destination
 explicitly. The helper never replaces a real directory or a mismatched link:
 
 ```bash
-bash scripts/robodojo_storage.sh link assets "$PWD/Assets"
-bash scripts/robodojo_storage.sh link datasets "$PWD/data"
-bash scripts/robodojo_storage.sh link checkpoint /local/policy/checkpoints/run-10000 \
+robodojo storage link assets "$PWD/Assets"
+robodojo storage link datasets "$PWD/data"
+robodojo storage link checkpoint /local/policy/checkpoints/run-10000 \
   --policy SmolVLA --checkpoint run-10000
 ```
 

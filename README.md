@@ -46,22 +46,23 @@ The [RoboDojo documentation](https://robodojo-benchmark.com/doc/) is the canonic
 ## 🗂️ Repository Structure
 
 ```text
-env/                   simulator backbone and managers
-env_cfg/               simulator, scene, robot, and camera configs
-task/RoboDojo/         task logic and task YAML configs
-scripts/robodojo.sh    public RoboDojo-side eval entry
-scripts/eval_policy.sh simulator client launched by XPolicyLab eval.sh
-XPolicyLab/            policy server and policy integrations
-Assets/                downloaded robot, object, material, and layout assets
+src/robodojo/core/      lightweight settings, paths, storage, and process contracts
+src/robodojo/server/    policy-server orchestration (no Isaac imports)
+src/robodojo/client/    simulator, tasks, evaluation client, and scene export
+src/robodojo/workflows/ install, download, storage, result, and Docker workflows
+configs/   simulator, scene, robot, and camera YAML
+task/RoboDojo/config/  task YAML configurations
+XPolicyLab/             policy implementations and server adapters (submodule)
+scripts/eval_policy.sh  private compatibility shim for XPolicyLab
 ```
 
 ## 🚀 Local Setup
 
 RoboDojo uses a locked [uv](https://docs.astral.sh/uv/) environment with Python
-3.11. Initialize the pinned submodules and simulator environment with:
+3.11. Install `uv` first, then initialize submodules and the simulator extra:
 
 ```bash
-bash scripts/install.sh --install
+uv run --locked robodojo install
 ```
 
 Copy the environment template for machine-specific evaluation and storage
@@ -79,8 +80,8 @@ The `storage-*` targets wrap the S3-backed storage helper. Start with
 After setup, run every native command through the lockfile:
 
 ```bash
-uv run --locked bash scripts/robodojo.sh doctor --skip-policy
-uv run --locked bash scripts/robodojo.sh tasks
+uv run --extra sim --locked robodojo doctor --skip-policy
+uv run --extra sim --locked robodojo tasks
 ```
 
 The simulator environment is always the repository's `.venv`. Policy servers
@@ -97,11 +98,13 @@ explicit AWS CLI publication workflow.
 Policies live in [XPolicyLab](https://github.com/XPolicyLab/XPolicyLab/blob/main/README.md), which owns policy structure, dependencies, checkpoint layout, and server behavior. RoboDojo only assumes a policy directory provides:
 
 ```text
-XPolicyLab/policy/<POLICY_NAME>/eval.sh
+XPolicyLab/policy/<POLICY_NAME>/setup_eval_policy_server.sh
 XPolicyLab/policy/<POLICY_NAME>/deploy.yml
 ```
 
-`eval.sh` starts the policy server and calls back into RoboDojo through `scripts/eval_policy.sh`; `deploy.yml` declares the server host, port, action mode, and policy-specific runtime settings.
+`robodojo eval` starts the server adapter and simulator as managed process groups.
+The remaining `scripts/eval_policy.sh` only supports unchanged XPolicyLab legacy
+callbacks and immediately delegates to the Python CLI.
 
 ## 🏆 Leaderboard
 

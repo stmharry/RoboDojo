@@ -12,7 +12,7 @@ modifications, then generates the extended-arm functional twin, enlarged jaws,
 camera holders, and their named optical frames.
 
 ```bash
-uv run --locked bash scripts/assets/build_openarm_cloth_folding.sh
+uv run --extra sim --locked robodojo assets build-openarm
 ```
 
 Generated assets are written under `Assets/Robots/openarm/` and remain
@@ -30,7 +30,7 @@ PYTHONPATH=. conda run -n lerobot-pi05 python \
 Verify the complete installation with:
 
 ```bash
-uv run --locked bash scripts/robodojo.sh doctor \
+uv run --extra sim --locked robodojo doctor \
   --policy-dir XPolicyLab/policy/LeRobot_Pi05_OpenArm \
   --task fold_clothes --env-cfg openarm_cloth_folding \
   --ckpt folding_final --policy-env lerobot-pi05
@@ -41,7 +41,7 @@ uv run --locked bash scripts/robodojo.sh doctor \
 Run one recorded episode:
 
 ```bash
-OMNI_KIT_ACCEPT_EULA=YES uv run --locked bash scripts/robodojo.sh eval \
+OMNI_KIT_ACCEPT_EULA=YES uv run --extra sim --locked robodojo eval \
   --policy-dir XPolicyLab/policy/LeRobot_Pi05_OpenArm \
   --task fold_clothes --ckpt folding_final \
   --env-cfg openarm_cloth_folding --action-type joint --seed 0 \
@@ -56,7 +56,7 @@ policy motion. Use `--export-scene` to continue the rollout after exporting, or
 inference, and actions:
 
 ```bash
-OMNI_KIT_ACCEPT_EULA=YES uv run --locked bash scripts/robodojo.sh eval \
+OMNI_KIT_ACCEPT_EULA=YES uv run --extra sim --locked robodojo eval \
   --policy-dir XPolicyLab/policy/LeRobot_Pi05_OpenArm \
   --task fold_clothes --ckpt folding_final \
   --env-cfg openarm_cloth_folding --action-type joint --seed 0 \
@@ -84,4 +84,4 @@ The adapter preserves the checkpoint prompt, three-camera ordering, 30 Hz
 observations, 30-step chunks, and the right-first 16-D state/action layout.
 
 Authoritative build inputs are pinned in
-`scripts/assets/openarm_sources.json`.
+`configs/tooling/openarm/sources.json`.

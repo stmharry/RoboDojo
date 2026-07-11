@@ -3,21 +3,21 @@ from pathlib import Path
 
 import yaml
 
-from env.camera_manager.mount_registry import CameraMountRegistry
-from env.camera_manager.rig_spec import hardware_camera_parent, normalize_camera_rig
+from robodojo.client.environment.camera_manager.mount_registry import CameraMountRegistry
+from robodojo.client.environment.camera_manager.rig_spec import hardware_camera_parent, normalize_camera_rig
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def load_rig():
-    config = yaml.safe_load((ROOT / "env_cfg/camera/openarm_cloth_folding.yml").read_text())
+    config = yaml.safe_load((ROOT / "configs/camera/openarm_cloth_folding.yml").read_text())
     return normalize_camera_rig(config)
 
 
 def test_openarm_timing_and_dimensions():
-    env_cfg = yaml.safe_load((ROOT / "env_cfg/openarm_cloth_folding.yml").read_text())
-    sim_cfg = yaml.safe_load((ROOT / "env_cfg/sim/openarm_cloth_folding.yml").read_text())
-    robot_info = json.loads((ROOT / "env_cfg/robot/_robot_info.json").read_text())["dual_openarm"]
+    env_cfg = yaml.safe_load((ROOT / "configs/openarm_cloth_folding.yml").read_text())
+    sim_cfg = yaml.safe_load((ROOT / "configs/sim/openarm_cloth_folding.yml").read_text())
+    robot_info = json.loads((ROOT / "configs/robot/_robot_info.json").read_text())["dual_openarm"]
 
     assert env_cfg["config"]["camera"] == "openarm_cloth_folding"
     assert env_cfg["observation"]["collect_freq"] == 30
@@ -49,8 +49,8 @@ def test_openarm_uses_the_canonical_dyna_camera_rig():
 
 
 def test_openarm_asset_inputs_and_mounts_are_pinned():
-    sources = json.loads((ROOT / "scripts/assets/openarm_sources.json").read_text())
-    robot_config = yaml.safe_load((ROOT / "scripts/assets/openarm_robot_config.yml").read_text())
+    sources = json.loads((ROOT / "configs/tooling/openarm/sources.json").read_text())
+    robot_config = yaml.safe_load((ROOT / "configs/tooling/openarm/robot_config.yml").read_text())
 
     assert sources["openarm_isaac_lab"]["revision"] == "bad82e23716e6941c2de78ccb978f57c78b37734"
     assert sources["hardware_modifications"]["revision"] == "ffe34b93c070343042eb9412fbfeffce16139947"
@@ -87,7 +87,7 @@ def test_mount_registry_resolves_scene_and_robot_targets():
 
 
 def test_legacy_camera_normalization_is_unchanged():
-    config = yaml.safe_load((ROOT / "env_cfg/camera/camera_config.yml").read_text())
+    config = yaml.safe_load((ROOT / "configs/camera/camera_config.yml").read_text())
     rig = normalize_camera_rig(config)
 
     assert rig.profile_id == "legacy"
