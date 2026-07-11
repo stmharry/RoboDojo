@@ -131,6 +131,7 @@ from src.eval_client.eval_env import create_eval_env
 from utils.cluttered_generator import UnStableError
 from utils.load_file import load_yaml
 from utils.pipeline_utils import *
+from utils.storage import eval_work_root
 
 BENCHMARK_PATH = os.path.join(ROOT_DIR, "task", BENCHMARK)
 
@@ -147,8 +148,7 @@ def _resume_manifest_path(eval_cfg, run_id):
     the writer and reader paths.
     """
     return os.path.join(
-        "eval_result",
-        BENCHMARK,
+        str(eval_work_root()),
         eval_cfg["task_name"],
         eval_cfg["policy_name"],
         eval_cfg["config_name"],

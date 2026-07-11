@@ -177,6 +177,25 @@ this is the #1 reason "the simulator can't reach the policy server." The `client
 command checks that the policy server port is reachable before the WebSocket
 handshake and prints guidance if the server is unreachable.
 
+### Read-only S3-backed storage
+
+When the host has the dedicated prefix mounted read-only, mount it into the
+container read-only and provide a separate local scratch mount:
+
+```bash
+-v "$ROBODOJO_STORAGE_ROOT:/storage/robodojo:ro" \
+-v "$ROBODOJO_LOCAL_SCRATCH_ROOT:/scratch/robodojo" \
+-e ROBODOJO_STORAGE_ROOT=/storage/robodojo \
+-e ROBODOJO_LOCAL_SCRATCH_ROOT=/scratch/robodojo \
+-e ROBODOJO_S3_URI=s3://moonlake-harry-data/robodojo
+```
+
+The image includes AWS CLI for explicit publication. Supply credentials through
+the runtime's protected AWS configuration, never through the image or source
+tree. Active video streams and resume state remain under `/scratch/robodojo`;
+completed runs publish to `runs/eval_result/RoboDojo/`. The container never
+changes ownership or writes through `/storage/robodojo`.
+
 ## 6. Troubleshooting
 
 **GPU not visible (`nvidia-smi` fails in a container).** The NVIDIA Container

@@ -3,6 +3,7 @@
 **/*.egg-info
 .ruff_cache/
 .venv/
+.worktrees/
 
 # Downloaded assets (populated by scripts/init_assets.sh)
 Assets/

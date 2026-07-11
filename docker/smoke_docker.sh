@@ -196,9 +196,28 @@ phase_eval() {
     # Mount Assets both at the in-container repo path (where the code looks) AND at
     # the host path (so those baked absolute paths resolve). Both read-only, so the
     # host's configs are never modified.
-    local assets_mounts=( -v "${ROOT_DIR}/Assets:/workspace/RoboDojo/Assets:ro" )
-    [[ "${ROOT_DIR}/Assets" != "/workspace/RoboDojo/Assets" ]] \
-        && assets_mounts+=( -v "${ROOT_DIR}/Assets:${ROOT_DIR}/Assets:ro" )
+    local assets_host="${ROBODOJO_ASSETS_ROOT:-${ROBODOJO_STORAGE_ROOT:+${ROBODOJO_STORAGE_ROOT}/assets}}"
+    assets_host="${assets_host:-${ROOT_DIR}/Assets}"
+    local assets_mounts=( -v "${assets_host}:/workspace/RoboDojo/Assets:ro" )
+    [[ "${assets_host}" != "/workspace/RoboDojo/Assets" ]] \
+        && assets_mounts+=( -v "${assets_host}:${assets_host}:ro" )
+
+    local storage_mounts=()
+    if [[ -n "${ROBODOJO_STORAGE_ROOT:-}" ]]; then
+        local scratch_host="${ROBODOJO_LOCAL_SCRATCH_ROOT:-${ROOT_DIR}/.cache/robodojo-runtime}"
+        mkdir -p "${scratch_host}"
+        storage_mounts+=(
+            -v "${ROBODOJO_STORAGE_ROOT}:/storage/robodojo:ro"
+            -v "${scratch_host}:/scratch/robodojo"
+            -e ROBODOJO_STORAGE_ROOT=/storage/robodojo
+            -e ROBODOJO_LOCAL_SCRATCH_ROOT=/scratch/robodojo
+            -e "ROBODOJO_S3_URI=${ROBODOJO_S3_URI:?set ROBODOJO_S3_URI for storage publication}"
+        )
+        [[ -n "${AWS_PROFILE:-}" ]] && storage_mounts+=( -e "AWS_PROFILE=${AWS_PROFILE}" )
+        [[ -d "${HOME}/.aws" ]] && storage_mounts+=( -v "${HOME}/.aws:/root/.aws:ro" )
+    else
+        storage_mounts+=( -v "${ROOT_DIR}/eval_result:/workspace/RoboDojo/eval_result" )
+    fi
 
     # Headless RTX rendering (single Vulkan ICD + libXt.so.6) is baked into the
     # image (Dockerfile), so nothing extra is needed here at run time.
@@ -206,7 +225,7 @@ phase_eval() {
         -e ROBODOJO_MAX_BASH_RETRIES=2 \
         "${cache_mounts[@]}" \
         "${assets_mounts[@]}" \
-        -v "${ROOT_DIR}/eval_result:/workspace/RoboDojo/eval_result" \
+        "${storage_mounts[@]}" \
         "${IMAGE}" \
         bash scripts/robodojo.sh client \
             --task "${TASK}" --policy-name "${POLICY}" \
@@ -221,10 +240,14 @@ phase_eval() {
 phase_verify() {
     phase verify "${RUN_LOG}"
     # fix ownership of any root-created result files (container runs as root)
-    dk run --rm -v "${ROOT_DIR}/eval_result:/workspace/RoboDojo/eval_result" \
-        "${IMAGE}" chown -R "$(id -u):$(id -g)" /workspace/RoboDojo/eval_result >/dev/null 2>&1 || true
-
-    local base="${ROOT_DIR}/eval_result/RoboDojo/${TASK}/${POLICY}"
+    local base
+    if [[ -n "${ROBODOJO_STORAGE_ROOT:-}" ]]; then
+        base="${ROBODOJO_STORAGE_ROOT}/runs/eval_result/RoboDojo/${TASK}/${POLICY}"
+    else
+        dk run --rm -v "${ROOT_DIR}/eval_result:/workspace/RoboDojo/eval_result" \
+            "${IMAGE}" chown -R "$(id -u):$(id -g)" /workspace/RoboDojo/eval_result >/dev/null 2>&1 || true
+        base="${ROOT_DIR}/eval_result/RoboDojo/${TASK}/${POLICY}"
+    fi
     local rj
     rj="$(find "${base}" -name _result.json -newermt "@${RUN_START}" 2>/dev/null | sort | tail -1)"
     [[ -n "${rj}" ]] || fail verify "no _result.json produced under ${base}"

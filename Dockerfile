@@ -73,6 +73,7 @@ RUN if [ -n "${UBUNTU_MIRROR}" ]; then \
         wget \
         curl \
         ca-certificates \
+        awscli \
         ffmpeg \
         netcat-openbsd \
         libgl1 \

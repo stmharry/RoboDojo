@@ -15,6 +15,7 @@ policy_env=""
 conda_exe=""
 skip_isaac="false"
 skip_policy="false"
+check_storage="false"
 summary_path=""
 
 usage() {
@@ -30,6 +31,7 @@ Options:
   --summary PATH        Write JSON summary to PATH
   --skip-isaac          Skip isaacsim/isaaclab import check
   --skip-policy         Skip policy-dir/deploy/checkpoint checks
+  --storage             Validate configured read-only storage and local scratch
   -h, --help            Show this help
 EOF
 }
@@ -60,6 +62,7 @@ while [[ $# -gt 0 ]]; do
     --summary) need_value "$@"; summary_path="$2"; shift 2 ;;
     --skip-isaac) skip_isaac="true"; shift ;;
     --skip-policy) skip_policy="true"; shift ;;
+    --storage) check_storage="true"; shift ;;
     -h|--help) usage; exit 0 ;;
     *)
       echo "[verify_install] Unknown argument: $1" >&2
@@ -105,10 +108,20 @@ check_path file "${ROOT_DIR}/scripts/robodojo.sh" "robodojo launcher"
 check_path file "${ROOT_DIR}/scripts/internal/task_inventory.py" "task inventory helper"
 check_path file "${ROOT_DIR}/env_cfg/${env_cfg}.yml" "env_cfg"
 check_path file "${ROOT_DIR}/task/RoboDojo/config/${task_name}.yml" "task config"
-check_path dir "${ROOT_DIR}/Assets/Robots" "robot assets"
-check_path dir "${ROOT_DIR}/Assets/Object/RoboDojo" "object assets"
-check_path dir "${ROOT_DIR}/Assets/Eval_Layout/RoboDojo" "eval layouts"
-check_path dir "${ROOT_DIR}/Assets/Material" "materials"
+assets_root="${ROBODOJO_ASSETS_ROOT:-${ROBODOJO_STORAGE_ROOT:+${ROBODOJO_STORAGE_ROOT}/assets}}"
+assets_root="${assets_root:-${ROOT_DIR}/Assets}"
+check_path dir "${assets_root}/Robots" "robot assets"
+check_path dir "${assets_root}/Object/RoboDojo" "object assets"
+check_path dir "${assets_root}/Eval_Layout/RoboDojo" "eval layouts"
+check_path dir "${assets_root}/Material" "materials"
+
+if [[ "${check_storage}" == "true" ]]; then
+  if bash "${ROOT_DIR}/scripts/robodojo_storage.sh" doctor; then
+    record "PASS" "storage contract" "read mount and local scratch validated"
+  else
+    record "FAIL" "storage contract" "storage doctor failed"
+  fi
+fi
 
 if [[ -n "${policy_dir}" && "${skip_policy}" != "true" ]]; then
   check_path file "${policy_dir}/eval.sh" "policy eval.sh"
@@ -164,12 +177,12 @@ else
 fi
 
 if [[ "${env_cfg}" == "openarm_cloth_folding" || "${env_cfg}" == "openarm_cloth_folding_dyna" ]]; then
-  check_path file "${ROOT_DIR}/Assets/Robots/openarm/manifest.json" "OpenARM asset manifest"
-  check_path file "${ROOT_DIR}/Assets/Robots/openarm/openarm_bimanual_cloth_folding.usd" "OpenARM functional-twin USD"
-  check_path file "${ROOT_DIR}/Assets/Robots/openarm/robot_config.yml" "OpenARM robot config"
-  check_path file "${ROOT_DIR}/Assets/Robots/openarm/head_camera_holder.usd" "OpenARM head camera holder"
-  check_path file "${ROOT_DIR}/Assets/Robots/openarm/left_wrist_camera_holder.usd" "OpenARM left wrist camera holder"
-  check_path file "${ROOT_DIR}/Assets/Robots/openarm/right_wrist_camera_holder.usd" "OpenARM right wrist camera holder"
+  check_path file "${assets_root}/Robots/openarm/manifest.json" "OpenARM asset manifest"
+  check_path file "${assets_root}/Robots/openarm/openarm_bimanual_cloth_folding.usd" "OpenARM functional-twin USD"
+  check_path file "${assets_root}/Robots/openarm/robot_config.yml" "OpenARM robot config"
+  check_path file "${assets_root}/Robots/openarm/head_camera_holder.usd" "OpenARM head camera holder"
+  check_path file "${assets_root}/Robots/openarm/left_wrist_camera_holder.usd" "OpenARM left wrist camera holder"
+  check_path file "${assets_root}/Robots/openarm/right_wrist_camera_holder.usd" "OpenARM right wrist camera holder"
   if python3 - <<PY; then
 import json
 from pathlib import Path
@@ -177,13 +190,14 @@ import sys
 import yaml
 
 root = Path("${ROOT_DIR}")
+assets = Path("${assets_root}")
 env = yaml.safe_load((root / "env_cfg/openarm_cloth_folding.yml").read_text())
 sim = yaml.safe_load((root / "env_cfg/sim/openarm_cloth_folding.yml").read_text())
 camera_name = env["config"]["camera"]
 camera = yaml.safe_load((root / "env_cfg/camera" / f"{camera_name}.yml").read_text())
 scene = yaml.safe_load((root / "env_cfg/scene/openarm_cloth_folding.yml").read_text())
 info = json.loads((root / "env_cfg/robot/_robot_info.json").read_text())["dual_openarm"]
-manifest = json.loads((root / "Assets/Robots/openarm/manifest.json").read_text())
+manifest = json.loads((assets / "Robots/openarm/manifest.json").read_text())
 sources = json.loads((root / "scripts/assets/openarm_sources.json").read_text())
 assert env["observation"]["collect_freq"] == 30
 assert abs(1.0 / (sim["dt"] * 30) - 8.0) < 1e-9

@@ -59,7 +59,8 @@ PY
 
 policy_server_port="$(bash "${UTILS_DIR}/get_free_port.sh")"
 policy_server_ip="localhost"
-additional_info="ckpt_name=${ckpt_name},action_type=${action_type}"
+ckpt_label="${ROBODOJO_CKPT_LABEL:-${ckpt_name}}"
+additional_info="ckpt_name=${ckpt_label},action_type=${action_type}"
 
 cleanup() {
   if [[ -n "${SERVER_PID:-}" ]]; then

@@ -16,7 +16,8 @@ HF_REVISION="${HF_REVISION:-main}"
 HF_REPO_URL="${HF_REPO_URL:-https://huggingface.co/datasets/${HF_REPO_ID}}"
 
 DATA_TYPE="${1:-}"
-DATA_ROOT="${ROBO_DOJO_DATA_ROOT:-${CURRENT_DIR}/data}"
+DATA_ROOT="${ROBODOJO_DATA_ROOT:-${ROBO_DOJO_DATA_ROOT:-${ROBODOJO_STORAGE_ROOT:+${ROBODOJO_STORAGE_ROOT}/datasets}}}"
+DATA_ROOT="${DATA_ROOT:-${CURRENT_DIR}/data}"
 
 usage() {
   cat <<EOF
@@ -86,7 +87,11 @@ resolve_data_type() {
 
   REMOTE_DIR="data/${DATA_DIR_NAME}"
   TARGET_DIR="${DATA_ROOT}/${DATA_DIR_NAME}"
-  DATA_CACHE_DIR="${CURRENT_DIR}/.cache/robodojo_data_${DATA_TYPE}_repo"
+  if [[ -n "${ROBODOJO_STORAGE_ROOT:-}" ]]; then
+    DATA_CACHE_DIR="${ROBODOJO_LOCAL_SCRATCH_ROOT:?set ROBODOJO_LOCAL_SCRATCH_ROOT for storage mode}/git/robodojo_data_${DATA_TYPE}_repo"
+  else
+    DATA_CACHE_DIR="${CURRENT_DIR}/.cache/robodojo_data_${DATA_TYPE}_repo"
+  fi
 }
 
 data_ready() {
@@ -120,6 +125,9 @@ download_data() {
   mkdir -p "${DATA_ROOT}" "$(dirname "${DATA_CACHE_DIR}")"
 
   if [[ -e "${TARGET_DIR}" || -L "${TARGET_DIR}" ]]; then
+    if [[ -n "${ROBODOJO_STORAGE_ROOT:-}" ]]; then
+      error "Mounted data payload is incomplete: ${TARGET_DIR}"
+    fi
     warn "'${TARGET_DIR}' exists but is not marked complete."
     archive_path "${TARGET_DIR}"
   fi
@@ -152,8 +160,8 @@ download_data() {
     error "Remote folder '${REMOTE_DIR}' was not found in ${HF_REPO_ID}."
   fi
 
-  ln -s "${DATA_CACHE_DIR}/${REMOTE_DIR}" "${TARGET_DIR}"
-  cat > "${TARGET_DIR}/.download_complete" <<EOF
+  payload_dir="${DATA_CACHE_DIR}/${REMOTE_DIR}"
+  cat > "${payload_dir}/.download_complete" <<EOF
 repo_id=${HF_REPO_ID}
 revision=${HF_REVISION}
 remote_dir=${REMOTE_DIR}
@@ -161,6 +169,11 @@ data_type=${DATA_TYPE}
 data_dir_name=${DATA_DIR_NAME}
 size=${DATA_SIZE}
 EOF
+  if [[ -n "${ROBODOJO_STORAGE_ROOT:-}" ]]; then
+    bash "${CURRENT_DIR}/scripts/robodojo_storage.sh" publish-data "${DATA_DIR_NAME}" "${payload_dir}"
+  else
+    ln -s "${payload_dir}" "${TARGET_DIR}"
+  fi
 }
 
 verify_data() {

@@ -3,6 +3,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+EVAL_ROOT="$(PYTHONPATH="${ROOT_DIR}:${PYTHONPATH:-}" python3 -c 'from utils.storage import eval_root; print(eval_root())')"
+RUN_WORK_ROOT="$(PYTHONPATH="${ROOT_DIR}:${PYTHONPATH:-}" python3 -c 'from utils.storage import run_work_root; print(run_work_root())')"
 
 dataset="RoboDojo"
 ckpt=""
@@ -121,10 +123,24 @@ if [[ ! -f "${policy_dir}/eval.sh" ]]; then
 fi
 
 policy_name="$(basename "$(cd "${policy_dir}" && pwd)")"
+ckpt_label="$(PYTHONPATH="${ROOT_DIR}:${PYTHONPATH:-}" python3 - "${ckpt}" <<'PY'
+import sys
+from utils.storage import checkpoint_label
+print(checkpoint_label(sys.argv[1]))
+PY
+)"
 
-summary_path="${summary_path:-${ROOT_DIR}/smoke_results/${run_id}.json}"
-markdown_path="${markdown_path:-${ROOT_DIR}/smoke_results/${run_id}.md}"
-log_dir="${ROOT_DIR}/smoke_results/${run_id}/logs"
+if [[ -n "${ROBODOJO_STORAGE_ROOT:-}" ]]; then
+  run_dir="${RUN_WORK_ROOT}/smoke/${run_id}"
+  summary_path="${summary_path:-${run_dir}/summary.json}"
+  markdown_path="${markdown_path:-${run_dir}/summary.md}"
+  log_dir="${run_dir}/logs"
+else
+  run_dir="${ROOT_DIR}/smoke_results"
+  summary_path="${summary_path:-${run_dir}/${run_id}.json}"
+  markdown_path="${markdown_path:-${run_dir}/${run_id}.md}"
+  log_dir="${run_dir}/${run_id}/logs"
+fi
 mkdir -p "$(dirname "${summary_path}")" "$(dirname "${markdown_path}")" "${log_dir}"
 
 RESULTS_TSV="$(mktemp)"
@@ -280,7 +296,7 @@ for task in "${TASKS[@]}"; do
   fi
 
   task_run_id="${run_id}_${task}"
-  result_path="${ROOT_DIR}/eval_result/RoboDojo/${task}/${policy_name}/${env_cfg}/${seed}_ckpt_name=${ckpt},action_type=${action_type}/${task_run_id}/_result.json"
+  result_path="${EVAL_ROOT}/${task}/${policy_name}/${env_cfg}/${seed}_ckpt_name=${ckpt_label},action_type=${action_type}/${task_run_id}/_result.json"
   log_path="${log_dir}/${task}.log"
 
   echo "[smoke_all_tasks] RUN ${task}"
@@ -360,6 +376,9 @@ print(payload["counts"].get("FAIL", 0))
 PY
 )"
 echo "[smoke_all_tasks] complete: ${summary_path}"
+if [[ -n "${ROBODOJO_STORAGE_ROOT:-}" && "${dry_run}" != "true" ]]; then
+  bash "${ROOT_DIR}/scripts/robodojo_storage.sh" publish-run smoke "${run_id}" "${run_dir}"
+fi
 if [[ "${fail_count}" -gt 0 ]]; then
   exit 1
 fi

@@ -15,8 +15,13 @@ HF_REPO_ID="${HF_REPO_ID:-RoboDojo-Benchmark/RoboDojo}"
 HF_REVISION="${HF_REVISION:-main}"
 HF_REPO_URL="${HF_REPO_URL:-https://huggingface.co/datasets/${HF_REPO_ID}}"
 
-TARGET_DIR="${CURRENT_DIR}/Assets"
-ASSET_CACHE_DIR="${CURRENT_DIR}/.cache/robodojo_assets_repo"
+if [[ -n "${ROBODOJO_STORAGE_ROOT:-}" ]]; then
+  TARGET_DIR="${ROBODOJO_ASSETS_ROOT:-${ROBODOJO_STORAGE_ROOT}/assets}"
+  ASSET_CACHE_DIR="${ROBODOJO_LOCAL_SCRATCH_ROOT:?set ROBODOJO_LOCAL_SCRATCH_ROOT for storage mode}/git/robodojo_assets_repo"
+else
+  TARGET_DIR="${ROBODOJO_ASSETS_ROOT:-${CURRENT_DIR}/Assets}"
+  ASSET_CACHE_DIR="${CURRENT_DIR}/.cache/robodojo_assets_repo"
+fi
 REQUIRED_ASSET_SUBDIRS=(Robots Object Material Eval_Layout)
 
 assets_ready() {
@@ -65,6 +70,9 @@ download_assets() {
   fi
 
   if [[ -d "${TARGET_DIR}" ]]; then
+    if [[ -n "${ROBODOJO_STORAGE_ROOT:-}" ]]; then
+      error "Mounted asset payload is incomplete: ${TARGET_DIR}"
+    fi
     local partial_dir="${TARGET_DIR}.partial.$(date +%Y%m%d_%H%M%S)"
     warn "'${TARGET_DIR}' exists but is incomplete."
     warn "Moving incomplete directory to '${partial_dir}' before recreating Assets."
@@ -97,7 +105,11 @@ download_assets() {
   git -C "${ASSET_CACHE_DIR}" lfs install --local >/dev/null
   git -C "${ASSET_CACHE_DIR}" lfs pull --include="Assets/**" --exclude=""
 
-  ln -s "${ASSET_CACHE_DIR}/Assets" "${TARGET_DIR}"
+  if [[ -n "${ROBODOJO_STORAGE_ROOT:-}" ]]; then
+    bash "${CURRENT_DIR}/scripts/robodojo_storage.sh" publish-assets "${ASSET_CACHE_DIR}/Assets"
+  else
+    ln -s "${ASSET_CACHE_DIR}/Assets" "${TARGET_DIR}"
+  fi
 }
 
 verify_assets() {

@@ -50,6 +50,15 @@ resolve_policy_name() {
   basename "${policy_dir}"
 }
 
+resolve_checkpoint_label() {
+  PYTHONPATH="${ROOT_DIR}:${PYTHONPATH:-}" python3 - "$1" "${2:-}" <<'PY'
+import sys
+from utils.storage import checkpoint_label
+
+print(checkpoint_label(sys.argv[1], sys.argv[2] or None))
+PY
+}
+
 validate_policy_dir() {
   local policy_dir="$1"
   local label="${2:-policy}"
@@ -80,6 +89,7 @@ run_eval() {
   local dataset="RoboDojo"
   local task=""
   local ckpt=""
+  local ckpt_label=""
   local env_cfg="arx_x5"
   local expert_num="100"
   local action_type="ee"
@@ -96,6 +106,7 @@ run_eval() {
       --dataset) need_value "$@"; dataset="$2"; shift 2 ;;
       --task) need_value "$@"; task="$2"; shift 2 ;;
       --ckpt) need_value "$@"; ckpt="$2"; shift 2 ;;
+      --ckpt-label) need_value "$@"; ckpt_label="$2"; shift 2 ;;
       --env-cfg) need_value "$@"; env_cfg="$2"; shift 2 ;;
       --expert-num) need_value "$@"; expert_num="$2"; shift 2 ;;
       --action-type) need_value "$@"; action_type="$2"; shift 2 ;;
@@ -118,6 +129,7 @@ Required:
 
 Common options:
   --eval-num NUM|native  Override EVAL_NUM for this eval; use `native` for per-task counts from _task.yml
+  --ckpt-label LABEL     Stable result-path label when --ckpt is a filesystem path
   --env-cfg NAME        env_cfg stem (default: arx_x5)
   --expert-num NUM      Expert-data count for policy eval.sh files that accept it (default: 100)
   --action-type NAME    Policy action type (default: ee)
@@ -141,6 +153,8 @@ EOF
     echo "[robodojo eval] --policy-dir, --task, --ckpt, and --policy-env are required" >&2
     exit 2
   fi
+  ckpt_label="$(resolve_checkpoint_label "${ckpt}" "${ckpt_label}")"
+  export ROBODOJO_CKPT_LABEL="${ckpt_label}"
   if [[ ! -f "${policy_dir}/eval.sh" ]]; then
     echo "[robodojo eval] policy eval.sh not found: ${policy_dir}/eval.sh" >&2
     exit 1
@@ -203,6 +217,7 @@ run_server() {
   local dataset="RoboDojo"
   local task=""
   local ckpt=""
+  local ckpt_label=""
   local env_cfg="arx_x5"
   local action_type="ee"
   local seed="0"
@@ -218,6 +233,7 @@ run_server() {
       --dataset) need_value "$@"; dataset="$2"; shift 2 ;;
       --task) need_value "$@"; task="$2"; shift 2 ;;
       --ckpt) need_value "$@"; ckpt="$2"; shift 2 ;;
+      --ckpt-label) need_value "$@"; ckpt_label="$2"; shift 2 ;;
       --env-cfg) need_value "$@"; env_cfg="$2"; shift 2 ;;
       --action-type) need_value "$@"; action_type="$2"; shift 2 ;;
       --seed) need_value "$@"; seed="$2"; shift 2 ;;
@@ -242,6 +258,7 @@ Required:
 
 Common options:
   --policy-port PORT    TCP port (default: auto-selected free port)
+  --ckpt-label LABEL    Stable metadata label when --ckpt is a filesystem path
   --bind-host HOST      Bind address (default: 0.0.0.0 for remote clients; use localhost for local-only)
   --env-cfg NAME        env_cfg stem (default: arx_x5)
   --action-type NAME    Policy action type (default: ee)
@@ -262,6 +279,8 @@ EOF
     echo "[robodojo server] --policy-dir, --task, --ckpt, and --policy-env are required" >&2
     exit 2
   fi
+  ckpt_label="$(resolve_checkpoint_label "${ckpt}" "${ckpt_label}")"
+  export ROBODOJO_CKPT_LABEL="${ckpt_label}"
   validate_policy_dir "${policy_dir}" "server"
 
   local server_args=(
@@ -301,6 +320,7 @@ run_client() {
   local seed="0"
   local env_gpu="0"
   local ckpt="external"
+  local ckpt_label=""
   local action_type="ee"
   local eval_num="${EVAL_NUM:-}"
   local connect_timeout="5"
@@ -318,6 +338,7 @@ run_client() {
       --seed) need_value "$@"; seed="$2"; shift 2 ;;
       --env-gpu) need_value "$@"; env_gpu="$2"; shift 2 ;;
       --ckpt) need_value "$@"; ckpt="$2"; shift 2 ;;
+      --ckpt-label) need_value "$@"; ckpt_label="$2"; shift 2 ;;
       --action-type) need_value "$@"; action_type="$2"; shift 2 ;;
       --eval-num) need_value "$@"; eval_num="$2"; shift 2 ;;
       --connect-timeout) need_value "$@"; connect_timeout="$2"; shift 2 ;;
@@ -343,6 +364,7 @@ Common options:
   --seed NUM             Eval seed / layout seed (default: 0)
   --env-gpu ID           Isaac Sim GPU (default: 0)
   --ckpt NAME            Checkpoint label recorded in result paths (default: external)
+  --ckpt-label LABEL     Override the checkpoint label recorded in result paths
   --action-type NAME     Action type label recorded in result paths (default: ee)
   --connect-timeout SEC  Pre-flight policy-server reachability probe timeout (default: 5)
   --dry-run              Print the resolved eval_policy.sh command without running it
@@ -380,7 +402,8 @@ EOF
     exit 1
   fi
 
-  local additional_info="ckpt_name=${ckpt},action_type=${action_type}"
+  ckpt_label="$(resolve_checkpoint_label "${ckpt}" "${ckpt_label}")"
+  local additional_info="ckpt_name=${ckpt_label},action_type=${action_type}"
 
   if [[ -n "${eval_num}" && "${eval_num}" != "native" ]]; then
     export EVAL_NUM="${eval_num}"

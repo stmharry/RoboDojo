@@ -75,6 +75,11 @@ The simulator environment is always the repository's `.venv`. Policy servers
 remain independent and `--policy-env` may identify a uv project, environment
 path, or policy-specific Conda environment.
 
+Large assets, datasets, model weights, and completed runs can be consumed from
+a read-only Mountpoint for S3 while active work remains on local POSIX scratch.
+See [S3-backed storage](docs/STORAGE.md) for the environment contract and
+explicit AWS CLI publication workflow.
+
 ## 🔌 Policy Integration
 
 Policies live in [XPolicyLab](https://github.com/XPolicyLab/XPolicyLab/blob/main/README.md), which owns policy structure, dependencies, checkpoint layout, and server behavior. RoboDojo only assumes a policy directory provides:

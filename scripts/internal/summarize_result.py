@@ -29,14 +29,16 @@ Rules:
 
 import json
 import os
+from pathlib import Path
 import re
 import statistics
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from utils.storage import eval_root, storage_mode
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.environ.get(
-    "ROBODOJO_EVAL_ROOT",
-    os.path.normpath(os.path.join(SCRIPT_DIR, "..", "..", "eval_result", "RoboDojo")),
-)
+ROOT = str(eval_root())
 OUTPUT_MD = os.path.join(ROOT, "_summary.md")
 
 SEED_RE = re.compile(r"^(\d+)_")
@@ -93,7 +95,9 @@ def latest_timestamp_dir(run_dir):
     """Return the latest timestamp subdir that contains a `_result.json`."""
     candidates = []
     for name in list_subdirs(run_dir):
-        if os.path.isfile(os.path.join(run_dir, name, "_result.json")):
+        result_file = os.path.join(run_dir, name, "_result.json")
+        complete_file = os.path.join(run_dir, name, "_COMPLETE.json")
+        if os.path.isfile(result_file) and (not storage_mode() or os.path.isfile(complete_file)):
             candidates.append(name)
     if not candidates:
         return None

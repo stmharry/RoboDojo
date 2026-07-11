@@ -30,9 +30,10 @@ import re
 import sys
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_ROOT = os.path.normpath(
-    os.path.join(SCRIPT_DIR, "..", "..", "eval_result", "RoboDojo")
-)
+sys.path.insert(0, os.path.normpath(os.path.join(SCRIPT_DIR, "..", "..")))
+from utils.storage import eval_root, storage_mode
+
+DEFAULT_ROOT = str(eval_root())
 
 DEFAULT_POLICIES = ("Xiaomi_Robotics_0", "X_VLA", "Pi_05")
 POLICY_ALIASES = {
@@ -59,7 +60,9 @@ def list_subdirs(path: str) -> list[str]:
 def latest_timestamp_dir(run_dir: str) -> str | None:
     candidates = []
     for name in list_subdirs(run_dir):
-        if os.path.isfile(os.path.join(run_dir, name, "_result.json")):
+        result_file = os.path.join(run_dir, name, "_result.json")
+        complete_file = os.path.join(run_dir, name, "_COMPLETE.json")
+        if os.path.isfile(result_file) and (not storage_mode() or os.path.isfile(complete_file)):
             candidates.append(name)
     if not candidates:
         return None

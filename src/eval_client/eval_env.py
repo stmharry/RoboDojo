@@ -17,6 +17,7 @@ from env.seed_manager.seed_manager import SeedManager
 from utils.cluttered_generator import UnStableError
 from utils.pipeline_utils import get_robot_action_dim_info
 from utils.save_file import VideoStreamWriter, format_video_saved_message, save_json
+from utils.storage import eval_work_root
 
 
 def _patch_websockets_proxy_compat():
@@ -78,8 +79,7 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
                 os.environ["ROBODOJO_RUN_ID"] = run_id
             self.run_id = run_id
             self.save_dir = os.path.join(
-                "eval_result",
-                f"{BENCHMARK}",
+                str(eval_work_root()),
                 self.task_name,
                 self.policy_name,
                 self.config_name,
@@ -723,8 +723,7 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
             locate by humans.
             """
             return os.path.join(
-                "eval_result",
-                f"{BENCHMARK}",
+                str(eval_work_root()),
                 self.task_name,
                 self.policy_name,
                 self.config_name,

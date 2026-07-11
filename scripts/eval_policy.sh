@@ -167,6 +167,10 @@ while : ; do
   set -e
   case "$rc" in
     0)
+      if [[ -n "${ROBODOJO_STORAGE_ROOT:-}" || -n "${ROBODOJO_S3_URI:-}" ]]; then
+        bash "${PROJECT_ROOT}/scripts/robodojo_storage.sh" publish-eval . \
+          --run-id "${ROBODOJO_RUN_ID}"
+      fi
       exit 0
       ;;
     99|134|139)
