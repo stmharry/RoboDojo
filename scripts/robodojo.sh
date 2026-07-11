@@ -100,6 +100,10 @@ run_eval() {
   local policy_dir=""
   local eval_num="${EVAL_NUM:-}"
   local dry_run="false"
+  local export_scene="false"
+  local export_scene_only="false"
+  local export_scene_dir=""
+  local layout_id="0"
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -116,6 +120,10 @@ run_eval() {
       --policy-env) need_value "$@"; policy_env="$2"; shift 2 ;;
       --policy-dir) need_value "$@"; policy_dir="$(abs_path "$2")"; shift 2 ;;
       --eval-num) need_value "$@"; eval_num="$2"; shift 2 ;;
+      --export-scene) export_scene="true"; shift ;;
+      --export-scene-only) export_scene="true"; export_scene_only="true"; shift ;;
+      --export-scene-dir) need_value "$@"; export_scene="true"; export_scene_dir="$(abs_path "$2")"; shift 2 ;;
+      --layout-id) need_value "$@"; layout_id="$2"; shift 2 ;;
       --dry-run) dry_run="true"; shift ;;
       -h|--help)
         cat <<'EOF'
@@ -136,6 +144,10 @@ Common options:
   --seed NUM            Eval seed / layout seed (default: 0)
   --policy-gpu ID       Policy server GPU (default: 0)
   --env-gpu ID          Isaac Sim GPU (default: 0)
+  --export-scene        Export the first post-reset scene, then continue evaluation
+  --export-scene-only   Export the requested layout and exit before policy rollout
+  --export-scene-dir P  Output directory (default: the evaluation run's scene_snapshot/)
+  --layout-id NUM       Eval-layout file index to snapshot first (default: 0)
   --dry-run             Print command without running it
 
 Split / multi-machine: use `robodojo.sh server` + `robodojo.sh client` (see docs/SPLIT_EVAL.md).
@@ -155,6 +167,14 @@ EOF
   fi
   ckpt_label="$(resolve_checkpoint_label "${ckpt}" "${ckpt_label}")"
   export ROBODOJO_CKPT_LABEL="${ckpt_label}"
+  export ROBODOJO_EXPORT_SCENE="${export_scene}"
+  export ROBODOJO_EXPORT_SCENE_ONLY="${export_scene_only}"
+  export ROBODOJO_EXPORT_LAYOUT_ID="${layout_id}"
+  if [[ -n "${export_scene_dir}" ]]; then
+    export ROBODOJO_EXPORT_SCENE_DIR="${export_scene_dir}"
+  else
+    unset ROBODOJO_EXPORT_SCENE_DIR || true
+  fi
   if [[ ! -f "${policy_dir}/eval.sh" ]]; then
     echo "[robodojo eval] policy eval.sh not found: ${policy_dir}/eval.sh" >&2
     exit 1
@@ -194,23 +214,47 @@ EOF
 
   echo "[robodojo eval] policy_dir=${policy_dir}"
   echo "[robodojo eval] task=${task} env_cfg=${env_cfg} eval_num=${EVAL_NUM:-default}"
+  if [[ "${export_scene}" == "true" ]]; then
+    echo "[robodojo eval] scene_export=true scene_only=${export_scene_only} layout_id=${layout_id} output=${export_scene_dir:-run-default}"
+  fi
 
   if [[ "${dry_run}" == "true" ]]; then
-    printf '[robodojo eval] dry-run: bash %q' "${ROOT_DIR}/scripts/internal/run_policy_eval.sh"
-    printf ' %q' "${policy_dir}"
-    printf ' %q' "${eval_args[@]}"
+    if [[ "${export_scene_only}" == "true" ]]; then
+      printf '[robodojo eval] dry-run: ROBODOJO_EXPORT_SCENE_ONLY=true bash %q' "${ROOT_DIR}/scripts/eval_policy.sh"
+      printf ' --root_dir %q --task_name %q --env_cfg_type %q --device_id %q' \
+        "${ROOT_DIR}" "${task}" "${env_cfg}" "${env_gpu}"
+      printf ' --policy_name %q --port 1 --eval_batch false --additional_info %q --seed %q' \
+        "$(resolve_policy_name "${policy_dir}")" "ckpt_name=${ckpt_label},action_type=${action_type}" "${seed}"
+    else
+      printf '[robodojo eval] dry-run: bash %q' "${ROOT_DIR}/scripts/internal/run_policy_eval.sh"
+      printf ' %q' "${policy_dir}"
+      printf ' %q' "${eval_args[@]}"
+    fi
     printf '\n'
     return 0
   fi
 
   local start_sec end_sec elapsed_sec
+  local run_rc=0
   start_sec="$(date +%s)"
-  (
-    bash "${ROOT_DIR}/scripts/internal/run_policy_eval.sh" "${policy_dir}" "${eval_args[@]}"
-  )
+  if [[ "${export_scene_only}" == "true" ]]; then
+    bash "${ROOT_DIR}/scripts/eval_policy.sh" \
+      --root_dir "${ROOT_DIR}" \
+      --task_name "${task}" \
+      --env_cfg_type "${env_cfg}" \
+      --device_id "${env_gpu}" \
+      --policy_name "$(resolve_policy_name "${policy_dir}")" \
+      --port 1 \
+      --eval_batch false \
+      --additional_info "ckpt_name=${ckpt_label},action_type=${action_type}" \
+      --seed "${seed}" || run_rc=$?
+  else
+    bash "${ROOT_DIR}/scripts/internal/run_policy_eval.sh" "${policy_dir}" "${eval_args[@]}" || run_rc=$?
+  fi
   end_sec="$(date +%s)"
   elapsed_sec=$((end_sec - start_sec))
   echo "[robodojo eval] wall_clock=${elapsed_sec}s"
+  return "${run_rc}"
 }
 
 run_server() {

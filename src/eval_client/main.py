@@ -63,6 +63,15 @@ parser.add_argument("--seed", type=int, required=True, help="policy seed for eva
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
+
+def _env_flag(name):
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+SCENE_EXPORT_REQUESTED = _env_flag("ROBODOJO_EXPORT_SCENE") or _env_flag("ROBODOJO_EXPORT_SCENE_ONLY")
+SCENE_EXPORT_ONLY = _env_flag("ROBODOJO_EXPORT_SCENE_ONLY")
+SCENE_EXPORT_LAYOUT_ID = int(os.environ.get("ROBODOJO_EXPORT_LAYOUT_ID", "0"))
+
 # Safe to import before AppLauncher: env is a namespace package (no __init__)
 # and GLOBAL_CONFIGS only imports os, so this pulls in no app-dependent code.
 from env.global_configs import BENCHMARK, ROOT_DIR
@@ -75,6 +84,10 @@ class PhysXBrokenError(Exception):
 
 
 class PhysXFatalError(Exception):
+    pass
+
+
+class SceneExportError(RuntimeError):
     pass
 
 
@@ -251,13 +264,13 @@ def main():
     PhysX crash/resume recovery until the requested episode count is reached.
     """
     task_name = args_cli.task_name
-    num_envs = args_cli.num_envs
+    num_envs = 1 if SCENE_EXPORT_ONLY else args_cli.num_envs
     eval_cfg_name = args_cli.env_cfg_type
     eval_cfg = load_yaml(os.path.join(ENV_CONFIG_PATH, eval_cfg_name + ".yml"))
     eval_cfg["task_name"] = task_name
     eval_cfg["num_envs"] = num_envs
     eval_cfg["device_id"] = args_cli.device_id
-    eval_batch = _eval_batch_from_deploy(args_cli.policy_name)
+    eval_batch = False if SCENE_EXPORT_ONLY else _eval_batch_from_deploy(args_cli.policy_name)
     eval_cfg["eval_batch"] = eval_batch
     eval_cfg["policy_name"] = args_cli.policy_name
     eval_cfg["additional_info"] = args_cli.additional_info
@@ -337,14 +350,32 @@ def main():
 
     env_cfg.sim.seed = [0 for _ in range(num_envs)]
     run_id = os.environ["ROBODOJO_RUN_ID"]
-    resume_state = _load_resume_manifest(eval_cfg, run_id)
-    env = create_eval_env(env_cfg, simulation_app, resume_state=resume_state)
+    resume_state = None if SCENE_EXPORT_ONLY else _load_resume_manifest(eval_cfg, run_id)
+    env = create_eval_env(
+        env_cfg,
+        simulation_app,
+        resume_state=resume_state,
+        policy_enabled=not SCENE_EXPORT_ONLY,
+    )
+    if SCENE_EXPORT_REQUESTED and SCENE_EXPORT_LAYOUT_ID not in env.seed_manager.seed_info:
+        raise ValueError(
+            f"layout id {SCENE_EXPORT_LAYOUT_ID} is unavailable for task={task_name} "
+            f"seed={args_cli.seed}; available={sorted(env.seed_manager.seed_info)}"
+        )
+    if SCENE_EXPORT_REQUESTED and resume_state is None and not SCENE_EXPORT_ONLY:
+        # Preserve the evaluator's full seed set while making the requested
+        # snapshot layout the first reset/rollout and avoiding a later duplicate.
+        env.seed_manager.seed_list.remove(SCENE_EXPORT_LAYOUT_ID)
+        env.seed_manager.seed_list.insert(0, SCENE_EXPORT_LAYOUT_ID)
     eval_time = env.success_nums + env.fail_nums
-    if eval_time >= eval_num:
+    if SCENE_EXPORT_ONLY:
+        env.env_seeds = [SCENE_EXPORT_LAYOUT_ID]
+    elif eval_time >= eval_num:
         # Already complete on resume - nothing left to do.
         env.env_seeds = None
     else:
         env.env_seeds = env.seed_manager.get_seeds(max_count=eval_num - eval_time)
+    export_pending = SCENE_EXPORT_REQUESTED
     while env.env_seeds is not None:
         retry_round = False
         if enable_monitor:
@@ -352,8 +383,35 @@ def main():
         bad_envs = None
         try:
             env.reset(seed=env.env_seeds)
+            if export_pending:
+                from src.scene_export.exporter import export_scene_snapshot
+
+                export_dir = os.environ.get("ROBODOJO_EXPORT_SCENE_DIR") or os.path.join(
+                    env.save_dir, "scene_snapshot"
+                )
+                try:
+                    export_scene_snapshot(env, export_dir, SCENE_EXPORT_LAYOUT_ID)
+                except Exception as e:
+                    raise SceneExportError(str(e)) from e
+                export_pending = False
+                if SCENE_EXPORT_ONLY:
+                    env.seed_manager.eval_step()
+                    _close_model_client(env)
+                    env.close()
+                    simulation_app.close()
+                    print("[scene-export] scene-only mode complete; policy rollout skipped")
+                    return
             env.run_eval()
             env.seed_manager.eval_step()
+
+        except SceneExportError:
+            import traceback
+
+            traceback.print_exc()
+            _close_model_client(env)
+            env.close()
+            simulation_app.close()
+            raise
 
         except PhysXFatalError as e:
             # Unrecoverable: GPU/CUDA context is dead. Persist progress

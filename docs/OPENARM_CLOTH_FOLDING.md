@@ -38,6 +38,34 @@ OMNI_KIT_ACCEPT_EULA=YES uv run --locked bash scripts/robodojo.sh eval \
   --eval-num 1
 ```
 
+### Export the composed pre-rollout scene
+
+The normal evaluator can export the first fully reset scene immediately before
+policy motion. Use `--export-scene` to continue the rollout after exporting, or
+`--export-scene-only` to skip policy-server startup, checkpoint loading,
+inference, and actions:
+
+```bash
+OMNI_KIT_ACCEPT_EULA=YES uv run --locked bash scripts/robodojo.sh eval \
+  --policy-dir XPolicyLab/policy/LeRobot_Pi05_OpenArm \
+  --task fold_clothes --ckpt folding_final \
+  --env-cfg openarm_cloth_folding_dyna --action-type joint --seed 0 \
+  --layout-id 0 --env-gpu 0 --policy-env lerobot-pi05 \
+  --export-scene-only
+```
+
+The default output is `scene_snapshot/` inside the evaluation run directory;
+`--export-scene-dir PATH` selects an explicit ignored artifact directory. The
+bundle contains readable `scene_referenced.usda`, portable
+`scene_flattened.usdc`, `scene_manifest.json`, and any reachable non-USD files
+under `dependencies/`. The manifest is authoritative for the effective
+postprocessed fisheye projection and records unresolved dependencies.
+
+USD preserves the authored PhysX, articulation, collision, particle, and cloth
+schemas plus observable reset state. PhysX contact caches, GPU buffers, tensor
+handles, and solver warm-start state are runtime-only and cannot be serialized.
+Generic USD viewers may also render MDL materials differently from Isaac RTX.
+
 The adapter follows LeRobot's pinned real-robot evaluation loop: one
 `predict_action_chunk` call per inference, asynchronous Real-Time Chunking with
 a 30-action queue, execution horizon 20, guidance 5.0, LINEAR prefix attention,

@@ -1,0 +1,104 @@
+import json
+from pathlib import Path
+import subprocess
+
+import pytest
+
+from src.scene_export.contracts import ExportIdentity, calculate_fov_degrees, completed_export_matches
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_camera_fov_contract():
+    fov = calculate_fov_degrees(640, 480, 320, 320)
+    assert fov["horizontal"] == pytest.approx(90.0)
+    assert fov["vertical"] == pytest.approx(73.739795, abs=1e-6)
+    assert fov["diagonal"] == pytest.approx(102.680383, abs=1e-6)
+    with pytest.raises(ValueError, match="positive"):
+        calculate_fov_degrees(640, 480, 0, 320)
+
+
+def test_completed_export_requires_exact_identity(tmp_path):
+    identity = ExportIdentity("fold_clothes", "openarm_cloth_folding_dyna", 0, 0, "abc123")
+    assert not completed_export_matches(tmp_path, identity)
+    (tmp_path / "scene_manifest.json").write_text(
+        json.dumps({"complete": True, "identity": identity.to_dict()}), encoding="utf-8"
+    )
+    assert completed_export_matches(tmp_path, identity)
+    assert not completed_export_matches(
+        tmp_path,
+        ExportIdentity("fold_clothes", "openarm_cloth_folding_dyna", 0, 1, "abc123"),
+    )
+
+
+def test_scene_only_eval_dry_run_bypasses_policy_orchestrator(tmp_path):
+    policy_dir = tmp_path / "TestPolicy"
+    policy_dir.mkdir()
+    (policy_dir / "eval.sh").write_text("#!/usr/bin/env bash\n", encoding="utf-8")
+    result = subprocess.run(
+        [
+            "bash",
+            str(ROOT / "scripts/robodojo.sh"),
+            "eval",
+            "--policy-dir",
+            str(policy_dir),
+            "--task",
+            "fold_clothes",
+            "--ckpt",
+            "folding_final",
+            "--policy-env",
+            "unused-in-scene-only",
+            "--env-cfg",
+            "openarm_cloth_folding_dyna",
+            "--seed",
+            "0",
+            "--layout-id",
+            "0",
+            "--export-scene-only",
+            "--dry-run",
+        ],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert "scripts/eval_policy.sh" in result.stdout
+    assert "ROBODOJO_EXPORT_SCENE_ONLY=true" in result.stdout
+    assert "scripts/internal/run_policy_eval.sh" not in result.stdout
+
+
+def test_export_and_continue_keeps_policy_orchestrator(tmp_path):
+    policy_dir = tmp_path / "TestPolicy"
+    policy_dir.mkdir()
+    (policy_dir / "eval.sh").write_text("#!/usr/bin/env bash\n", encoding="utf-8")
+    result = subprocess.run(
+        [
+            "bash",
+            str(ROOT / "scripts/robodojo.sh"),
+            "eval",
+            "--policy-dir",
+            str(policy_dir),
+            "--task",
+            "fold_clothes",
+            "--ckpt",
+            "folding_final",
+            "--policy-env",
+            "test-policy-env",
+            "--export-scene",
+            "--dry-run",
+        ],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert "scripts/internal/run_policy_eval.sh" in result.stdout
+    assert "scripts/eval_policy.sh" not in result.stdout
+
+
+def test_export_hook_precedes_rollout():
+    source = (ROOT / "src/eval_client/main.py").read_text(encoding="utf-8")
+    reset = source.index("env.reset(seed=env.env_seeds)")
+    export = source.index("export_scene_snapshot(env, export_dir", reset)
+    rollout = source.index("env.run_eval()", export)
+    assert reset < export < rollout

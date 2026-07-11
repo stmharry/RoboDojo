@@ -52,6 +52,7 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
 
     class EvalEnv(task_class):
         def __init__(self, config, app, resume_state=None, **kwargs):
+            self.policy_enabled = bool(kwargs.pop("policy_enabled", True))
             super().__init__(config, app, **kwargs)
             self.eval_cfg = config.eval_cfg
             self.config_name = self.eval_cfg.get("config_name", None)
@@ -176,22 +177,23 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
 
             self.deploy_cfg = config.deploy_cfg
             self.port = self.deploy_cfg.get("port", None)
-            if self.port is None:
+            if self.policy_enabled and self.port is None:
                 raise ValueError("Port must be specified in deploy_cfg for the policy server!")
             self.host = self.deploy_cfg.get("host", "localhost")
-            _patch_websockets_proxy_compat()
-
-            policy_server_url = self.deploy_cfg.get("policy_server_url") or f"ws://{self.host}:{self.port}"
-            evaluation_id = self.deploy_cfg.get("evaluation_id", self.run_id)
-            trial_id = self.deploy_cfg.get("trial_id", f"{self.task_name}-{self.run_id}")
-            action_case_id = self.deploy_cfg.get("action_case_id", f"{self.task_name}_case")
-            self.model_client = WsModelClient(
-                url=policy_server_url,
-                evaluation_id=evaluation_id,
-                trial_id=trial_id,
-                action_case_id=action_case_id,
-                repeat_index=self.deploy_cfg.get("repeat_index"),
-            )
+            self.model_client = None
+            if self.policy_enabled:
+                _patch_websockets_proxy_compat()
+                policy_server_url = self.deploy_cfg.get("policy_server_url") or f"ws://{self.host}:{self.port}"
+                evaluation_id = self.deploy_cfg.get("evaluation_id", self.run_id)
+                trial_id = self.deploy_cfg.get("trial_id", f"{self.task_name}-{self.run_id}")
+                action_case_id = self.deploy_cfg.get("action_case_id", f"{self.task_name}_case")
+                self.model_client = WsModelClient(
+                    url=policy_server_url,
+                    evaluation_id=evaluation_id,
+                    trial_id=trial_id,
+                    action_case_id=action_case_id,
+                    repeat_index=self.deploy_cfg.get("repeat_index"),
+                )
             self.robot_action_dim_info = get_robot_action_dim_info(env_cfg=self.eval_cfg)
 
         def close(self):
@@ -240,7 +242,8 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
             self.robot_manager.set_robot_init_state()
             self.reward_manager.init_state()
 
-            self.model_client.call(func_name="reset")
+            if self.model_client is not None:
+                self.model_client.call(func_name="reset")
 
         def setup_scene(self):
             for env_idx in range(self.num_envs):
