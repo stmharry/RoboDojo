@@ -8,7 +8,7 @@ storage and published directly to S3, with completion metadata uploaded last.
 from __future__ import annotations
 
 import argparse
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 import hashlib
 import json
 import os
@@ -116,7 +116,7 @@ def _metadata(source: Path, relative: str) -> tuple[dict, dict]:
         }
         for path in files
     ]
-    created = datetime.now(UTC).isoformat()
+    created = datetime.now(timezone.utc).isoformat()  # noqa: UP017 -- system Python 3.10 compatibility
     manifest = {
         "schema_version": 1,
         "destination": relative.strip("/"),
