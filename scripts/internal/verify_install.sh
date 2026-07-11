@@ -179,6 +179,8 @@ root = Path("${ROOT_DIR}")
 env = yaml.safe_load((root / "env_cfg/openarm_cloth_folding.yml").read_text())
 sim = yaml.safe_load((root / "env_cfg/sim/openarm_cloth_folding.yml").read_text())
 camera = yaml.safe_load((root / "env_cfg/camera/openarm_cloth_folding.yml").read_text())
+scene = yaml.safe_load((root / "env_cfg/scene/openarm_cloth_folding.yml").read_text())
+wrist = yaml.safe_load((root / "scripts/assets/openarm_robot_config.yml").read_text())
 info = json.loads((root / "env_cfg/robot/_robot_info.json").read_text())["dual_openarm"]
 manifest = json.loads((root / "Assets/Robots/openarm/manifest.json").read_text())
 sources = json.loads((root / "scripts/assets/openarm_sources.json").read_text())
@@ -187,7 +189,15 @@ assert abs(1.0 / (sim["dt"] * 30) - 8.0) < 1e-9
 assert sum(info["arm_dim"]) + sum(info["ee_dim"]) == 16
 assert camera["cam_head"]["camera"]["type"] == "openarm_base"
 assert camera["cam_head"]["camera"]["lens_distortion_model"] == "opencvFisheye"
+assert camera["cam_head"]["camera"]["sensor_model"] == "Fafeicy_HBV-1716WA_OV2710"
+assert camera["cam_head"]["camera"]["mount_link"] == "robot0/openarm_body_link"
+assert camera["cam_head"]["camera"]["published_diagonal_fov_deg"] == 140.0
 assert all(key in camera["cam_head"]["camera"] for key in ("cx", "cy", "fx", "fy"))
+assert scene["layout_overrides"]["remove_fixtures"] == ["Geometry.camera_stand"]
+for side in ("left", "right"):
+    wrist_camera = wrist[side]["camera"][0]
+    assert wrist_camera["sensor_model"] == "Arducam_IMX708_102deg_fixed_focus"
+    assert wrist_camera["published_diagonal_fov_deg"] == 102.0
 assert manifest["upper_arm_extension_m"] == 0.05
 assert len(manifest["joint_paths"]) == 2
 assert len(manifest["jaw_paths"]) == 4
@@ -219,6 +229,18 @@ if cfg.get("policy_name") == "LeRobot_Pi05_OpenArm":
     assert cfg.get("action_dim") == 16
     assert cfg.get("chunk_size") == 30
     assert cfg.get("prompt") == "Fold the T-shirt properly."
+    assert cfg.get("fps") == 30
+    assert cfg.get("duration_s") == 2000
+    assert cfg.get("interpolation_multiplier") == 3
+    assert cfg.get("max_relative_target_deg") == 8.0
+    rtc = cfg.get("rtc", {})
+    assert rtc == {
+        "enabled": True,
+        "action_queue_size": 30,
+        "execution_horizon": 20,
+        "max_guidance_weight": 5.0,
+        "prefix_attention_schedule": "LINEAR",
+    }
     checkpoint = policy_dir / cfg["checkpoint_path"]
     assert (checkpoint / ".revision").read_text().strip() == expected
     for required in (

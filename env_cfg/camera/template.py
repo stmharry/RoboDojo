@@ -28,14 +28,18 @@ LARGE_D435 = {
 }
 OPENARM_BASE = {
     "resolution": (640, 480),
-    "focal_length": 5.2,
+    # Rectilinear backing projection covering the OV2710's published 140°
+    # diagonal field before the explicit equidistant fisheye warp.
+    "focal_length": 5.005,
     "horizontal_aperture": 22.0,
     "vertical_aperture": 16.5,
     "clipping_range": (0.005, 10.0),
 }
 OPENARM_WRIST = {
     "resolution": (1280, 720),
-    "focal_length": 4.0,
+    # Rectilinear backing projection covering the IMX708 module's published
+    # 102° diagonal field before the explicit equidistant fisheye warp.
+    "focal_length": 10.0,
     "horizontal_aperture": 22.0,
     "vertical_aperture": 12.375,
     "clipping_range": (0.005, 10.0),

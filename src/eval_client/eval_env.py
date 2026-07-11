@@ -350,9 +350,91 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
                 raise ValueError(f"Multiple action types found in action dict keys: {action.keys()}")
             return action_type[0]
 
+        def _joint_action_to_control_info(self, action):
+            """Convert a public joint action to the robot manager's target schema."""
+            control_info = {}
+            for robot in self.robot_manager.robot_list:
+                if robot.type != "target":
+                    continue
+                arm_key = self.robot_manager.process_name(robot.arm_name)
+                control_info[arm_key] = {"position": action[arm_key]}
+
+                ee_key = self.robot_manager.process_name(robot.gripper_name)
+                if robot.ee_type == "gripper":
+                    val = deepcopy(action[ee_key][0])
+                    if getattr(robot, "physical_gripper_interface", False):
+                        val = np.clip(val, robot.gripper_scale[0], robot.gripper_scale[1])
+                    else:
+                        val = np.clip(val, 0, 1)
+                        if robot.gripper_move["sign"] == 1:
+                            val = val * (robot.gripper_scale[1] - robot.gripper_scale[0]) + robot.gripper_scale[0]
+                        else:
+                            val = (1 - val) * (
+                                robot.gripper_scale[1] - robot.gripper_scale[0]
+                            ) + robot.gripper_scale[0]
+                    control_info[ee_key] = {
+                        "position": [
+                            val,
+                            val * robot.gripper_move["mimic"][1] + robot.gripper_move["mimic"][2],
+                        ]
+                    }
+                elif robot.ee_type == "hand":
+                    control_info[ee_key] = {"position": action[ee_key]}
+            return control_info
+
         def take_action(self, action):
             self.validate_action_dict(action)
             self.take_action_batch([action], env_idx_list=[0])
+
+        def take_interpolated_action(self, actions, physics_ticks):
+            """Execute one 30 Hz policy action as explicit higher-rate targets.
+
+            LeRobot emits three linearly interpolated targets at 90 Hz. With
+            240 Hz simulation physics, the targets are held for 3, 3, and 2
+            ticks respectively. The policy step counter and reward advance
+            once, after all eight physics ticks.
+            """
+            if len(actions) != len(physics_ticks) or not actions:
+                raise ValueError("actions and physics_ticks must have the same non-zero length")
+            if any(not isinstance(ticks, int) or ticks <= 0 for ticks in physics_ticks):
+                raise ValueError("physics_ticks must contain positive integers")
+            if sum(physics_ticks) != int(self.obs_manager.collect_interval):
+                raise ValueError(
+                    "interpolated targets must span exactly one observation interval: "
+                    f"got {sum(physics_ticks)}, expected {self.obs_manager.collect_interval}"
+                )
+            if self.physx_monitor_enabled:
+                self._check_physx_broken_envs()
+            env_idx = 0
+            if self.take_action_cnt[env_idx] == self.step_lim or self.end_flag[env_idx]:
+                return
+
+            control_seq = []
+            for action, ticks in zip(actions, physics_ticks, strict=True):
+                self.validate_action_dict(action)
+                if self.get_action_type(action) != "joint":
+                    raise ValueError("take_interpolated_action supports joint actions only")
+                control_info = self._joint_action_to_control_info(action)
+                control_seq.extend(deepcopy(control_info) for _ in range(ticks))
+
+            self.take_action_cnt[env_idx] += 1
+            print(
+                f"env{env_idx} step: \033[92m{self.take_action_cnt[env_idx]} / {self.step_lim}\033[0m",
+                end="\r",
+            )
+            self.robot_manager.control_manager.push([env_idx], [control_seq])
+            while not self.have_empty([env_idx]):
+                self.step(env_idx_list=[env_idx])
+                if self.physx_monitor_enabled:
+                    self._check_physx_broken_envs()
+                    self._check_endpose_finite([env_idx])
+            self.reward_manager.step(env_idx_list=[env_idx])
+            if getattr(self, "interact", False):
+                if hasattr(self, "query_support_arm_traj"):
+                    self.query_support_arm_traj(env_idx=env_idx)
+                if hasattr(self, "check_support_arm_stable"):
+                    self.check_support_arm_stable(env_idx=env_idx)
+            self.is_episode_end()
 
         def take_action_batch(self, actions_list, env_idx_list=None):
             if self.physx_monitor_enabled:
@@ -374,38 +456,7 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
                 )
                 control_info = dict()
                 if action_type == "joint":
-                    for robot in self.robot_manager.robot_list:
-                        if robot.type != "target":
-                            continue
-                        key_name = self.robot_manager.process_name(robot.arm_name)
-                        control_info[key_name] = {
-                            "position": action[key_name],
-                        }
-
-                        key_name = self.robot_manager.process_name(robot.gripper_name)
-                        if robot.ee_type == "gripper":
-                            val = deepcopy(action[key_name][0])
-                            if getattr(robot, "physical_gripper_interface", False):
-                                val = np.clip(val, robot.gripper_scale[0], robot.gripper_scale[1])
-                            else:
-                                val = np.clip(val, 0, 1)
-                                if robot.gripper_move["sign"] == 1:
-                                    val = val * (robot.gripper_scale[1] - robot.gripper_scale[0]) + robot.gripper_scale[0]
-                                else:
-                                    val = (1 - val) * (
-                                        robot.gripper_scale[1] - robot.gripper_scale[0]
-                                    ) + robot.gripper_scale[0]
-                            vals = [
-                                val,
-                                val * robot.gripper_move["mimic"][1] + robot.gripper_move["mimic"][2],
-                            ]
-                            control_info[key_name] = {"position": vals}
-                        elif robot.ee_type == "hand":
-                            control_info[key_name] = {
-                                "position": action[key_name],
-                            }
-                        else:
-                            pass
+                    control_info = self._joint_action_to_control_info(action)
                 elif action_type == "ee":
                     for robot in self.robot_manager.robot_list:
                         if robot.type != "target":

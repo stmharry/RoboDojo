@@ -186,17 +186,11 @@ class CameraManager:
                 default_frequency = config.pop("default_frequency")
             if "annotator" in config:
                 config.pop("annotator")
-            render_settings = config.pop("render_settings", {})
-            if render_settings:
-                settings = carb.settings.get_settings()
-                settings.set(
-                    "/rtx/post/tonemap/exposureTime",
-                    float(render_settings.get("exposure_time_s", 0.01)),
-                )
-                settings.set(
-                    "/rtx/post/tonemap/whitepoint",
-                    list(render_settings.get("whitepoint", [1.0, 1.0, 1.0])),
-                )
+            # Exposure and white balance deliberately remain at Isaac Sim's
+            # neutral defaults.  These are renderer-wide controls rather than
+            # camera calibration, and forcing photographic shutter values into
+            # the RTX tone mapper can black out every render product.
+            config.pop("render_settings", None)
             random_config = config.pop("random", {})
             self.random_config = OmegaConf.create(random_config)
 
@@ -332,18 +326,6 @@ class CameraManager:
                         resolution=cur_camera_resolution,
                         frequency=default_frequency,
                     )
-                    distortion_model = camera_config.camera.get("lens_distortion_model", "pinhole")
-                    if distortion_model == "opencvFisheye":
-                        width, height = cur_camera_resolution
-                        cur_camera.set_opencv_fisheye_properties(
-                            cx=float(camera_config.camera.get("cx", width / 2.0)),
-                            cy=float(camera_config.camera.get("cy", height / 2.0)),
-                            fx=float(camera_config.camera.get("fx", width * 0.43)),
-                            fy=float(camera_config.camera.get("fy", width * 0.43)),
-                            fisheye=list(camera_config.camera.get("distortion_coefficients", [0.0] * 4)),
-                        )
-                    else:
-                        cur_camera.set_lens_distortion_model("pinhole")
                     cur_camera.set_local_pose(
                         visual_args_info["position"],
                         visual_args_info["orientation"],
@@ -360,6 +342,23 @@ class CameraManager:
                             near_distance=args_info["clipping_range"][0],
                             far_distance=args_info["clipping_range"][1],
                         )
+                    # Author the lens-distortion schema last. Isaac's physical
+                    # lens setters reset projection state, so calling them after
+                    # OpenCV fisheye setup yields an invalid (black) render.
+                    distortion_model = camera_config.camera.get("lens_distortion_model", "pinhole")
+                    if distortion_model == "opencvFisheye" and camera_config.camera.get(
+                        "projection_backend", "native"
+                    ) == "native":
+                        width, height = cur_camera_resolution
+                        cur_camera.set_opencv_fisheye_properties(
+                            cx=float(camera_config.camera.get("cx", width / 2.0)),
+                            cy=float(camera_config.camera.get("cy", height / 2.0)),
+                            fx=float(camera_config.camera.get("fx", width * 0.43)),
+                            fy=float(camera_config.camera.get("fy", width * 0.43)),
+                            fisheye=list(camera_config.camera.get("distortion_coefficients", [0.0] * 4)),
+                        )
+                    else:
+                        cur_camera.set_lens_distortion_model("pinhole")
                     self.cameras[env_id].append(cur_camera)
 
                 cam_id += 1

@@ -35,6 +35,10 @@ Ground:
 # appearance keys are accepted; garment pose/physics and reward inputs cannot
 # be changed through this overlay.
 layout_overrides:
+  # The fold_clothes layout is shared with ARX X5 and contains that robot's
+  # freestanding camera mast. This is the only geometry category that the
+  # fixture override API permits removing.
+  remove_fixtures: [Geometry.camera_stand]
   Room:
     default: Simple_Room_nolight
   Table:

@@ -449,7 +449,18 @@ class RobotManager:
             mesh = camera_cfg.get("mesh", None)
             if mesh is not None:
                 target_cfg["mesh"] = mesh
-            for key in ("lens_distortion_model", "distortion_coefficients", "cx", "cy", "fx", "fy"):
+            for key in (
+                "lens_distortion_model",
+                "projection_backend",
+                "distortion_coefficients",
+                "cx",
+                "cy",
+                "fx",
+                "fy",
+                "sensor_model",
+                "mount_basis",
+                "published_diagonal_fov_deg",
+            ):
                 if key in camera_cfg:
                     target_cfg[key] = camera_cfg[key]
 
