@@ -12,6 +12,14 @@ simulation_app = SimulationApp({"headless": True})
 from pxr import Gf, Usd, UsdGeom, UsdPhysics  # noqa: E402
 import trimesh  # noqa: E402
 
+from openarm_camera_calibration import (  # noqa: E402
+    HEAD_HOLDER,
+    WRIST_HOLDER,
+    calibration_manifest,
+    head_points_m,
+    wrist_points_m,
+)
+
 
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
@@ -57,6 +65,36 @@ def add_mesh(stage: Usd.Stage, parent_path: str, name: str, stl_path: Path, coll
         UsdPhysics.CollisionAPI.Apply(mesh.GetPrim())
         UsdPhysics.MeshCollisionAPI.Apply(mesh.GetPrim()).CreateApproximationAttr("convexHull")
     return path
+
+
+def build_holder_asset(stl_path: Path, output: Path, transform_points, prim_name: str) -> dict:
+    """Author a holder in its CAD-derived attachment frame."""
+    loaded = trimesh.load_mesh(stl_path, force="mesh")
+    if not isinstance(loaded, trimesh.Trimesh):
+        raise RuntimeError(f"expected one mesh in {stl_path}")
+    vertices = transform_points(loaded.vertices)
+    normalized = loaded.copy()
+    normalized.vertices = vertices
+    anchor_embedded = bool(normalized.contains([[0.0, 0.0, 0.0]])[0])
+    stage = Usd.Stage.CreateNew(str(output))
+    root = UsdGeom.Xform.Define(stage, f"/{prim_name}")
+    stage.SetDefaultPrim(root.GetPrim())
+    mesh = UsdGeom.Mesh.Define(stage, f"/{prim_name}/geometry")
+    mesh.CreatePointsAttr([Gf.Vec3f(*point) for point in vertices])
+    mesh.CreateFaceVertexCountsAttr([3] * len(loaded.faces))
+    mesh.CreateFaceVertexIndicesAttr(loaded.faces.reshape(-1).tolist())
+    mesh.CreateSubdivisionSchemeAttr("none")
+    UsdPhysics.CollisionAPI.Apply(mesh.GetPrim())
+    UsdPhysics.MeshCollisionAPI.Apply(mesh.GetPrim()).CreateApproximationAttr("convexHull")
+    stage.GetRootLayer().Save()
+    return {
+        "file": output.name,
+        "prim": f"/{prim_name}",
+        "mesh": f"/{prim_name}/geometry",
+        "collision": "convexHull",
+        "attachment_anchor_embedded": anchor_embedded,
+        "bounds_m": [vertices.min(axis=0).tolist(), vertices.max(axis=0).tolist()],
+    }
 
 
 def main() -> None:
@@ -125,8 +163,30 @@ def main() -> None:
             cover_paths.append(add_mesh(stage, upper_arm_candidates[0], label, args.hardware_root / filename, True))
     stage.GetRootLayer().Export(str(output))
 
+    holder_assets = {
+        "head": build_holder_asset(
+            args.hardware_root / HEAD_HOLDER.filename,
+            args.output_root / "head_camera_holder.usd",
+            head_points_m,
+            "head_camera_holder",
+        ),
+        "left_wrist": build_holder_asset(
+            args.hardware_root / WRIST_HOLDER.filename,
+            args.output_root / "left_wrist_camera_holder.usd",
+            lambda points: wrist_points_m(points, "left"),
+            "left_wrist_camera_holder",
+        ),
+        "right_wrist": build_holder_asset(
+            args.hardware_root / WRIST_HOLDER.filename,
+            args.output_root / "right_wrist_camera_holder.usd",
+            lambda points: wrist_points_m(points, "right"),
+            "right_wrist_camera_holder",
+        ),
+    }
+
     sources = [base, *(args.hardware_root / name for name in (
-        "J3-J4_Cover front extended.stl", "J3-J4_Cover back extended.stl", "jaw_normal.stl"
+        "J3-J4_Cover front extended.stl", "J3-J4_Cover back extended.stl", "jaw_normal.stl",
+        HEAD_HOLDER.filename, "arducam_holder.step", WRIST_HOLDER.filename,
     ))]
     manifest = {
         "format": 1,
@@ -138,6 +198,8 @@ def main() -> None:
         "joint_paths": joint_paths,
         "jaw_paths": jaw_paths,
         "cover_paths": cover_paths,
+        "camera_holders": holder_assets,
+        "camera_calibration": calibration_manifest(),
         "output": output.name,
         "sources": {path.name: sha256(path) for path in sources},
     }

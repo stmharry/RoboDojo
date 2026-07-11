@@ -12,6 +12,7 @@ env_cfg="arx_x5"
 task_name="stack_bowls"
 ckpt_name=""
 policy_env=""
+conda_exe=""
 skip_isaac="false"
 skip_policy="false"
 summary_path=""
@@ -166,6 +167,9 @@ if [[ "${env_cfg}" == "openarm_cloth_folding" || "${env_cfg}" == "openarm_cloth_
   check_path file "${ROOT_DIR}/Assets/Robots/openarm/manifest.json" "OpenARM asset manifest"
   check_path file "${ROOT_DIR}/Assets/Robots/openarm/openarm_bimanual_cloth_folding.usd" "OpenARM functional-twin USD"
   check_path file "${ROOT_DIR}/Assets/Robots/openarm/robot_config.yml" "OpenARM robot config"
+  check_path file "${ROOT_DIR}/Assets/Robots/openarm/head_camera_holder.usd" "OpenARM head camera holder"
+  check_path file "${ROOT_DIR}/Assets/Robots/openarm/left_wrist_camera_holder.usd" "OpenARM left wrist camera holder"
+  check_path file "${ROOT_DIR}/Assets/Robots/openarm/right_wrist_camera_holder.usd" "OpenARM right wrist camera holder"
   if python3 - <<PY; then
 import json
 from pathlib import Path
@@ -193,6 +197,8 @@ assert base["projection"]["model"] == "opencvFisheye"
 assert base["mount"]["kind"] == "scene_fixture"
 assert base["mount"]["target"] == "camera_stand"
 assert base["mount"]["optical_roll_deg"] == 180.0
+assert base["mount"]["basis"] == "lerobot_head_camera_holder_v4_optical_frame"
+assert base["mount"]["hardware"]["asset"].endswith("head_camera_holder.usd")
 if camera_name == "openarm_cloth_folding":
     assert rig["profile_id"] == "openarm_policy_original"
     assert base["sensor"]["vendor"] == "Fafeicy"
@@ -208,11 +214,18 @@ for key, roll in (("cam_left_wrist", -90.0), ("cam_right_wrist", 90.0)):
     assert wrist_camera["sensor"]["vendor"] == "Arducam"
     assert wrist_camera["sensor"]["stream_resolution"] == [1280, 720]
     assert wrist_camera["mount"]["optical_roll_deg"] == roll
+    assert wrist_camera["mount"]["basis"] == "lerobot_arducam_holder_optical_frame"
+    assert wrist_camera["mount"]["hardware"]["collision"] is True
 assert "remove_fixtures" not in scene.get("appearance_overrides", {})
 assert manifest["upper_arm_extension_m"] == 0.05
 assert len(manifest["joint_paths"]) == 2
 assert len(manifest["jaw_paths"]) == 4
 assert len(manifest["cover_paths"]) == 4
+assert set(manifest["camera_holders"]) == {"head", "left_wrist", "right_wrist"}
+assert manifest["camera_calibration"]["blog_space_revision"] == "170e1d479579e0b4be1afe0c99ebf868b24803db"
+assert manifest["sources"]["head camera holder v4.stl"] == "959ae5e0ad6e0870465e361df30db3d1bbdeebb9ba8001274c3ce9e1712f03d3"
+assert manifest["sources"]["arducam_holder.step"] == "b51c4d565afe4a632c61af15b42a9319c9361271c98840ccd9c670a893b7291d"
+assert manifest["sources"]["arducam_holder.stl"] == "1d31e0ac9ac2b118fb0925dc45bb3736dff087a9e6c2f9c27e64b24ee488074c"
 assert sources["openarm_isaac_lab"]["revision"] == "bad82e23716e6941c2de78ccb978f57c78b37734"
 assert sources["hardware_modifications"]["revision"] == "ffe34b93c070343042eb9412fbfeffce16139947"
 
@@ -322,11 +335,21 @@ else
   record "FAIL" "sim uv env" "run uv sync --locked"
 fi
 
+if command -v conda >/dev/null 2>&1; then
+  conda_exe="$(command -v conda)"
+elif [[ -n "${CONDA_EXE:-}" && -x "${CONDA_EXE}" ]]; then
+  conda_exe="${CONDA_EXE}"
+elif [[ -x "${HOME}/miniconda3/bin/conda" ]]; then
+  conda_exe="${HOME}/miniconda3/bin/conda"
+elif [[ -x "${HOME}/anaconda3/bin/conda" ]]; then
+  conda_exe="${HOME}/anaconda3/bin/conda"
+fi
+
 if [[ -z "${policy_env}" ]]; then
   record "WARN" "policy env" "skipped; pass --policy-env to validate"
 elif [[ -x "${policy_env}/bin/python" ]]; then
   record "PASS" "policy env" "${policy_env}"
-elif command -v conda >/dev/null 2>&1 && conda env list | awk 'NF && $1 !~ /^#/ {print $1}' | grep -qx "${policy_env}"; then
+elif [[ -n "${conda_exe}" ]] && "${conda_exe}" env list | awk 'NF && $1 !~ /^#/ {print $1}' | grep -qx "${policy_env}"; then
   record "PASS" "policy env" "conda:${policy_env}"
 elif [[ "${policy_env}" == "uv" ]]; then
   record "PASS" "policy env" "policy launcher-managed uv environment"

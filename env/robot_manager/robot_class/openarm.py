@@ -42,6 +42,7 @@ class _OpenArm:
         self.rotate_lim = [0, 0]
         self.entity_origin_pose = self.default_root_pos + self.default_root_rot
         self.camera = side_args.get("camera")
+        self.camera_mount_links = side_args.get("camera_mount_links", {})
         self.mesh_dir = self.robot_file
         self.save_gripper_joints_name = side_args.get("save_gripper_joints_name", self.gripper_joints_name)
 

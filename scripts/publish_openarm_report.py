@@ -16,6 +16,7 @@ LEROBOT_REVISION = "1396b9fab7aecddd10006c33c47a487ffdcb54b4"
 DATASET_REVISION = "2e1b2e913cd367d74dc4481736954eed4a051ddc"
 OPENARM_REVISION = "bad82e23716e6941c2de78ccb978f57c78b37734"
 HARDWARE_REVISION = "ffe34b93c070343042eb9412fbfeffce16139947"
+ARTICLE_REVISION = "170e1d479579e0b4be1afe0c99ebf868b24803db"
 RIGS = {
     "policy": {
         "title": "Policy-original",
@@ -65,7 +66,8 @@ def camera_cards(slug: str, run_dir: Path, validation: dict) -> str:
         cards.append(f"""
         <article class="camera">
           <div class="camera-label"><b>{escape(title)}</b><span>{info['width']}×{info['height']} · {info['frames']}f · {info['fps']:g} FPS</span></div>
-          <img src="{slug}/visual_validation/{validation_name}_comparison.png" alt="Official and rendered {escape(title)} comparison">
+          <img src="{slug}/camera_calibration/{validation_name}_blog_contact_sheet.png" alt="Pinned article and rendered {escape(title)} comparison">
+          <img src="{slug}/camera_calibration/{validation_name}_matched_state_contact_sheet.png" alt="Dataset-state and rendered {escape(title)} comparison">
           <video controls preload="metadata" src="{slug}/{escape(video.name)}"></video>
         </article>""")
     return "".join(cards)
@@ -100,9 +102,9 @@ def build_html(runs: dict[str, Path]) -> str:
 <section class="ledger"><p class="eyebrow">Pinned protocol</p><h2>Calibration ledger</h2><table>
 <tr><td>Policy</td><td>folding_final@{MODEL_REVISION} · LeRobot@{LEROBOT_REVISION} · RTC 30/20/5.0 LINEAR · 30→90 Hz · 240 Hz 3/3/2</td></tr>
 <tr><td>Embodiment</td><td>OpenARM@{OPENARM_REVISION} · hardware changes@{HARDWARE_REVISION} · 5 cm extension · enlarged jaws · right-first 16-D</td></tr>
-<tr><td>Mounts</td><td>Base: upstream <code>Geometry.camera_stand</code>, local [0,−0.543,0.060], Rx120°, optical roll 180°. Wrists: link 7, left −90°, right +90°.</td></tr>
+<tr><td>Mounts</td><td>Base: official <code>head camera holder v4.stl</code> on upstream <code>Geometry.camera_stand</code>; CAD optical center local [0,−0.318554,0.051066], Rx120°, roll 180°. Wrists: official mirrored Arducam holders on logical link-7 end-effector mounts; CAD aperture plus 35–50 mm side-specific lens offsets and preserved left −90° / right +90° optical rolls.</td></tr>
 <tr><td>Validation</td><td>level2_final_quality3@{DATASET_REVISION} — orientation and coverage oracle only</td></tr>
-<tr><td>Sources</td><td><a href="https://huggingface.co/spaces/lerobot/robot-folding">LeRobot hardware article</a> · <a href="https://moonlakeai.slack.com/archives/C0BCJPA3T9R/p1782508159343489">DYNA Slack note</a> · <a href="https://www.waveshare.com/wiki/OV2710_2MP_USB_Camera_%28A%29">Waveshare SKU 14121</a></td></tr>
+<tr><td>Sources</td><td><a href="https://huggingface.co/spaces/lerobot/robot-folding/tree/{ARTICLE_REVISION}">Pinned LeRobot hardware article</a> · <a href="https://huggingface.co/datasets/lerobot/openarms-hardware-modifications/tree/{HARDWARE_REVISION}">Pinned camera-holder CAD</a> · <a href="https://moonlakeai.slack.com/archives/C0BCJPA3T9R/p1782508159343489">DYNA Slack note</a> · <a href="https://www.waveshare.com/wiki/OV2710_2MP_USB_Camera_%28A%29">Waveshare SKU 14121</a></td></tr>
 </table></section><section class="warnings"><p class="eyebrow">Retained diagnostics</p><h2>Runtime warnings</h2>{''.join(warning_blocks)}</section></main></body></html>"""
 
 

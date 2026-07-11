@@ -263,6 +263,13 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
                 self._check_physx_broken_envs()
 
         def get_obs(self):
+            calibration_states = os.environ.get("ROBODOJO_OPENARM_CALIBRATION_STATES")
+            if calibration_states:
+                states = json.loads(calibration_states)
+                state = states.get(str(self.take_action_cnt[0]))
+                if state is not None:
+                    self.robot_manager.write_openarm_calibration_state(state)
+                    self.sim_step(render=False)
             return self.get_obs_batch(env_idx_list=[0])[0]
 
         def get_obs_batch(self, env_idx_list=None, last_frame=False):

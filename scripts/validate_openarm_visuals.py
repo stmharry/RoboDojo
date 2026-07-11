@@ -123,16 +123,23 @@ def image_metrics(path: Path) -> dict:
 
 
 def orientation_failures(camera: str, metrics: dict) -> list[str]:
-    """Coarse asymmetric-landmark gates; episode pixels never define camera poses."""
+    """Semantic silhouette gates; episode pixels never define camera poses."""
     edge = metrics["edge_dark_fraction"]
     failures = []
-    if camera == "base" and edge["top"] <= edge["bottom"] + 0.05:
-        failures.append("base: embodiment landmark is not predominantly at the top edge")
+    if camera == "base":
+        if edge["top"] <= edge["bottom"] + 0.05:
+            failures.append("base: robot silhouette is not confined predominantly to the top edge")
+        if edge["bottom"] > 0.55:
+            failures.append("base: bottom working-surface boundary is occluded")
     if camera in ("left_wrist", "right_wrist"):
-        horizontal_entry = edge["left"] + edge["right"]
-        vertical_entry = edge["top"] + edge["bottom"]
-        if horizontal_entry <= vertical_entry + 0.15:
-            failures.append(f"{camera}: jaw/link structures enter vertically instead of from the image sides")
+        if edge["bottom"] <= edge["top"] + 0.05:
+            failures.append(f"{camera}: gripper/holder silhouette does not enter from the bottom")
+        if metrics["dark_fraction"] >= 0.35:
+            failures.append(f"{camera}: gripper/holder silhouette occupies at least 35% of the frame")
+        if edge["left"] > 0.45 and edge["right"] > 0.45:
+            failures.append(f"{camera}: holder silhouette spans both lateral edges")
+        if edge["top"] > 0.55:
+            failures.append(f"{camera}: no clear table/garment contact region remains above the jaw")
     return failures
 
 

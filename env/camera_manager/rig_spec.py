@@ -43,6 +43,14 @@ class CameraSpec:
             raise ValueError(f"{self.observation_key}: sensor stream_resolution must be [width, height]")
         if float(self.sensor.get("fps", 0)) <= 0:
             raise ValueError(f"{self.observation_key}: sensor fps must be positive")
+        hardware = self.mount.get("hardware")
+        if hardware is not None:
+            if not isinstance(hardware, Mapping) or not hardware.get("asset"):
+                raise ValueError(f"{self.observation_key}: mount hardware requires an asset")
+            if len(hardware.get("position", [0, 0, 0])) != 3:
+                raise ValueError(f"{self.observation_key}: invalid mount hardware position")
+            if len(hardware.get("orientation", [0, 0, 0])) not in (3, 4):
+                raise ValueError(f"{self.observation_key}: invalid mount hardware orientation")
 
     def runtime_camera(self) -> dict[str, Any]:
         """Flatten the normalized contract for the existing Isaac camera implementation."""
@@ -68,6 +76,14 @@ class CameraSpec:
         for key in ("cx", "cy", "fx", "fy", "distortion_coefficients"):
             if key in self.projection:
                 result[key] = deepcopy(self.projection[key])
+        if self.mount.get("hardware"):
+            hardware = self.mount["hardware"]
+            result.update(
+                mount_hardware_asset=hardware["asset"],
+                mount_hardware_position=list(hardware.get("position", [0.0, 0.0, 0.0])),
+                mount_hardware_orientation=list(hardware.get("orientation", [0.0, 0.0, 0.0])),
+                mount_hardware_collision=bool(hardware.get("collision", True)),
+            )
         return {key: value for key, value in result.items() if value is not None}
 
 
@@ -122,6 +138,13 @@ def _legacy_camera_spec(name: str, section: Mapping[str, Any], frequency: float)
         "optical_roll_deg": float(camera.get("optical_roll_deg", 0.0)),
         "basis": camera.get("mount_basis", "legacy"),
     }
+    if camera.get("mount_hardware_asset"):
+        mount["hardware"] = {
+            "asset": camera["mount_hardware_asset"],
+            "position": list(camera.get("mount_hardware_position", [0, 0, 0])),
+            "orientation": list(camera.get("mount_hardware_orientation", [0, 0, 0])),
+            "collision": bool(camera.get("mount_hardware_collision", True)),
+        }
     projection = {
         "model": camera.get("lens_distortion_model", "pinhole"),
         "backend": camera.get("projection_backend", "native"),

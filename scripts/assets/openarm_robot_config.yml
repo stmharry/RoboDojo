@@ -1,6 +1,8 @@
 urdf_path: openarm.urdf
 base_link: openarm_body_link
 left:
+  camera_mount_links:
+    left_wrist_camera_holder: openarm_left_link7
   ee_joints: openarm_left_joint7
   ee_link: openarm_left_link7
   arm_joints_name:
@@ -19,6 +21,8 @@ left:
   gripper_scale: [0.0, 0.044]
   physical_gripper_interface: true
 right:
+  camera_mount_links:
+    right_wrist_camera_holder: openarm_right_link7
   ee_joints: openarm_right_joint7
   ee_link: openarm_right_link7
   arm_joints_name:

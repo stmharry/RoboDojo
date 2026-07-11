@@ -13,7 +13,7 @@ Existing flat camera YAML remains supported by the legacy normalizer.
 ## Setup
 
 ```bash
-bash scripts/assets/build_openarm_cloth_folding.sh
+uv run --locked bash scripts/assets/build_openarm_cloth_folding.sh
 bash XPolicyLab/policy/LeRobot_Pi05_OpenArm/install.sh lerobot-pi05
 bash XPolicyLab/policy/LeRobot_Pi05_OpenArm/download_checkpoint.sh lerobot-pi05
 PYTHONPATH=. conda run -n lerobot-pi05 python \
@@ -62,6 +62,21 @@ uv run --locked python scripts/validate_openarm_visuals.py \
   /path/to/generated/run --profile-id openarm_policy_original --allow-partial
 ```
 
+Generate the CAD-anchor diagrams, pinned article contact sheets, dataset-state
+extracts, and the machine-readable calibration report with:
+
+```bash
+PYTHONPATH=. conda run -n lerobot-pi05 python \
+  scripts/calibrate_openarm_cameras.py /path/to/generated/run \
+  --output-dir /path/to/generated/run/camera_calibration
+```
+
+For a pose-matched zero-action capture, export the compact JSON object written
+to `camera_calibration/matched_state_environment.json` as
+`ROBODOJO_OPENARM_CALIBRATION_STATES`. The evaluator writes the pinned 16-D
+states immediately before observations 0, 10, and 30; this affects only the
+calibration harness and never a policy rollout.
+
 For the second profile, pass `openarm_cloth_folding_dyna` to evaluation and
 `--profile-id openarm_dyna` to validation. The tracked asymmetric harness makes
 the three roll conventions inspectable without transposing landscape tensors:
@@ -82,18 +97,22 @@ right-first 16-D state/action ordering, saved normalization processors, and
 
 The tracked source manifest pins OpenARM Isaac Lab at
 `bad82e23716e6941c2de78ccb978f57c78b37734` and the supplied hardware changes
-at `ffe34b93c070343042eb9412fbfeffce16139947`. The base camera is a child of the
-downloaded `Geometry.camera_stand`, at fixture-local `[0, -0.543, 0.060]`,
-`Rx(120°)`, which reconstructs upstream world `[0, -0.41, 1.308]`, `Rx(30°)`.
-Its 180° optical roll places the embodiment at the top. Left and right wrist
-rolls are −90° and +90°. Isaac Sim 5.1's tiled
+at `ffe34b93c070343042eb9412fbfeffce16139947`. The builder checksums and
+instantiates `head camera holder v4.stl` and `arducam_holder.step/.stl`, records
+their mounting-hole and optical frames, and authors collision-enabled holder
+USDs. The head holder is attached to the upstream `Geometry.camera_stand`; its
+CAD-derived sensor center is fixture-local `[0, -0.318554, 0.051066]` with
+`Rx(120°)` and a 180° optical roll. Wrist holders resolve through logical
+end-effector aliases and retain the policy's left −90° and right +90° rolls,
+with the physical lens offset from the jaw centerline. Isaac Sim 5.1's tiled
 Replicator path renders its native OpenCV-fisheye schema black, so the manager
 uses a calibrated pinhole backing projection and applies the same explicit
 equidistant model deterministically to captured RGB frames.
 
 Authoritative references:
 
-- [Official folding setup](https://huggingface.co/spaces/lerobot/robot-folding)
+- [Pinned official folding setup](https://huggingface.co/spaces/lerobot/robot-folding/tree/170e1d479579e0b4be1afe0c99ebf868b24803db)
+- [Pinned camera-holder CAD](https://huggingface.co/datasets/lerobot/openarms-hardware-modifications/tree/ffe34b93c070343042eb9412fbfeffce16139947)
 - [Pinned LeRobot evaluation script](https://github.com/huggingface/lerobot/blob/1396b9fab7aecddd10006c33c47a487ffdcb54b4/examples/rtc/eval_with_real_robot.py)
 - [Pinned checkpoint model card](https://huggingface.co/lerobot-data-collection/folding_final/blob/695abe40dbf3aac04efda59c1501d748681fa0fb/README.md)
 - [DYNA camera note](https://moonlakeai.slack.com/archives/C0BCJPA3T9R/p1782508159343489)

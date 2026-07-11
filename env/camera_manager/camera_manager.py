@@ -10,12 +10,13 @@ from isaacsim.core.utils.semantics import add_labels, remove_labels
 from isaacsim.core.utils.stage import add_reference_to_stage, get_current_stage
 from isaacsim.core.utils.string import find_unique_string_name
 from isaacsim.sensors.camera import Camera
+from pxr import Gf, UsdGeom
 import numpy as np
 from numpy import ndarray
 from omegaconf import DictConfig, OmegaConf
 import torch
 
-from env.camera_manager.mount_registry import apply_optical_roll
+from env.camera_manager.mount_registry import apply_optical_roll, orientation_quaternion
 from env.environment.isaac.isaac_rl_env import IsaacRLEnv
 from env.global_configs import *
 from env.seeding import seed_everywhere
@@ -67,6 +68,7 @@ class CameraManager:
         self.cameras: List[List[Camera]] = []  # List of cameras for all environments
         self.cameras_xform_path: List[List[str]] = []  # List of camera xforms path
         self.cameras_xform: List[List[SingleGeometryPrim]] = []  # List of camera xforms
+        self.mount_hardware_paths: List[List[str]] = []
         self.camera_names: List[List[str]] = []  # List of camera names
         self.action_noise: List[
             List[Tuple[ndarray]]
@@ -106,7 +108,7 @@ class CameraManager:
                     return False
         return True
 
-    def _remove_camera_prims(self):
+    def _remove_camera_prims(self, remove_hardware: bool = True):
         """Remove existing camera prims when rebuilding after a hard scene reset."""
         stage = get_current_stage()
         for env_paths in self.cameras_xform_path:
@@ -116,12 +118,23 @@ class CameraManager:
                         stage.RemovePrim(prim_path)
                     except Exception:
                         pass
+        if remove_hardware:
+            for env_paths in self.mount_hardware_paths:
+                for prim_path in env_paths:
+                    if is_prim_path_valid(prim_path):
+                        try:
+                            stage.RemovePrim(prim_path)
+                        except Exception:
+                            pass
 
     def destroy(self):
-        self._remove_camera_prims()
+        # Collision-enabled holders belong to articulation tensor views. Let
+        # stage teardown release them instead of deleting live shapes here.
+        self._remove_camera_prims(remove_hardware=False)
         self.cameras = []
         self.cameras_xform_path = []
         self.cameras_xform = []
+        self.mount_hardware_paths = []
         self.camera_names = []
         self.action_noise = []
         self.camera_poses = []
@@ -132,6 +145,7 @@ class CameraManager:
         self.cameras = []
         self.cameras_xform_path = []
         self.cameras_xform = []
+        self.mount_hardware_paths = []
         self.camera_names = []
         self.action_noise = []
         self.camera_poses = []
@@ -170,6 +184,7 @@ class CameraManager:
             self.cameras.append([])
             self.cameras_xform_path.append([])
             self.cameras_xform.append([])
+            self.mount_hardware_paths.append([])
             self.action_noise.append([])
             self.camera_names.append([])
             cam_id = 0
@@ -204,6 +219,28 @@ class CameraManager:
                     if self.mount_registry is not None
                     else env_name
                 )
+                hardware_asset = camera_config.camera.get("mount_hardware_asset")
+                if hardware_asset:
+                    hardware_path = find_unique_string_name(
+                        parent_path + "/" + f"CameraHolder_{cam_id}",
+                        is_unique_fn=lambda x: not is_prim_path_valid(x),
+                    )
+                    asset_path = str(hardware_asset)
+                    if not os.path.isabs(asset_path):
+                        asset_path = os.path.join(ASSETS_PATH, asset_path)
+                    add_reference_to_stage(usd_path=asset_path, prim_path=hardware_path)
+                    prim = get_current_stage().GetPrimAtPath(hardware_path)
+                    xform = UsdGeom.Xformable(prim)
+                    xform.ClearXformOpOrder()
+                    position = camera_config.camera.get("mount_hardware_position", [0.0, 0.0, 0.0])
+                    orientation = orientation_quaternion(
+                        camera_config.camera.get("mount_hardware_orientation", [0.0, 0.0, 0.0])
+                    )
+                    xform.AddTranslateOp().Set(Gf.Vec3d(*[float(value) for value in position]))
+                    xform.AddOrientOp().Set(
+                        Gf.Quatf(float(orientation[0]), *[float(value) for value in orientation[1:]])
+                    )
+                    self.mount_hardware_paths[env_id].append(hardware_path)
                 cur_camera_xform_path = find_unique_string_name(
                     parent_path + "/" + f"Camera_{cam_id}",
                     is_unique_fn=lambda x: not is_prim_path_valid(x),
