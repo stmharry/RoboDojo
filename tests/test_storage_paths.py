@@ -1,4 +1,6 @@
 
+import subprocess
+
 import pytest
 
 from utils import storage
@@ -82,3 +84,13 @@ def test_docker_storage_supports_protected_env_file_and_named_profile():
     assert '[[ -r "${ROBODOJO_AWS_ENV_FILE}" ]]' in smoke
     assert 'storage_mounts+=( --env-file "${ROBODOJO_AWS_ENV_FILE}" )' in smoke
     assert 'storage_mounts+=( -e "AWS_PROFILE=${AWS_PROFILE}" )' in smoke
+
+
+def test_documented_data_compatibility_link_is_gitignored():
+    result = subprocess.run(
+        ["git", "check-ignore", "--quiet", "data"],
+        cwd=storage.REPO_ROOT,
+        check=False,
+    )
+    assert result.returncode == 0
+    assert "data" in (storage.REPO_ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()

@@ -14,6 +14,7 @@ eval_result/
 smoke_results/
 docker/smoke_logs/
 data/
+data
 
 # Local scratch
 Dev/
