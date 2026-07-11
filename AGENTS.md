@@ -4,6 +4,15 @@
 
 This file governs Git workflow and commit message format across this repository.
 
+## Dependency Management
+
+`uv` is the canonical dependency and environment manager for the root RoboDojo
+project. Declare root dependencies in `pyproject.toml`, keep `uv.lock` current,
+and run native commands with `uv run --locked`.
+
+Policy-owned environments under `XPolicyLab` remain independent and may use
+their own dependency tooling.
+
 ## Git Flow And Worktrees
 
 `main` is the protected working trunk. Do not direct-push to `main`.
