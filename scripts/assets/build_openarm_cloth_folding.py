@@ -1,25 +1,104 @@
 #!/usr/bin/env python3
 import argparse
+from dataclasses import dataclass
 import hashlib
 import json
 from pathlib import Path
 import shutil
 
 from isaacsim import SimulationApp
+import numpy as np
 
 simulation_app = SimulationApp({"headless": True})
 
-from openarm_camera_calibration import (  # noqa: E402
-    HEAD_HOLDER,
-    WRIST_HOLDER,
-    calibration_manifest,
-    head_points_m,
-    holder_optical_frame,
-    wrist_points_m,
-)
 from pxr import Gf, Usd, UsdGeom, UsdPhysics  # noqa: E402
 from scipy.spatial.transform import Rotation  # noqa: E402
 import trimesh  # noqa: E402
+
+
+@dataclass(frozen=True)
+class HolderFrame:
+    filename: str
+    mount_origin_mm: tuple[float, float, float]
+    optical_origin_mm: tuple[float, float, float]
+    optical_direction_cad: tuple[float, float, float]
+    optical_up_cad: tuple[float, float, float]
+    cad_to_mount: tuple[tuple[float, float, float], ...]
+
+    def transformed_points_m(self, points) -> np.ndarray:
+        points = np.asarray(points, dtype=np.float64)
+        rotation = np.asarray(self.cad_to_mount, dtype=np.float64)
+        origin = np.asarray(self.mount_origin_mm, dtype=np.float64)
+        return (points - origin) @ rotation.T * 0.001
+
+    def optical_frame_matrix(self) -> np.ndarray:
+        rotation = np.asarray(self.cad_to_mount, dtype=np.float64)
+        look = rotation @ np.asarray(self.optical_direction_cad, dtype=np.float64)
+        look /= np.linalg.norm(look)
+        up_hint = rotation @ np.asarray(self.optical_up_cad, dtype=np.float64)
+        up_hint /= np.linalg.norm(up_hint)
+        right = np.cross(look, up_hint)
+        right /= np.linalg.norm(right)
+        up = np.cross(right, look)
+        up /= np.linalg.norm(up)
+        optical_rotation = np.column_stack((right, up, -look))
+        if not np.allclose(optical_rotation.T @ optical_rotation, np.eye(3), atol=1e-9):
+            raise ValueError("camera optical basis is not orthonormal")
+        if np.linalg.det(optical_rotation) < 0.999999:
+            raise ValueError("camera optical basis is not right-handed")
+        matrix = np.eye(4)
+        matrix[:3, :3] = optical_rotation
+        matrix[:3, 3] = self.transformed_points_m([self.optical_origin_mm])[0]
+        return matrix
+
+
+HEAD_CAD_TO_FIXTURE = np.asarray(((0.0, 1.0, 0.0), (0.0, 0.0, -1.0), (-1.0, 0.0, 0.0)))
+HEAD_HOLDER = HolderFrame(
+    filename="head camera holder v4.stl",
+    mount_origin_mm=(-17.56719649, 41.0, 262.79797363),
+    optical_origin_mm=(49.40184321, 41.0, 19.09895447),
+    optical_direction_cad=(-0.3420201433, 0.0, -0.9396926208),
+    optical_up_cad=(0.9396926208, 0.0, -0.3420201433),
+    cad_to_mount=tuple(tuple(float(value) for value in row) for row in HEAD_CAD_TO_FIXTURE),
+)
+
+WRIST_X_CAD = np.asarray((1.0, 0.0, 0.0))
+WRIST_Z_CAD = np.asarray((0.0, -0.7660444431, 0.6427876097))
+WRIST_CAD_TO_ANCHOR = np.vstack((WRIST_X_CAD, np.cross(WRIST_Z_CAD, WRIST_X_CAD), WRIST_Z_CAD))
+WRIST_HOLDER = HolderFrame(
+    filename="arducam_holder.stl",
+    mount_origin_mm=(12.75, -42.62586212, -42.55709187),
+    optical_origin_mm=(12.75, -6.21393824, 14.26977779),
+    optical_direction_cad=(0.0, 1.0, 0.0),
+    optical_up_cad=(1.0, 0.0, 0.0),
+    cad_to_mount=tuple(tuple(float(value) for value in row) for row in WRIST_CAD_TO_ANCHOR),
+)
+
+
+def head_points_m(points) -> np.ndarray:
+    return HEAD_HOLDER.transformed_points_m(points)
+
+
+def wrist_points_m(points, side: str) -> np.ndarray:
+    normalized = WRIST_HOLDER.transformed_points_m(points)
+    if side == "right":
+        normalized[:, 0] *= -1.0
+    elif side != "left":
+        raise ValueError(f"unknown OpenARM side: {side}")
+    return normalized
+
+
+def holder_optical_frame(side: str) -> np.ndarray:
+    if side == "head":
+        return HEAD_HOLDER.optical_frame_matrix()
+    if side not in ("left", "right"):
+        raise ValueError(f"unknown holder side: {side}")
+    frame = WRIST_HOLDER.optical_frame_matrix()
+    if side == "right":
+        frame[0, 3] *= -1.0
+        frame[:3, 0] *= -1.0
+        frame[:3, 1] *= -1.0
+    return frame
 
 
 def sha256(path: Path) -> str:
@@ -198,10 +277,20 @@ def main() -> None:
         ),
     }
 
-    sources = [base, *(args.hardware_root / name for name in (
-        "J3-J4_Cover front extended.stl", "J3-J4_Cover back extended.stl", "jaw_normal.stl",
-        HEAD_HOLDER.filename, "arducam_holder.step", WRIST_HOLDER.filename,
-    ))]
+    sources = [
+        base,
+        *(
+            args.hardware_root / name
+            for name in (
+                "J3-J4_Cover front extended.stl",
+                "J3-J4_Cover back extended.stl",
+                "jaw_normal.stl",
+                HEAD_HOLDER.filename,
+                "arducam_holder.step",
+                WRIST_HOLDER.filename,
+            )
+        ),
+    ]
     manifest = {
         "format": 1,
         "functional_twin": True,
@@ -213,7 +302,6 @@ def main() -> None:
         "jaw_paths": jaw_paths,
         "cover_paths": cover_paths,
         "camera_holders": holder_assets,
-        "camera_calibration": calibration_manifest(),
         "output": output.name,
         "sources": {path.name: sha256(path) for path in sources},
     }

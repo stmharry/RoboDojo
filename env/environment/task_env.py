@@ -1,4 +1,3 @@
-import os
 from typing import Any, List
 
 from env.camera_manager.camera_manager import CameraManager
@@ -48,11 +47,6 @@ class TaskEnv(BaseEnv):
         robot_cameras = self.robot_manager.get_camera_configs()
         self.camera_rig = normalize_camera_rig(config.camera, robot_cameras=robot_cameras)
         self.capture_config = self.camera_rig.runtime_config()
-        if os.environ.get("ROBODOJO_OPENARM_VALIDATION_MASKS") == "1":
-            self.capture_config.annotator.common.instance_mask_capture = {
-                "type": "instance_id_segmentation_fast",
-                "device": "cpu",
-            }
         self.camera_config = self.capture_config
         self.camera_manager = CameraManager(
             self.num_envs,

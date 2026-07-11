@@ -176,7 +176,7 @@ else
   record "FAIL" "env_cfg references" "missing referenced env_cfg file"
 fi
 
-if [[ "${env_cfg}" == "openarm_cloth_folding" || "${env_cfg}" == "openarm_cloth_folding_dyna" ]]; then
+if [[ "${env_cfg}" == "openarm_cloth_folding" ]]; then
   check_path file "${assets_root}/Robots/openarm/manifest.json" "OpenARM asset manifest"
   check_path file "${assets_root}/Robots/openarm/openarm_bimanual_cloth_folding.usd" "OpenARM functional-twin USD"
   check_path file "${assets_root}/Robots/openarm/robot_config.yml" "OpenARM robot config"
@@ -212,16 +212,11 @@ assert base["mount"]["kind"] == "scene_fixture"
 assert base["mount"]["target"] == "camera_stand"
 assert base["mount"]["basis"] == "lerobot_head_camera_holder_v4_optical_frame"
 assert base["mount"]["hardware"]["asset"].endswith("head_camera_holder.usd")
-if camera_name == "openarm_cloth_folding":
-    assert rig["profile_id"] == "openarm_policy_original"
-    assert base["sensor"]["vendor"] == "Fafeicy"
-    assert base["sensor"]["diagonal_fov_deg"] == 140.0
-    assert base["projection"]["fx"] == 327.4045
-else:
-    assert rig["profile_id"] == "openarm_dyna"
-    assert base["sensor"]["vendor"] == "Waveshare"
-    assert base["sensor"]["diagonal_fov_deg"] == 145.0
-    assert base["projection"]["fx"] == 316.1146
+assert camera_name == "openarm_cloth_folding"
+assert rig["profile_id"] == "openarm"
+assert base["sensor"]["vendor"] == "Waveshare"
+assert base["sensor"]["diagonal_fov_deg"] == 145.0
+assert base["projection"]["fx"] == 316.1146
 assert base["mount"]["position"] == [0.0, -0.33587426, 0.04106626]
 assert base["mount"]["orientation"] == [120.0, 0.0, -180.0]
 assert base["mount"]["optical_roll_deg"] == 0.0
@@ -252,7 +247,6 @@ for holder in manifest["camera_holders"].values():
     assert holder["mount_frame"].endswith("/MountFrame")
     assert holder["optical_frame"].endswith("/OpticalFrame")
     assert len(holder["optical_frame_matrix"]) == 4
-assert manifest["camera_calibration"]["blog_space_revision"] == "170e1d479579e0b4be1afe0c99ebf868b24803db"
 assert manifest["sources"]["head camera holder v4.stl"] == "959ae5e0ad6e0870465e361df30db3d1bbdeebb9ba8001274c3ce9e1712f03d3"
 assert manifest["sources"]["arducam_holder.step"] == "b51c4d565afe4a632c61af15b42a9319c9361271c98840ccd9c670a893b7291d"
 assert manifest["sources"]["arducam_holder.stl"] == "1d31e0ac9ac2b118fb0925dc45bb3736dff087a9e6c2f9c27e64b24ee488074c"
@@ -264,7 +258,7 @@ from env_cfg.camera.template import OPENARM_BASE, OPENARM_WRIST
 assert OPENARM_BASE["resolution"] == (640, 480)
 assert OPENARM_WRIST["resolution"] == (1280, 720)
 PY
-    record "PASS" "OpenARM contract" "240/30 Hz, 16-D, three calibrated native camera resolutions, pinned asset manifest"
+    record "PASS" "OpenARM contract" "240/30 Hz, 16-D, three native camera resolutions, pinned asset manifest"
   else
     record "FAIL" "OpenARM contract" "timing, dimension, or camera contract invalid"
   fi

@@ -426,31 +426,6 @@ class RobotManager:
         self.robot_init_joint = [dict() for _ in range(self.num_envs)]
         self.set_robot_init_pose()
 
-    def write_openarm_calibration_state(self, packed_degrees) -> None:
-        """Write an exact dataset pose for calibration-only image capture."""
-        values = np.asarray(packed_degrees, dtype=np.float32).reshape(-1)
-        if values.shape != (16,) or not np.isfinite(values).all():
-            raise ValueError(f"calibration state must be finite shape (16,), got {values.shape}")
-        if len(self.robot_list) != 2 or not all(getattr(robot, "is_coupled", False) for robot in self.robot_list):
-            raise ValueError("matched-state camera capture requires the coupled OpenARM embodiment")
-        arms = {"right": np.deg2rad(values[:7]), "left": np.deg2rad(values[8:15])}
-        grippers = {
-            "right": float(np.clip(-values[7] * 0.044 / 65.0, 0.0, 0.044)),
-            "left": float(np.clip(-values[15] * 0.044 / 65.0, 0.0, 0.044)),
-        }
-        env_ids = torch.arange(self.num_envs, dtype=torch.int32, device=self.device)
-        for robot, key in zip(self.robot_list, self.robot_key, strict=True):
-            side = robot.side
-            arm = torch.as_tensor(arms[side], dtype=torch.float32, device=self.device).repeat(self.num_envs, 1)
-            grip = torch.full(
-                (self.num_envs, len(robot.gripper_joint_indices)),
-                grippers[side], dtype=torch.float32, device=self.device,
-            )
-            key.write_joint_position_to_sim(arm, joint_ids=robot.arm_joint_indices, env_ids=env_ids)
-            key.write_joint_position_to_sim(grip, joint_ids=robot.gripper_joint_indices, env_ids=env_ids)
-            key.set_joint_position_target(arm, joint_ids=robot.arm_joint_indices, env_ids=env_ids)
-            key.set_joint_position_target(grip, joint_ids=robot.gripper_joint_indices, env_ids=env_ids)
-
     def get_camera_link_mounts(self, env_id: int) -> dict[str, str]:
         """Publish stable logical link names that camera rigs may target."""
         result = {}
@@ -538,9 +513,7 @@ class RobotManager:
                         camera_name = name
                     elif self.target_arm_nums == 2:
                         camera_name = (
-                            name.replace("cam_", "cam_left_", 1)
-                            if i == 0
-                            else name.replace("cam_", "cam_right_", 1)
+                            name.replace("cam_", "cam_left_", 1) if i == 0 else name.replace("cam_", "cam_right_", 1)
                         )
                     else:
                         camera_name = f"{name}{i}"
