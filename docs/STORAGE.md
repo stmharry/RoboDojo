@@ -57,6 +57,9 @@ bash scripts/robodojo_storage.sh doctor
 bash scripts/robodojo_storage.sh status
 ```
 
+The wrapper is managed by `uv` and executes against the locked project
+environment with `--frozen --no-sync`; it never creates a separate tool venv.
+
 Publish materialized payloads (never Git/LFS metadata or tool cache layouts):
 
 ```bash

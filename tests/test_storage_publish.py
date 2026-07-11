@@ -7,10 +7,9 @@ import pytest
 from scripts.internal import storage_cli
 
 
-def test_storage_wrapper_help_runs_with_system_python():
+def test_storage_wrapper_help_runs_through_uv():
     root = Path(__file__).resolve().parents[1]
     environment = os.environ.copy()
-    environment["PATH"] = "/usr/bin:/bin"
     result = subprocess.run(
         ["bash", str(root / "scripts/robodojo_storage.sh"), "--help"],
         check=False,
@@ -20,6 +19,8 @@ def test_storage_wrapper_help_runs_with_system_python():
     )
     assert result.returncode == 0, result.stderr
     assert "publish-checkpoint" in result.stdout
+    wrapper = (root / "scripts/robodojo_storage.sh").read_text(encoding="utf-8")
+    assert '"${UV_BIN}" run --project' in wrapper
 
 
 def test_publish_uses_canonical_destination_and_completion_is_last(monkeypatch, tmp_path):
