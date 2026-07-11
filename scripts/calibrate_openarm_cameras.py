@@ -11,7 +11,10 @@ import urllib.request
 import cv2
 import numpy as np
 import pyarrow.parquet as pq
+from scipy.spatial.transform import Rotation
+import yaml
 
+from env.camera_manager.mount_registry import align_hardware_frame_pose
 from scripts.assets.openarm_camera_calibration import (
     BLOG_SPACE_REVISION,
     HARDWARE_REVISION,
@@ -26,6 +29,21 @@ BLOG_IMAGES = {
     "left_wrist": "cam_left_wrist.jpg",
     "right_wrist": "cam_right_wrist.jpg",
 }
+
+
+def runtime_targets() -> dict:
+    root = Path(__file__).resolve().parents[1]
+    camera = yaml.safe_load((root / "env_cfg/camera/openarm_cloth_folding.yml").read_text())
+    return camera["camera_rig"]["cameras"]
+
+
+def roll_correction_vector(legacy_roll: float) -> list[float]:
+    base = Rotation.from_euler("XYZ", [180, 0, 90], degrees=True)
+    target = base * Rotation.from_euler("Z", 180, degrees=True)
+    legacy = base * Rotation.from_euler("Z", legacy_roll, degrees=True)
+    # Isaac/RTX uses an OpenGL optical axis, so rendered image rotation has
+    # the opposite sign from the local +Z frame rotation.
+    return (-(legacy.inv() * target).as_rotvec(degrees=True)).tolist()
 
 
 def fetch(url: str, path: Path) -> Path:
@@ -84,6 +102,7 @@ def sheet(rows: list[tuple[str, list[Path]]], output: Path) -> None:
 
 def anchor_diagram(output: Path) -> None:
     manifest = calibration_manifest()
+    targets = runtime_targets()
     canvas = np.full((940, 1600, 3), 248, dtype=np.uint8)
     cv2.putText(
         canvas,
@@ -103,7 +122,7 @@ def anchor_diagram(output: Path) -> None:
         (
             "HEAD / head camera holder v4.stl",
             [
-                "parent: upstream camera_stand terminal plate (setup-dependent)",
+                "parent: upstream camera_stand; holder pose derived from optical target",
                 f"mount origin CAD mm: {manifest['head']['mount_origin_mm']}",
                 f"aperture origin CAD mm: {manifest['head']['optical_origin_mm']}",
                 *matrix_lines("MountFrame -> OpticalFrame", manifest["head"]["optical_frame_matrix"]),
@@ -114,7 +133,9 @@ def anchor_diagram(output: Path) -> None:
         (
             "LEFT WRIST / arducam_holder.step + .stl",
             [
-                "parent: OpenARM left hand mounting plate (CAD/mechanical)",
+                "link7 optical target: "
+                f"{targets['cam_left_wrist']['mount']['position']} / "
+                f"XYZ {targets['cam_left_wrist']['mount']['orientation']}",
                 *matrix_lines("MountFrame -> OpticalFrame", manifest["wrist"]["left_optical_frame_matrix"]),
                 "effective correction from legacy: +90 deg; runtime roll: 0 deg",
             ],
@@ -124,7 +145,9 @@ def anchor_diagram(output: Path) -> None:
         (
             "RIGHT WRIST / physically mirrored holder",
             [
-                "parent: OpenARM right hand mounting plate (CAD/mechanical)",
+                "link7 optical target: "
+                f"{targets['cam_right_wrist']['mount']['position']} / "
+                f"XYZ {targets['cam_right_wrist']['mount']['orientation']}",
                 *matrix_lines("MountFrame -> OpticalFrame", manifest["wrist"]["right_optical_frame_matrix"]),
                 "effective correction from legacy: -90 deg; runtime roll: 0 deg",
             ],
@@ -183,7 +206,7 @@ def main() -> None:
         )
         if previous_frames:
             sheet(
-                [("previous DYNA frame", [previous_frames[0]]), ("CAD-frame DYNA frame", [sim_frames[0]])],
+                [("previous DYNA frame", [previous_frames[0]]), ("roll-only corrected DYNA frame", [sim_frames[0]])],
                 output / f"{camera}_before_after_contact_sheet.png",
             )
         sheet(
@@ -203,6 +226,29 @@ def main() -> None:
         "hardware_revision": HARDWARE_REVISION,
         "dataset_revision": DATASET_REVISION,
         "calibration": calibration_manifest(),
+        "runtime_targets": {
+            key: {
+                "parent": camera["mount"]["target"],
+                "position": camera["mount"]["position"],
+                "orientation": camera["mount"]["orientation"],
+                "derived_holder_pose": {
+                    "position": align_hardware_frame_pose(
+                        camera["mount"]["position"],
+                        camera["mount"]["orientation"],
+                        calibration_manifest()["head" if key == "cam_head" else "wrist"][
+                            "optical_frame_matrix"
+                            if key == "cam_head"
+                            else ("left_optical_frame_matrix" if "left" in key else "right_optical_frame_matrix")
+                        ],
+                    )[0].tolist(),
+                },
+            }
+            for key, camera in runtime_targets().items()
+        },
+        "wrist_roll_correction_deg": {
+            "left": roll_correction_vector(-90),
+            "right": roll_correction_vector(90),
+        },
         "provenance": {
             "cad_derived": ["holder mesh frame", "mount holes", "aperture center", "optical forward/up/right"],
             "setup_dependent_nominal": ["upstream RoboDojo camera-stand world pose"],

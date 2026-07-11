@@ -22,13 +22,13 @@ RIGS = {
         "title": "DYNA counterpart",
         "profile": "openarm_dyna",
         "base": "Waveshare OV2710 SKU 14121 · 145° · f 316.1146 px",
-        "meaning": "Hardware-domain-gap diagnostic",
+        "meaning": "Original rig · availability-driven base-camera substitution",
     },
 }
 CAMERAS = (
     ("Base / fixture", "cam_head", "base"),
-    ("Left wrist / CAD image-up", "cam_left_wrist", "left_wrist"),
-    ("Right wrist / mirrored CAD image-up", "cam_right_wrist", "right_wrist"),
+    ("Left wrist / original target +90°", "cam_left_wrist", "left_wrist"),
+    ("Right wrist / original target −90°", "cam_right_wrist", "right_wrist"),
 )
 
 
@@ -57,9 +57,14 @@ def camera_cards(slug: str, run_dir: Path, validation: dict) -> str:
         video = video_for(run_dir, sim_name)
         metrics = validation["cameras"][validation_name]
         info = metrics["video_info"]
+        correction = ""
+        if validation_name != "base":
+            correction = f'''<img class="correction" src="{slug}/camera_calibration/{validation_name}_before_after_contact_sheet.png"
+            alt="Previous and roll-only corrected {escape(title)} frames">'''
         cards.append(f"""
         <article class="camera">
           <div class="camera-label"><b>{escape(title)}</b><span>{info['width']}×{info['height']} · {info['frames']}f · {info['fps']:g} FPS</span></div>
+          {correction}
           <img src="{slug}/camera_calibration/{validation_name}_blog_contact_sheet.png" alt="Pinned article and rendered {escape(title)} comparison">
           <img src="{slug}/camera_calibration/{validation_name}_matched_state_contact_sheet.png" alt="Dataset-state and rendered {escape(title)} comparison">
           <video controls preload="metadata" src="{slug}/{escape(video.name)}"></video>
@@ -88,15 +93,18 @@ def build_html(runs: dict[str, Path]) -> str:
 .hero{{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(260px,.7fr);gap:28px;border:2px solid var(--ink);background:var(--panel);padding:28px;box-shadow:8px 8px 0 var(--cyan)}}
 .eyebrow,dt{{margin:0;color:var(--cyan);font:700 11px/1.2 "IBM Plex Mono","Courier New",monospace;text-transform:uppercase;letter-spacing:.13em}}h1{{font:900 clamp(42px,7vw,92px)/.85 "Arial Narrow",sans-serif;letter-spacing:-.055em;margin:14px 0 20px;text-transform:uppercase}}.hero p{{max-width:72ch}}.axis{{align-self:stretch;display:grid;place-items:center;background:linear-gradient(90deg,transparent 49.5%,var(--red) 49.5%,var(--red) 50.5%,transparent 50.5%);min-height:180px}}.axis span{{background:var(--ink);color:white;padding:10px 14px;font:700 12px "Courier New",monospace;transform:rotate(-3deg)}}
 .rig{{margin-top:70px;border-top:6px solid var(--ink)}}.rig-head{{display:grid;grid-template-columns:1fr auto;gap:24px;padding:18px 0}}h2{{font:900 clamp(34px,5vw,66px)/.9 "Arial Narrow",sans-serif;text-transform:uppercase;margin:8px 0}}.rig-head p{{margin:0}}dl{{display:grid;grid-template-columns:repeat(3,minmax(110px,1fr));margin:0;border:1px solid var(--line)}}dl div{{padding:12px;border-left:1px solid var(--line)}}dl div:first-child{{border:0}}dd{{margin:6px 0 0;font-weight:800}}
-.cameras{{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}}.camera{{background:var(--panel);border:1px solid var(--ink);padding:10px}}.camera-label{{display:flex;justify-content:space-between;gap:12px;margin-bottom:9px;font-family:"Courier New",monospace;font-size:12px}}.camera-label span{{color:#53656e}}img,video{{display:block;width:100%;border:1px solid var(--line);background:#000}}video{{margin-top:9px;max-height:56vh}}
+.cameras{{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}}.camera{{background:var(--panel);border:1px solid var(--ink);padding:10px}}.camera-label{{display:flex;justify-content:space-between;gap:12px;margin-bottom:9px;font-family:"Courier New",monospace;font-size:12px}}.camera-label span{{color:#53656e}}img,video{{display:block;width:100%;border:1px solid var(--line);background:#000}}.camera img+img{{margin-top:9px}}.correction{{border:3px solid var(--amber)}}video{{margin-top:9px;max-height:56vh}}
+.axes-proof{{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,.6fr);gap:18px;margin-top:18px;padding:14px;border:1px solid var(--ink);background:var(--panel)}}.axes-proof figcaption{{align-self:center;font:700 13px/1.55 "Courier New",monospace}}.axes-proof strong{{display:block;margin-bottom:10px;color:var(--cyan);font:900 25px/1 "Arial Narrow",sans-serif;text-transform:uppercase}}
 .ledger,.warnings{{margin-top:70px}}h3{{font:800 20px "Arial Narrow",sans-serif;text-transform:uppercase}}table{{width:100%;border-collapse:collapse;background:var(--panel)}}td{{padding:11px 13px;border:1px solid var(--line);vertical-align:top}}td:first-child{{width:230px;font-family:"Courier New",monospace;color:var(--cyan)}}pre{{white-space:pre-wrap;background:var(--ink);color:#eaf1f3;padding:16px;overflow:auto}}a{{color:#006e87}}a:focus-visible,video:focus-visible{{outline:4px solid var(--amber);outline-offset:3px}}
-@media(max-width:950px){{.hero,.rig-head{{grid-template-columns:1fr}}.cameras{{grid-template-columns:1fr}}dl{{grid-template-columns:1fr}}dl div{{border-left:0;border-top:1px solid var(--line)}}}}
-</style></head><body><main><header class="hero"><div><p class="eyebrow">RoboDojo · OpenARM · seed 0 · DYNA counterpart</p><h1>CAD frames.<br>One optical domain.</h1><p>The upstream fixture fixes the base viewpoint. Every sensor is parented at identity to a named holder optical frame; official episode frames validate orientation and coverage without fitting the rig.</p></div><div class="axis"><span>UPSTREAM CAMERA-STAND AXIS</span></div></header>
+@media(max-width:950px){{.hero,.rig-head,.axes-proof{{grid-template-columns:1fr}}.cameras{{grid-template-columns:1fr}}dl{{grid-template-columns:1fr}}dl div{{border-left:0;border-top:1px solid var(--line)}}}}
+</style></head><body><main><header class="hero"><div><p class="eyebrow">RoboDojo · original OpenARM rig · seed 0</p><h1>One rig.<br>One substituted sensor.</h1><p>DYNA preserves the original embodiment and wrist rig exactly. Only the unavailable policy-original base camera is replaced by the Waveshare OV2710; official episode frames validate coverage without fitting geometry.</p></div><div class="axis"><span>UPSTREAM CAMERA-STAND AXIS</span></div></header>
 {''.join(blocks)}
+<figure class="axes-proof"><img src="dyna/camera_calibration/cad_anchor_diagram.png" alt="CAD-derived mount and optical-frame axes"><figcaption><strong>Mount → optical frame</strong>The CAD frame determines the holder-to-sensor transform. The original LeRobot optical target determines where that frame lands. Instance-mask validation then checks the observable consequence: both wrist clips enter from the bottom.</figcaption></figure>
 <section class="ledger"><p class="eyebrow">Pinned protocol</p><h2>Calibration ledger</h2><table>
 <tr><td>Policy</td><td>folding_final@{MODEL_REVISION} · LeRobot@{LEROBOT_REVISION} · RTC 30/20/5.0 LINEAR · 30→90 Hz · 240 Hz 3/3/2</td></tr>
 <tr><td>Embodiment</td><td>OpenARM@{OPENARM_REVISION} · hardware changes@{HARDWARE_REVISION} · 5 cm extension · enlarged jaws · right-first 16-D</td></tr>
-<tr><td>Mounts</td><td>Base: official <code>head camera holder v4.stl</code> mated to the upstream <code>Geometry.camera_stand</code> terminal plate. Wrists: official Arducam four-hole holder frames mated symmetrically to logical left/right hand plates. Cameras are identity children of generated <code>OpticalFrame</code> prims; runtime optical roll is zero.</td></tr>
+<tr><td>Mounts</td><td>Named CAD <code>OpticalFrame</code> targets derive holder attachment transforms. Wrists retain the original link-7 optical centers and viewing axes; only image-up changes by left +90° / right −90°. Runtime optical roll is zero.</td></tr>
+<tr><td>Profile delta</td><td>DYNA differs from the policy-original rig only in base-camera vendor/model, published FOV, and focal projection. Wrist and embodiment contracts are identical.</td></tr>
 <tr><td>Validation</td><td>level2_final_quality3@{DATASET_REVISION} — orientation and coverage oracle only</td></tr>
 <tr><td>Sources</td><td><a href="https://huggingface.co/spaces/lerobot/robot-folding/tree/{ARTICLE_REVISION}">Pinned LeRobot hardware article</a> · <a href="https://huggingface.co/datasets/lerobot/openarms-hardware-modifications/tree/{HARDWARE_REVISION}">Pinned camera-holder CAD</a> · <a href="https://moonlakeai.slack.com/archives/C0BCJPA3T9R/p1782508159343489">DYNA Slack note</a> · <a href="https://www.waveshare.com/wiki/OV2710_2MP_USB_Camera_%28A%29">Waveshare SKU 14121</a></td></tr>
 </table></section><section class="warnings"><p class="eyebrow">Retained diagnostics</p><h2>Runtime warnings</h2>{''.join(warning_blocks)}</section></main></body></html>"""

@@ -40,6 +40,38 @@ def compose_pose(parent_position, parent_orientation, local_position, local_orie
     return position, xyzw[[3, 0, 1, 2]]
 
 
+def pose_matrix(position, orientation) -> np.ndarray:
+    """Return a conventional column-vector homogeneous pose matrix."""
+    quaternion = orientation_quaternion(orientation)
+    rotation = Rotation.from_quat(quaternion[[1, 2, 3, 0]])
+    matrix = np.eye(4, dtype=np.float64)
+    matrix[:3, :3] = rotation.as_matrix()
+    matrix[:3, 3] = np.asarray(position, dtype=np.float64)
+    return matrix
+
+
+def pose_from_matrix(matrix) -> tuple[np.ndarray, np.ndarray]:
+    """Return position and scalar-first quaternion from a pose matrix."""
+    matrix = np.asarray(matrix, dtype=np.float64)
+    if matrix.shape != (4, 4):
+        raise ValueError(f"pose matrix must be 4x4, got {matrix.shape}")
+    rotation = Rotation.from_matrix(matrix[:3, :3])
+    xyzw = rotation.as_quat()
+    return matrix[:3, 3].copy(), xyzw[[3, 0, 1, 2]]
+
+
+def align_hardware_frame_pose(target_position, target_orientation, frame_matrix):
+    """Derive parent->hardware so parent->named-frame equals the target pose."""
+    target = pose_matrix(target_position, target_orientation)
+    frame = np.asarray(frame_matrix, dtype=np.float64)
+    if frame.shape != (4, 4):
+        raise ValueError(f"hardware frame matrix must be 4x4, got {frame.shape}")
+    if not np.allclose(frame[3], [0.0, 0.0, 0.0, 1.0], atol=1e-9):
+        raise ValueError("hardware frame matrix is not homogeneous")
+    hardware = target @ np.linalg.inv(frame)
+    return pose_from_matrix(hardware)
+
+
 @dataclass
 class CameraMountRegistry:
     scene_manager: Any

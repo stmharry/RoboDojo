@@ -208,13 +208,13 @@ else:
     assert base["sensor"]["vendor"] == "Waveshare"
     assert base["sensor"]["diagonal_fov_deg"] == 145.0
     assert base["projection"]["fx"] == 316.1146
-assert base["mount"]["position"] == [0.0, 0.0, 0.0]
-assert base["mount"]["orientation"] == [0.0, 0.0, 0.0]
+assert base["mount"]["position"] == [0.0, -0.33587426, 0.04106626]
+assert base["mount"]["orientation"] == [120.0, 0.0, -180.0]
 assert base["mount"]["optical_roll_deg"] == 0.0
 assert base["mount"]["hardware"]["camera_frame"] == "OpticalFrame"
 expected_rolls = {"cam_left_wrist": 0.0, "cam_right_wrist": 0.0}
-assert cameras["cam_left_wrist"]["mount"]["target"] == "robot0/left_hand_camera_mount"
-assert cameras["cam_right_wrist"]["mount"]["target"] == "robot0/right_hand_camera_mount"
+assert cameras["cam_left_wrist"]["mount"]["target"] == "robot0/left_wrist_camera_holder"
+assert cameras["cam_right_wrist"]["mount"]["target"] == "robot0/right_wrist_camera_holder"
 for key, roll in expected_rolls.items():
     wrist_camera = cameras[key]
     assert wrist_camera["sensor"]["vendor"] == "Arducam"
@@ -223,8 +223,11 @@ for key, roll in expected_rolls.items():
     assert wrist_camera["mount"]["basis"] == "lerobot_arducam_holder_optical_frame"
     assert wrist_camera["mount"]["hardware"]["collision"] is True
     assert wrist_camera["mount"]["hardware"]["camera_frame"] == "OpticalFrame"
-    assert wrist_camera["mount"]["position"] == [0.0, 0.0, 0.0]
-    assert wrist_camera["mount"]["orientation"] == [0.0, 0.0, 0.0]
+    expected_position = [0.05, 0.0, 0.12] if key == "cam_left_wrist" else [0.035, 0.0, 0.12]
+    assert wrist_camera["mount"]["position"] == expected_position
+    assert wrist_camera["mount"]["orientation"] == [180.0, 0.0, -90.0]
+    assert "position" not in wrist_camera["mount"]["hardware"]
+    assert "orientation" not in wrist_camera["mount"]["hardware"]
 assert "remove_fixtures" not in scene.get("appearance_overrides", {})
 assert manifest["upper_arm_extension_m"] == 0.05
 assert len(manifest["joint_paths"]) == 2

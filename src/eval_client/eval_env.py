@@ -286,6 +286,10 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
                 if not self.end_flag[env_idx] or last_frame:
                     self._stream_vision(env_idx, data[env_idx])
                 env_data = deepcopy(data[env_idx])
+                if os.environ.get("ROBODOJO_OPENARM_VALIDATION_MASKS") == "1":
+                    for camera_data in env_data.get("vision", {}).values():
+                        camera_data.pop("instance_mask", None)
+                        camera_data.pop("instance_mask_info", None)
                 env_data["env_idx"] = env_idx
                 data_list.append(env_data)
             return data_list
@@ -942,6 +946,21 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
             writers = self.video_writers.setdefault(env_idx, {})
             fps = self.obs_manager.collect_freq
             for cam_key, cam_data in vision.items():
+                if os.environ.get("ROBODOJO_OPENARM_VALIDATION_MASKS") == "1":
+                    mask = cam_data.get("instance_mask") if isinstance(cam_data, dict) else None
+                    if mask is not None and self.take_action_cnt[env_idx] in (0, 10, 30):
+                        mask_dir = os.path.join(self.save_dir, "validation_masks")
+                        os.makedirs(mask_dir, exist_ok=True)
+                        mask_path = os.path.join(
+                            mask_dir,
+                            f"{cam_key}_frame_{self.take_action_cnt[env_idx]:07d}.npz",
+                        )
+                        if not os.path.exists(mask_path):
+                            np.savez_compressed(
+                                mask_path,
+                                mask=np.asarray(mask, dtype=np.uint32),
+                                info=json.dumps(cam_data.get("instance_mask_info", {}), default=str),
+                            )
                 color = cam_data.get("color") if isinstance(cam_data, dict) else None
                 if color is None:
                     continue

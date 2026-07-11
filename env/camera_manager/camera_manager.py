@@ -16,7 +16,11 @@ from omegaconf import DictConfig, OmegaConf
 from pxr import Gf, UsdGeom
 import torch
 
-from env.camera_manager.mount_registry import apply_optical_roll, orientation_quaternion
+from env.camera_manager.mount_registry import (
+    align_hardware_frame_pose,
+    apply_optical_roll,
+    orientation_quaternion,
+)
 from env.camera_manager.rig_spec import hardware_camera_parent
 from env.environment.isaac.isaac_rl_env import IsaacRLEnv
 from env.global_configs import *
@@ -232,16 +236,9 @@ class CameraManager:
                         asset_path = os.path.join(ASSETS_PATH, asset_path)
                     add_reference_to_stage(usd_path=asset_path, prim_path=hardware_path)
                     prim = get_current_stage().GetPrimAtPath(hardware_path)
+                    add_labels(prim, [f"{camera_name}_holder"])
                     xform = UsdGeom.Xformable(prim)
                     xform.ClearXformOpOrder()
-                    position = camera_config.camera.get("mount_hardware_position", [0.0, 0.0, 0.0])
-                    orientation = orientation_quaternion(
-                        camera_config.camera.get("mount_hardware_orientation", [0.0, 0.0, 0.0])
-                    )
-                    xform.AddTranslateOp().Set(Gf.Vec3d(*[float(value) for value in position]))
-                    xform.AddOrientOp().Set(
-                        Gf.Quatf(float(orientation[0]), *[float(value) for value in orientation[1:]])
-                    )
                     self.mount_hardware_paths[env_id].append(hardware_path)
                     camera_frame = camera_config.camera.get("mount_hardware_camera_frame")
                     if camera_frame:
@@ -250,6 +247,24 @@ class CameraManager:
                             raise ValueError(
                                 f"camera hardware frame {camera_parent_path} does not exist in {asset_path}"
                             )
+                        frame_matrix = np.asarray(
+                            UsdGeom.Xformable(get_current_stage().GetPrimAtPath(camera_parent_path))
+                            .GetLocalTransformation()
+                        ).T
+                        position, orientation = align_hardware_frame_pose(
+                            camera_config.camera.pos,
+                            camera_config.camera.ori,
+                            frame_matrix,
+                        )
+                    else:
+                        position = camera_config.camera.get("mount_hardware_position", [0.0, 0.0, 0.0])
+                        orientation = orientation_quaternion(
+                            camera_config.camera.get("mount_hardware_orientation", [0.0, 0.0, 0.0])
+                        )
+                    xform.AddTranslateOp().Set(Gf.Vec3d(*[float(value) for value in position]))
+                    xform.AddOrientOp().Set(
+                        Gf.Quatf(float(orientation[0]), *[float(value) for value in orientation[1:]])
+                    )
                 cur_camera_xform_path = find_unique_string_name(
                     camera_parent_path + "/" + f"Camera_{cam_id}",
                     is_unique_fn=lambda x: not is_prim_path_valid(x),
@@ -505,6 +520,9 @@ class CameraManager:
                 else:
                     position = torch.tensor([0, 0, 1])
                 final_position = position + random_pos
+                if camera_config.camera.get("mount_hardware_camera_frame"):
+                    final_position = torch.zeros(3)
+                    orientation = euler_angles_to_quat(torch.tensor([0, 0, 0]))
                 cur_camera_xform.set_local_pose(
                     final_position,
                     orientation,

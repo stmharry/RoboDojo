@@ -68,6 +68,12 @@ class CameraSpec:
                 or ".." in camera_frame.split("/")
             ):
                 raise ValueError(f"{self.observation_key}: mount hardware camera_frame must be a relative prim path")
+            if camera_frame is not None and (
+                "position" in hardware or "orientation" in hardware
+            ):
+                raise ValueError(
+                    f"{self.observation_key}: named camera frames derive hardware pose from the mount target"
+                )
 
     def runtime_camera(self) -> dict[str, Any]:
         """Flatten the normalized contract for the existing Isaac camera implementation."""
@@ -97,11 +103,14 @@ class CameraSpec:
             hardware = self.mount["hardware"]
             result.update(
                 mount_hardware_asset=hardware["asset"],
-                mount_hardware_position=list(hardware.get("position", [0.0, 0.0, 0.0])),
-                mount_hardware_orientation=list(hardware.get("orientation", [0.0, 0.0, 0.0])),
                 mount_hardware_collision=bool(hardware.get("collision", True)),
                 mount_hardware_camera_frame=hardware.get("camera_frame"),
             )
+            if not hardware.get("camera_frame"):
+                result.update(
+                    mount_hardware_position=list(hardware.get("position", [0.0, 0.0, 0.0])),
+                    mount_hardware_orientation=list(hardware.get("orientation", [0.0, 0.0, 0.0])),
+                )
         return {key: value for key, value in result.items() if value is not None}
 
 
@@ -157,13 +166,17 @@ def _legacy_camera_spec(name: str, section: Mapping[str, Any], frequency: float)
         "basis": camera.get("mount_basis", "legacy"),
     }
     if camera.get("mount_hardware_asset"):
-        mount["hardware"] = {
+        hardware = {
             "asset": camera["mount_hardware_asset"],
-            "position": list(camera.get("mount_hardware_position", [0, 0, 0])),
-            "orientation": list(camera.get("mount_hardware_orientation", [0, 0, 0])),
             "collision": bool(camera.get("mount_hardware_collision", True)),
             "camera_frame": camera.get("mount_hardware_camera_frame"),
         }
+        if not hardware["camera_frame"]:
+            hardware.update(
+                position=list(camera.get("mount_hardware_position", [0, 0, 0])),
+                orientation=list(camera.get("mount_hardware_orientation", [0, 0, 0])),
+            )
+        mount["hardware"] = hardware
     projection = {
         "model": camera.get("lens_distortion_model", "pinhole"),
         "backend": camera.get("projection_backend", "native"),

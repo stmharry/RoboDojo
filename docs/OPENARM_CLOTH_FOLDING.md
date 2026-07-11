@@ -2,8 +2,9 @@
 
 RoboDojo exposes two sensor profiles over one embodiment, scene, policy tensor
 contract, and upstream camera stand. `openarm_cloth_folding` is the checkpoint's
-policy-original rig. `openarm_cloth_folding_dyna` changes only the base sensor
-projection to represent the DYNA hardware and is the evaluated counterpart.
+policy-original rig. `openarm_cloth_folding_dyna` substitutes only the
+availability-driven Waveshare base sensor and projection and is the evaluated
+counterpart. Wrist cameras and every embodiment parameter are identical.
 Both profiles use the generated CAD holder hierarchy; only DYNA is run and
 published by the workflow below.
 
@@ -51,6 +52,7 @@ its camera streams against pinned reference frames:
 
 ```bash
 ROBODOJO_OPENARM_ZERO_ACTION=1 ROBODOJO_OPENARM_SMOKE_STEPS=30 \
+  ROBODOJO_OPENARM_VALIDATION_MASKS=1 \
   OMNI_KIT_ACCEPT_EULA=YES \
   uv run --locked bash scripts/robodojo.sh eval \
   --policy-dir XPolicyLab/policy/LeRobot_Pi05_OpenArm \
@@ -60,7 +62,8 @@ ROBODOJO_OPENARM_ZERO_ACTION=1 ROBODOJO_OPENARM_SMOKE_STEPS=30 \
   --eval-num 1
 
 uv run --locked python scripts/validate_openarm_visuals.py \
-  /path/to/generated/run --profile-id openarm_dyna --allow-partial
+  /path/to/generated/run --profile-id openarm_dyna --allow-partial \
+  --mask-run-dir /path/to/generated/run
 ```
 
 Generate the CAD-anchor diagrams, pinned article contact sheets, dataset-state
@@ -78,16 +81,12 @@ to `camera_calibration/matched_state_environment.json` as
 states immediately before observations 0, 10, and 30; this affects only the
 calibration harness and never a policy rollout.
 
-The tracked asymmetric harness makes the three optical-frame conventions
-inspectable without transposing landscape tensors:
-
-```bash
-uv run --locked python scripts/render_camera_orientation_harness.py
-```
-
 The validator streams frames 0, 10, and 30 directly from the pinned episode
 video URLs into `.cache/`; it does not download or process the training dataset.
 It produces base/left/right comparison sheets and `visual_validation.json`.
+Wrist acceptance uses holder/gripper instance masks, including the requirement
+that both silhouettes enter from the bottom of their frames; cloth pixels never
+participate in that gate.
 The official data is a validation oracle only: it is not used to optimize
 camera transforms, robot geometry, cloth state, or scoring.
 
@@ -100,11 +99,13 @@ The tracked source manifest pins OpenARM Isaac Lab at
 at `ffe34b93c070343042eb9412fbfeffce16139947`. The builder checksums and
 instantiates `head camera holder v4.stl` and `arducam_holder.step/.stl`, records
 named `MountFrame` and `OpticalFrame` prims, and authors collision-enabled
-holder USDs. The head holder mounting plane is mated to the preserved upstream
-`Geometry.camera_stand` terminal plate. Wrist four-hole mount frames resolve
-through logical OpenARM hand-plate aliases with complete mirrored physical
-transforms. All cameras are identity children of generated optical frames and
-use zero runtime optical roll. Isaac Sim 5.1's tiled
+holder USDs. A camera mount specifies the final named optical-frame target;
+CameraManager derives the holder attachment as `target × inverse(optical)`.
+The wrist targets retain the original link-7 centers `[0.05, 0, 0.12]` and
+`[0.035, 0, 0.12]`, their original viewing axis, and zero runtime roll. This is
+a pure left `+90°` / right `−90°` correction from the previous formulation.
+Validation uses instance masks for holders and grippers so black cloth cannot
+be classified as robot silhouette. Isaac Sim 5.1's tiled
 Replicator path renders its native OpenCV-fisheye schema black, so the manager
 uses a calibrated pinhole backing projection and applies the same explicit
 equidistant model deterministically to captured RGB frames.

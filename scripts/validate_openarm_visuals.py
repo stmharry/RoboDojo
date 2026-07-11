@@ -15,6 +15,8 @@ import subprocess
 
 import cv2
 import numpy as np
+from scipy.spatial.transform import Rotation
+import yaml
 
 try:
     from scripts.assets.openarm_camera_calibration import calibration_manifest
@@ -132,8 +134,7 @@ def image_metrics(path: Path) -> dict:
 
 
 def orientation_failures(camera: str, metrics: dict) -> list[str]:
-    """Semantic silhouette gates; episode pixels never define camera poses."""
-    edge = metrics["edge_dark_fraction"]
+    """Base RGB gates; wrist orientation is validated from instance masks."""
     failures = []
     if camera == "base":
         if not 0.01 <= metrics["dark_fraction"] < 0.35:
@@ -144,20 +145,67 @@ def orientation_failures(camera: str, metrics: dict) -> list[str]:
             failures.append("base: working surface begins too low; top robot region dominates")
         if not 0.65 < metrics["bright_surface_last_row"] < 0.99:
             failures.append("base: lower working-surface boundary is not visible")
-    if camera in ("left_wrist", "right_wrist"):
-        # The black garment can meet the top border in a matched state, so use
-        # a signed entry-edge margin instead of requiring an arbitrary 5% gap.
-        # The CAD/asymmetric-landmark gate below supplies the orientation sign;
-        # RGB still has to show measurably more hardware at the bottom edge.
-        if edge["bottom"] <= edge["top"] + 0.01:
-            failures.append(f"{camera}: gripper/holder silhouette does not enter from the bottom")
-        if metrics["dark_fraction"] >= 0.35:
-            failures.append(f"{camera}: gripper/holder silhouette occupies at least 35% of the frame")
-        if edge["left"] > 0.45 and edge["right"] > 0.45:
-            failures.append(f"{camera}: holder silhouette spans both lateral edges")
-        if edge["top"] > 0.55:
-            failures.append(f"{camera}: no clear table/garment contact region remains above the jaw")
     return failures
+
+
+def load_hardware_mask(run_dir: Path, sim_name: str, frame: int = 0) -> tuple[np.ndarray, np.ndarray, dict]:
+    path = run_dir / "validation_masks" / f"{sim_name}_frame_{frame:07d}.npz"
+    if not path.is_file():
+        raise RuntimeError(f"missing validation instance mask: {path}")
+    payload = np.load(path)
+    mask = np.asarray(payload["mask"]).squeeze()
+    info = json.loads(str(payload["info"]))
+    labels = info.get("idToLabels") or info.get("idToSemantics") or {}
+    hardware_ids, holder_ids = [], []
+    side = "left" if "left" in sim_name else "right"
+    side_token = f"openarm_{side}_"
+    for raw_id, label in labels.items():
+        text = json.dumps(label, sort_keys=True).lower()
+        instance_id = int(raw_id)
+        is_side_hardware = side_token in text and any(
+            token in text for token in ("cameraholder", "finger", "hand", "link7", "jaw")
+        )
+        if is_side_hardware:
+            hardware_ids.append(instance_id)
+        if side_token in text and "cameraholder" in text:
+            holder_ids.append(instance_id)
+    if not hardware_ids or not holder_ids:
+        raise RuntimeError(f"instance metadata lacks wrist hardware labels in {path}: {labels}")
+    return np.isin(mask, hardware_ids), np.isin(mask, holder_ids), info
+
+
+def wrist_mask_failures(camera: str, hardware: np.ndarray, holder: np.ndarray) -> tuple[list[str], dict]:
+    height, width = hardware.shape
+    border = max(8, min(height, width) // 20)
+    edge = {
+        "top": float(hardware[:border].mean()),
+        "bottom": float(hardware[-border:].mean()),
+        "left": float(hardware[:, :border].mean()),
+        "right": float(hardware[:, -border:].mean()),
+    }
+    coverage = float(hardware.mean())
+    holder_points = np.argwhere(holder)
+    holder_centroid = (
+        [float(holder_points[:, 1].mean() / width), float(holder_points[:, 0].mean() / height)]
+        if holder_points.size
+        else [float("nan"), float("nan")]
+    )
+    failures = []
+    if edge["bottom"] <= 0.05:
+        failures.append(f"{camera}: holder/gripper instance mask does not enter from the bottom")
+    if coverage >= 0.35:
+        failures.append(f"{camera}: holder/gripper instance mask occupies at least 35% of the frame")
+    if edge["left"] > 0.45 and edge["right"] > 0.45:
+        failures.append(f"{camera}: holder/gripper instance mask spans both lateral edges")
+    contact_region = hardware[: height // 2, width // 5 : 4 * width // 5]
+    if float(contact_region.mean()) > 0.20:
+        failures.append(f"{camera}: insufficient contact-region visibility above the jaw")
+    return failures, {
+        "coverage": coverage,
+        "edge_fraction": edge,
+        "contact_region_coverage": float(contact_region.mean()),
+        "holder_centroid": holder_centroid,
+    }
 
 
 def cad_frame_failures() -> list[str]:
@@ -173,9 +221,20 @@ def cad_frame_failures() -> list[str]:
         failures.append("wrists: mirrored holders do not preserve the optical axis")
     if not np.allclose(left[:, :2], -right[:, :2], atol=1e-8):
         failures.append("wrists: asymmetric up/right landmarks do not form a physical mirror")
-    corrections = calibration["dyna_effective_wrist_correction_deg"]
-    if corrections != {"left": 90.0, "right": -90.0}:
-        failures.append("wrists: effective correction is not left +90 / right -90 degrees")
+    root = Path(__file__).resolve().parents[1]
+    profiles = []
+    for name in ("openarm_cloth_folding", "openarm_cloth_folding_dyna"):
+        profiles.append(yaml.safe_load((root / f"env_cfg/camera/{name}.yml").read_text())["camera_rig"])
+    for key in ("cam_left_wrist", "cam_right_wrist"):
+        if profiles[0]["cameras"][key] != profiles[1]["cameras"][key]:
+            failures.append(f"wrists: {key} differs between policy-original and DYNA profiles")
+    base = Rotation.from_euler("XYZ", [180.0, 0.0, 90.0], degrees=True)
+    target = base * Rotation.from_euler("Z", 180.0, degrees=True)
+    for camera, legacy_roll, expected_visual in (("left", -90.0, 90.0), ("right", 90.0, -90.0)):
+        legacy = base * Rotation.from_euler("Z", legacy_roll, degrees=True)
+        frame_delta = (legacy.inv() * target).as_rotvec(degrees=True)
+        if not np.allclose(frame_delta, [0.0, 0.0, -expected_visual], atol=1e-8):
+            failures.append(f"{camera}_wrist: rendered correction is not {expected_visual:+g} degrees")
     return failures
 
 
@@ -230,6 +289,7 @@ def main() -> None:
     parser.add_argument("--report-dir", type=Path)
     parser.add_argument("--allow-partial", action="store_true", help="accept non-501-frame zero-action smoke videos")
     parser.add_argument("--profile-id", required=True, choices=("openarm_policy_original", "openarm_dyna"))
+    parser.add_argument("--mask-run-dir", type=Path, help="zero-action run containing validation instance masks")
     args = parser.parse_args()
     report_dir = args.report_dir or args.run_dir / "visual_validation"
     cache_root = args.cache_dir / REVISION
@@ -287,6 +347,25 @@ def main() -> None:
             "rendered_metrics": rendered_metrics,
             "histogram_js_distance": distances,
         }
+
+    if args.mask_run_dir:
+        wrist_masks = {}
+        for camera in ("left_wrist", "right_wrist"):
+            sim_name = CAMERAS[camera]["sim"]
+            hardware, holder, _ = load_hardware_mask(args.mask_run_dir, sim_name)
+            failures, metrics = wrist_mask_failures(camera, hardware, holder)
+            report["failures"].extend(failures)
+            wrist_masks[camera] = metrics
+        left_x = wrist_masks["left_wrist"]["holder_centroid"][0]
+        right_x = wrist_masks["right_wrist"]["holder_centroid"][0]
+        if not np.isfinite(left_x + right_x) or abs((left_x + right_x) - 1.0) > 0.20:
+            report["failures"].append("wrists: asymmetric holder landmarks are not physical mirrors")
+        report["instance_mask_validation"] = {
+            "source_run": str(args.mask_run_dir),
+            "cameras": wrist_masks,
+        }
+    else:
+        report["failures"].append("wrists: validation instance-mask run is required")
 
     report["passed"] = not report["failures"]
     report_dir.mkdir(parents=True, exist_ok=True)

@@ -13,14 +13,6 @@ import numpy as np
 
 BLOG_SPACE_REVISION = "170e1d479579e0b4be1afe0c99ebf868b24803db"
 HARDWARE_REVISION = "ffe34b93c070343042eb9412fbfeffce16139947"
-# Retained only to make prior calibration reports readable. Runtime profiles
-# now inherit generated holder OpticalFrame prims.
-HEAD_FIXTURE_SENSOR_POSITION_M = (0.0, -0.31855376, 0.05106626)
-HEAD_FIXTURE_SENSOR_ORIENTATION_DEG = (120.0, 0.0, 0.0)
-WRIST_LINK_SENSOR_POSES = {
-    "left": {"position_m": (0.05, 0.0, 0.12), "orientation_deg": (180.0, 0.0, 90.0)},
-    "right": {"position_m": (0.035, 0.0, 0.12), "orientation_deg": (180.0, 0.0, 90.0)},
-}
 
 
 @dataclass(frozen=True)
@@ -147,31 +139,6 @@ def holder_optical_frame(side: str) -> np.ndarray:
     return frame
 
 
-DYNA_HOLDER_ATTACHMENTS = {
-    "head": {
-        "parent": "camera_stand",
-        "position_m": (0.0, -0.5875, 0.0647),
-        "orientation_deg": (10.0, 0.0, 0.0),
-        "authority": "upstream_camera_stand_terminal_plate",
-    },
-    "left": {
-        "parent": "robot0/left_hand_camera_mount",
-        # Mate the holder's four-hole MountFrame to the outer hand plate. The
-        # two translations are a physical mirror; the 42.5 mm plate offset is
-        # the centerline of the paired OpenARM hand mounting faces.
-        "position_m": (0.0425, -0.0568268697, -0.0165119239),
-        "orientation_deg": (-140.0, 0.0, 180.0),
-        "authority": "openarm_hand_plate_to_arducam_four_hole_mount",
-    },
-    "right": {
-        "parent": "robot0/right_hand_camera_mount",
-        "position_m": (0.0425, 0.0568268697, -0.0165119239),
-        "orientation_deg": (140.0, 0.0, 0.0),
-        "authority": "openarm_hand_plate_to_arducam_four_hole_mount",
-    },
-}
-
-
 def calibration_manifest() -> dict:
     return {
         "blog_space_revision": BLOG_SPACE_REVISION,
@@ -183,8 +150,6 @@ def calibration_manifest() -> dict:
             "optical_direction_fixture": head_optical_direction_fixture().tolist(),
             "optical_up_fixture": HEAD_HOLDER.optical_up_mount().tolist(),
             "optical_frame_matrix": holder_optical_frame("head").tolist(),
-            "runtime_sensor_position_m": list(HEAD_FIXTURE_SENSOR_POSITION_M),
-            "runtime_sensor_orientation_deg": list(HEAD_FIXTURE_SENSOR_ORIENTATION_DEG),
         },
         "wrist": {
             "mount_origin_mm": list(WRIST_HOLDER.mount_origin_mm),
@@ -195,17 +160,5 @@ def calibration_manifest() -> dict:
             "left_optical_frame_matrix": holder_optical_frame("left").tolist(),
             "right_optical_frame_matrix": holder_optical_frame("right").tolist(),
             "right_is_mirrored": True,
-            "runtime_link_sensor_poses": {
-                side: {key: list(value) for key, value in pose.items()}
-                for side, pose in WRIST_LINK_SENSOR_POSES.items()
-            },
         },
-        "dyna_holder_attachments": {
-            name: {
-                key: list(value) if isinstance(value, tuple) else value
-                for key, value in attachment.items()
-            }
-            for name, attachment in DYNA_HOLDER_ATTACHMENTS.items()
-        },
-        "dyna_effective_wrist_correction_deg": {"left": 90.0, "right": -90.0},
     }

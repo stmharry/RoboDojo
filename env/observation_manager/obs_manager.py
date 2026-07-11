@@ -11,6 +11,7 @@ class ObsManager:
         "rgb": "color",
         "depth": "depth",
         "distance_to_image_plane": "distance_to_image_plane",
+        "instance_id_segmentation_fast": "instance_mask",
     }
 
     def __init__(
@@ -99,6 +100,8 @@ class ObsManager:
                             if camera_name not in obs[env_idx]["vision"]:
                                 obs[env_idx]["vision"][camera_name] = dict()
                             obs[env_idx]["vision"][camera_name][collect_name] = env_list[idx]["data"]
+                            if annotator_name == "instance_id_segmentation_fast":
+                                obs[env_idx]["vision"][camera_name]["instance_mask_info"] = env_list[idx]["info"]
 
                             if annotator_name == "rgb":
                                 obs[env_idx]["vision"][camera_name][collect_name] = obs[env_idx]["vision"][camera_name][

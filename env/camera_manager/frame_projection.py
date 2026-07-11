@@ -52,13 +52,20 @@ class FrameProjectionPipeline:
         return map_x, map_y
 
     def apply(self, cam_id: int, annotator_name: str, frames: np.ndarray) -> np.ndarray:
-        if annotator_name != "rgb":
+        projected_annotators = {"rgb", "instance_id_segmentation_fast"}
+        if annotator_name not in projected_annotators:
             return frames
         height, width = frames.shape[1:3]
         remap = self._fisheye_map(cam_id, width, height)
         if remap is None:
             return frames
         map_x, map_y = remap
-        return np.stack(
-            [cv2.remap(frame, map_x, map_y, cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT) for frame in frames]
-        )
+        interpolation = cv2.INTER_LINEAR if annotator_name == "rgb" else cv2.INTER_NEAREST
+        projected = []
+        for frame in frames:
+            source = frame.astype(np.float32) if annotator_name != "rgb" else frame
+            remapped = cv2.remap(source, map_x, map_y, interpolation, borderMode=cv2.BORDER_CONSTANT)
+            if annotator_name != "rgb":
+                remapped = np.rint(remapped).astype(frame.dtype)
+            projected.append(remapped)
+        return np.stack(projected)
