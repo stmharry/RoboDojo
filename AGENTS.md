@@ -17,8 +17,9 @@ their own dependency tooling.
 
 `main` is the protected working trunk. Do not direct-push to `main`.
 
-`Makefile` is local-only workflow state. It is intentionally ignored and must
-never be committed or re-added to Git.
+`Makefile` is the tracked entry point for common development, evaluation, and
+storage workflows. Keep its help output and `.env.example` synchronized when
+adding or changing configurable targets.
 
 Before starting implementation work, fetch `origin`, confirm local `main` has
 no tracked-file changes, and confirm it is current with `origin/main` when that

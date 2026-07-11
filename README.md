@@ -64,6 +64,18 @@ RoboDojo uses a locked [uv](https://docs.astral.sh/uv/) environment with Python
 bash scripts/install.sh --install
 ```
 
+Copy the environment template for machine-specific evaluation and storage
+settings, then inspect the available workflow shortcuts:
+
+```bash
+cp .env.example .env
+make help
+```
+
+The `storage-*` targets wrap the S3-backed storage helper. Start with
+`make storage-status`; publishing and hydration targets list their required
+`STORAGE_*` variables in `make help` and report missing values before running.
+
 After setup, run every native command through the lockfile:
 
 ```bash

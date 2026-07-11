@@ -4,6 +4,8 @@
 .ruff_cache/
 .venv/
 .worktrees/
+.env
+!.env.example
 
 # Downloaded assets (populated by scripts/init_assets.sh)
 Assets/
