@@ -73,3 +73,26 @@ OMNI_KIT_ACCEPT_EULA=YES uv run --extra sim --locked robodojo eval \
 
 The default export is `scene_snapshot/` inside the evaluation run directory.
 Use `--export-scene-dir PATH` to select another ignored artifact directory.
+
+## Diagnose action drift
+
+Set `ROBODOJO_OPENARM_TRACE=1` to write `openarm_trace.jsonl` beside
+`_result.json`. The trace contains model chunks, queue timing and indices,
+measured states, interpolated targets, safety clamps, and initial camera image
+statistics. Compare the adapter paths without changing the checkpoint:
+
+```bash
+# Existing absolute-action re-anchoring behavior.
+ROBODOJO_OPENARM_TRACE=1 ROBODOJO_OPENARM_RTC_MODE=current <evaluation command>
+
+# Pinned LeRobot semantics: retain original model-space RTC leftovers.
+ROBODOJO_OPENARM_RTC_MODE=official <evaluation command>
+
+# Wait for each queue to drain and infer without an overlapping RTC prefix.
+ROBODOJO_OPENARM_RTC_MODE=synchronous <evaluation command>
+```
+
+`official` and `synchronous` enable tracing automatically. Set
+`ROBODOJO_OPENARM_TRACE_PATH` to choose an explicit trace destination. Scene
+exports record effective and published camera FOVs, their diagonal error, and
+whether a zero-distortion fisheye postprocess is active.

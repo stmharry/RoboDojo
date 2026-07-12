@@ -18,6 +18,13 @@ def test_camera_fov_contract():
         calculate_fov_degrees(640, 480, 0, 320)
 
 
+def test_openarm_camera_contract_exposes_large_published_fov_mismatch():
+    base = calculate_fov_degrees(640, 480, 316.1146, 316.1146)
+    wrist = calculate_fov_degrees(1280, 720, 824.9654, 824.9654)
+    assert 145.0 - base["diagonal"] > 40.0
+    assert 102.0 - wrist["diagonal"] > 18.0
+
+
 def test_completed_export_requires_exact_identity(tmp_path):
     identity = ExportIdentity("fold_clothes", "openarm", 0, 0, "abc123")
     assert not completed_export_matches(tmp_path, identity)

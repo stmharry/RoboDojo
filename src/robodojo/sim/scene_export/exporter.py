@@ -107,6 +107,9 @@ def _camera_state(env, stage: Usd.Stage) -> list[dict[str, Any]]:
         fy = float(spec.projection.get("fy", fx))
         cx = float(spec.projection.get("cx", width / 2.0))
         cy = float(spec.projection.get("cy", height / 2.0))
+        effective_fov = calculate_fov_degrees(width, height, fx, fy)
+        published_diagonal_fov = float(spec.sensor["diagonal_fov_deg"])
+        coefficients = _json_value(spec.projection.get("distortion_coefficients", []))
         parent = stage.GetPrimAtPath(xform_path).GetParent()
         backing = {}
         if usd_camera:
@@ -133,11 +136,17 @@ def _camera_state(env, stage: Usd.Stage) -> list[dict[str, Any]]:
                 "native_resolution": [int(value) for value in spec.sensor.get("native_resolution", [width, height])],
                 "stream_resolution": [width, height],
                 "effective_intrinsic_matrix": [[fx, 0.0, cx], [0.0, fy, cy], [0.0, 0.0, 1.0]],
-                "effective_fov_degrees": calculate_fov_degrees(width, height, fx, fy),
-                "published_diagonal_fov_degrees": float(spec.sensor["diagonal_fov_deg"]),
+                "effective_fov_degrees": effective_fov,
+                "published_diagonal_fov_degrees": published_diagonal_fov,
+                "diagonal_fov_error_degrees": effective_fov["diagonal"] - published_diagonal_fov,
                 "projection_model": spec.projection.get("model", "pinhole"),
                 "projection_backend": spec.projection.get("backend", "native"),
-                "distortion_coefficients": _json_value(spec.projection.get("distortion_coefficients", [])),
+                "distortion_coefficients": coefficients,
+                "zero_distortion_postprocess": bool(
+                    spec.projection.get("backend") == "pinhole_postprocess"
+                    and coefficients
+                    and not any(coefficients)
+                ),
                 "backing_usd_camera": backing,
                 "runtime_camera": _json_value(runtime),
             }
