@@ -1,4 +1,5 @@
 from collections.abc import Sequence, Sequence as SequenceABC
+import logging
 from typing import Any
 
 import gymnasium as gym
@@ -11,6 +12,8 @@ from omni.physx import acquire_physx_interface
 
 from robodojo.sim.environment.environment.isaac.isaac_rl_env import IsaacRLEnv
 from robodojo.sim.environment.seeding import seed_everywhere
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_SIM_DEVICE = "cpu"
 DEFAULT_USE_FABRIC = False
@@ -207,7 +210,7 @@ class BaseEnv(gym.Env):
             tl.stop()
             tl.set_current_time(0.0)
         except Exception as e:
-            print("[restart] timeline stop/set failed:", e)
+            logger.warning("[restart] timeline stop/set failed: %s", e)
 
         if self.sim is not None:
             self.sim.close()
@@ -220,7 +223,7 @@ class BaseEnv(gym.Env):
             ctx.close_stage()
             ctx.new_stage()
         except Exception as e:
-            print("[restart] close_stage failed:", e)
+            logger.warning("[restart] close_stage failed: %s", e)
 
     def update_seed(self, seed: Any | None = None):
         global_seed, _ = self._process_seed_input(seed)

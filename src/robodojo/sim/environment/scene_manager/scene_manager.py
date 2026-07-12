@@ -1,5 +1,6 @@
 from collections.abc import Sequence
 from copy import deepcopy
+import logging
 from typing import Any, Dict, List
 
 from isaacsim.core.utils.prims import delete_prim, is_prim_path_valid
@@ -24,6 +25,8 @@ from robodojo.sim.environment.scene_manager.objects.room import Room
 from robodojo.sim.environment.scene_manager.objects.table import Table
 from robodojo.sim.environment.seeding import seed_everywhere
 from robodojo.sim.utils.path import deep_resolve_paths
+
+logger = logging.getLogger(__name__)
 
 
 class SceneManager:
@@ -157,7 +160,7 @@ class SceneManager:
 
     def reload_scene(self):
         """Reload all environments from saved eval layouts."""
-        print("[INFO] Resetting all environments")
+        logger.debug("Resetting all environments")
         self.post_init()
         env_ids = torch.arange(self.num_envs, device=self.device)
         self.reload_envs(env_ids)
@@ -313,16 +316,18 @@ class SceneManager:
         # Do this BEFORE creating any primitive shapes to avoid creating orphaned primitives
         if self.device.type == "cpu" and self.use_fabric:
             if obj_type in ["garment", "articulation"]:
-                print(
-                    f"Warning: {obj_type.capitalize()} objects are disabled when device='cpu' and use_fabric=True. "
-                    f"Skipping object creation at '{prim_path}'."
+                logger.warning(
+                    "%s objects are disabled when device='cpu' and use_fabric=True. Skipping object creation at '%s'.",
+                    obj_type.capitalize(),
+                    prim_path,
                 )
                 return None
         if self.device.type.startswith("cuda"):
             if obj_type in ["fluid"]:
-                print(
-                    f"Warning: {obj_type.capitalize()} objects are disabled when using CUDA device. "
-                    f"Skipping object creation at '{prim_path}'."
+                logger.warning(
+                    "%s objects are disabled when using CUDA device. Skipping object creation at '%s'.",
+                    obj_type.capitalize(),
+                    prim_path,
                 )
                 return None
 

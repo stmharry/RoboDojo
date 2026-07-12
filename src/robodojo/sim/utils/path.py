@@ -1,8 +1,11 @@
+import logging
 import os
 
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from robodojo.sim.environment.global_configs import ASSETS_PATH, ENV_CONFIG_PATH, ROOT_DIR
+
+logger = logging.getLogger(__name__)
 
 
 def resolve_path(config_path: str) -> str:
@@ -66,7 +69,7 @@ def get_mdl_paths_from_folder(
 
     result, entries = omni.client.list(folder_path)
     if result != omni.client.Result.OK:
-        print(f"Could list assets in path: {folder_path}")
+        logger.warning("Could list assets in path: %s", folder_path)
         return mdl_paths
 
     for entry in entries:
@@ -109,7 +112,7 @@ def get_usd_paths_from_folder(
 
     result, entries = omni.client.list(folder_path)
     if result != omni.client.Result.OK:
-        print(f"Could list assets in path: {folder_path}")
+        logger.warning("Could list assets in path: %s", folder_path)
         return usd_paths
 
     for entry in entries:

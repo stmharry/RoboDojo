@@ -1,3 +1,4 @@
+import logging
 import random
 
 from isaacsim.core.api.materials.physics_material import PhysicsMaterial
@@ -13,6 +14,8 @@ from pxr import Gf, Sdf, Usd, UsdGeom
 import torch
 
 from robodojo.sim.environment.scene_manager.layout_manager import LayoutManager
+
+logger = logging.getLogger(__name__)
 
 
 class RigidObject(SingleRigidPrim, SingleGeometryPrim):
@@ -185,7 +188,7 @@ class RigidObject(SingleRigidPrim, SingleGeometryPrim):
             path = Sdf.Path(prim_path)
             prim = self.stage.GetPrimAtPath(path)
             if not prim.IsValid():
-                print(f"Warning: Invalid prim path {prim_path}")
+                logger.warning("Invalid prim path %s", prim_path)
                 return
 
             # Set visibility to invisible
@@ -199,7 +202,7 @@ class RigidObject(SingleRigidPrim, SingleGeometryPrim):
                 visibility_attribute.Set("invisible")
 
         except Exception as e:
-            print(f"Warning: Failed to hide prim {prim_path}: {e}")
+            logger.warning("Failed to hide prim %s: %s", prim_path, e)
 
     def _setup_physics(self):
         """Configure physics properties (rigid type, mass) from instance config."""

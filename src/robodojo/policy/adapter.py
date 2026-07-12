@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from robodojo.core.models import PolicyServerLaunchRequest
 from robodojo.core.processes import format_command, free_port, run
 from robodojo.core.storage import checkpoint_label
+
+logger = logging.getLogger(__name__)
 
 
 def require_policy_adapter(policy_dir: Path) -> Path:
@@ -41,7 +44,7 @@ def run_policy_server(request: PolicyServerLaunchRequest) -> int:
     port = request.port or free_port()
     argv = policy_server_command(request, port)
     env = {"ROBODOJO_CKPT_LABEL": checkpoint_label(request.checkpoint)}
-    print(f"policy server: {request.host}:{port}")
+    logger.info("policy server: %s:%s", request.host, port)
     if request.dry_run:
         print(format_command(argv, env))
         return 0

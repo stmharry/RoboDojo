@@ -1,3 +1,5 @@
+import logging
+
 from isaacsim.core.api.materials.particle_material import ParticleMaterial
 from isaacsim.core.api.materials.preview_surface import PreviewSurface
 from isaacsim.core.prims import SingleClothPrim, SingleParticleSystem
@@ -12,6 +14,8 @@ from omegaconf import DictConfig
 import omni.kit.commands
 from pxr import Usd, UsdGeom, UsdShade, Vt
 import torch
+
+logger = logging.getLogger(__name__)
 
 
 class GarmentObject(SingleClothPrim):
@@ -255,7 +259,7 @@ class GarmentObject(SingleClothPrim):
                 try:
                     self._cloth_prim_view.set_world_positions(initial_pos_tensor)
                 except Exception as e:
-                    print(f"Error setting world positions in reset for {self._prim_path}: {e}")
+                    logger.warning("setting world positions in reset failed for %s: %s", self._prim_path, e)
 
     def apply_saved_pose(self):
         self.reset()
@@ -300,11 +304,11 @@ class GarmentObject(SingleClothPrim):
         self.visual_material_prim = prims_utils.get_prim_at_path(self.visual_material_path)
         # Check if visual_material_prim is valid and has children
         if not self.visual_material_prim or not self.visual_material_prim.IsValid():
-            print(f"Warning: Could not get valid prim at {self.visual_material_path}")
+            logger.warning("Could not get valid prim at %s", self.visual_material_path)
             return
         children = prims_utils.get_prim_children(self.visual_material_prim)
         if not children:
-            print(f"Warning: Material prim at {self.visual_material_path} has no children.")
+            logger.warning("Material prim at %s has no children.", self.visual_material_path)
             return
 
         self.material_prim = children[0]
@@ -313,7 +317,7 @@ class GarmentObject(SingleClothPrim):
 
         mesh_prim_to_bind = prims_utils.get_prim_at_path(self.mesh_prim_path)
         if not mesh_prim_to_bind:
-            print(f"Warning: Could not find mesh prim at {self.mesh_prim_path} to bind material.")
+            logger.warning("Could not find mesh prim at %s to bind material.", self.mesh_prim_path)
             return
 
         # Apply material to main mesh with strongerThanDescendants

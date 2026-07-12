@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 import shutil
@@ -11,6 +12,8 @@ import subprocess
 from robodojo.core.paths import RepositoryPaths
 from robodojo.core.storage import s3_uri, storage_root
 
+logger = logging.getLogger(__name__)
+
 
 def build(paths: RepositoryPaths, image: str, extra_args: tuple[str, ...] = ()) -> int:
     return subprocess.run(["docker", "build", *extra_args, "-t", image, "."], cwd=paths.root).returncode
@@ -18,7 +21,7 @@ def build(paths: RepositoryPaths, image: str, extra_args: tuple[str, ...] = ()) 
 
 def install(paths: RepositoryPaths) -> int:
     if shutil.which("docker"):
-        print("docker is already installed")
+        logger.info("docker is already installed")
         return 0
     prefix = [] if os.geteuid() == 0 else ["sudo"]
     commands = [
@@ -88,7 +91,7 @@ def monitor(paths: RepositoryPaths) -> int:
     log_dir = paths.root / "docker" / "smoke_logs"
     logs = sorted(log_dir.glob("*.log"), key=lambda path: path.stat().st_mtime, reverse=True)
     if not logs:
-        print("no Docker smoke logs found")
+        logger.warning("no Docker smoke logs found")
         return 1
     return subprocess.run(["tail", "-f", str(logs[0])]).returncode
 

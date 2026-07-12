@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 import random
@@ -21,6 +22,8 @@ from omni.physx.scripts import physicsUtils
 import omni.usd
 from pxr import Gf, Usd, UsdGeom, UsdShade
 import torch
+
+logger = logging.getLogger(__name__)
 
 
 def resolve_path(path: str) -> str | None:
@@ -117,7 +120,7 @@ class Table(SingleGeometryPrim, SingleRigidPrim):
         try:
             self.set_collision_approximation("convexDecomposition")
         except Exception as e:
-            print(f"[WARN] Failed to set convex decomposition collision for {prim_path}: {e}")
+            logger.warning("Failed to set convex decomposition collision for %s: %s", prim_path, e)
 
         # Make the table immovable by default: don't create a rigid body.
         # We still set pose so the collider is placed correctly.
@@ -131,7 +134,7 @@ class Table(SingleGeometryPrim, SingleRigidPrim):
                     orient=Gf.Quatf(float(w), Gf.Vec3f(float(x), float(y), float(z))),
                 )
         except Exception as e:
-            print(f"[WARN] Failed to set static table pose for {prim_path}: {e}")
+            logger.warning("Failed to set static table pose for %s: %s", prim_path, e)
 
         if not self.is_static:
             SingleRigidPrim.__init__(
@@ -150,7 +153,7 @@ class Table(SingleGeometryPrim, SingleRigidPrim):
         resolved_mdl_path = resolve_path(self.mdl_file_path)
 
         if not resolved_mdl_path:
-            print(f"Warning: MDL material path not found: {self.mdl_file_path}")
+            logger.warning("MDL material path not found: %s", self.mdl_file_path)
             return
 
         if not self.mdl_name:
@@ -242,4 +245,4 @@ class Table(SingleGeometryPrim, SingleRigidPrim):
             self.visual_material = PreviewSurface(self.materials_prim_path)
 
         except Exception as e:
-            print(f"Warning: Failed to apply MDL material {self.materials_prim_path}: {e}")
+            logger.warning("Failed to apply MDL material %s: %s", self.materials_prim_path, e)

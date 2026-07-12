@@ -1,3 +1,4 @@
+import logging
 import random
 
 from isaacsim.core.prims import SingleXFormPrim
@@ -6,6 +7,8 @@ from omegaconf import DictConfig
 from pxr import Gf, UsdLux
 
 from robodojo.sim.utils.rotations import euler_to_quat
+
+logger = logging.getLogger(__name__)
 
 
 class Light:
@@ -63,7 +66,7 @@ class Light:
     def reset(self):
         """Apply the saved light configuration and perform domain randomization."""
         if not self.light_prim:
-            print("Error: Light prim has not been created yet.")
+            logger.warning("Light prim has not been created yet.")
             return
 
         common_cfg = self.config.common

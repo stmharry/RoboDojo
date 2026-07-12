@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 import hashlib
 from importlib import metadata
 import json
+import logging
 import os
 from pathlib import Path
 import shutil
@@ -20,6 +21,8 @@ from pxr import Ar, Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdLux, UsdPhysics, UsdU
 from robodojo.core.storage import assets_root
 from robodojo.sim.environment.global_configs import ROOT_DIR
 from robodojo.sim.scene_export.contracts import ExportIdentity, calculate_fov_degrees, completed_export_matches
+
+logger = logging.getLogger(__name__)
 
 USD_EXTENSIONS = frozenset({".usd", ".usda", ".usdc", ".usdz"})
 MANIFEST_NAME = "scene_manifest.json"
@@ -510,7 +513,7 @@ def export_scene_snapshot(env, output_dir: str | os.PathLike[str], layout_id: in
     )
     if output.exists():
         if completed_export_matches(output, identity):
-            print(f"[scene-export] reusing completed snapshot: {output}")
+            logger.info("[scene-export] reusing completed snapshot: %s", output)
             return output
         raise FileExistsError(f"scene export directory already exists and does not match this run: {output}")
 
@@ -613,7 +616,7 @@ def export_scene_snapshot(env, output_dir: str | os.PathLike[str], layout_id: in
         if after != before:
             raise RuntimeError("scene export mutated the live simulator stage or runtime state")
         os.replace(temporary, output)
-        print(f"[scene-export] wrote referenced USDA, flattened USDC, and manifest to {output}")
+        logger.info("[scene-export] wrote referenced USDA, flattened USDC, and manifest to %s", output)
         return output
     except Exception:
         shutil.rmtree(temporary, ignore_errors=True)

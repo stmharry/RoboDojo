@@ -3,6 +3,7 @@ Tiled capture manager: initializes tiled render products and annotators for eval
 """
 
 from copy import deepcopy
+import logging
 from typing import List
 
 from isaacsim.sensors.camera import Camera
@@ -14,6 +15,8 @@ from robodojo.sim.environment.camera_manager.camera_manager import CameraManager
 from robodojo.sim.environment.camera_manager.capture.camera_view import CameraView
 from robodojo.sim.environment.camera_manager.frame_projection import FrameProjectionPipeline
 from robodojo.sim.environment.environment.isaac.isaac_rl_env import IsaacRLEnv
+
+logger = logging.getLogger(__name__)
 
 
 class TiledCaptureManager:
@@ -98,7 +101,7 @@ class TiledCaptureManager:
         self.config = OmegaConf.create(config)
         annotator_config = OmegaConf.to_container(self.config.annotator, resolve=True)
         if annotator_config is None:
-            print("[TiledCaptureManager] No annotator enabled in config. Please check your config file.")
+            logger.warning("[TiledCaptureManager] No annotator enabled in config. Please check your config file.")
             return
         for cam_id, camera_name in enumerate(self.camera_names[0]):
             if camera_name in annotator_config:

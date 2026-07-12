@@ -1,3 +1,4 @@
+import logging
 import random
 
 from isaaclab.sim.utils import find_global_fixed_joint_prim
@@ -15,6 +16,8 @@ import omni.physx.scripts.utils as physx_utils
 import omni.usd
 from pxr import PhysxSchema, Usd, UsdGeom, UsdPhysics, UsdShade
 import torch
+
+logger = logging.getLogger(__name__)
 
 
 class ArticulationObject(SingleArticulation):
@@ -105,7 +108,7 @@ class ArticulationObject(SingleArticulation):
             return
         children = articulation_prim.GetChildren()
         if not children:
-            print(f"Warning: No children found under {self._prim_path} to fix.")
+            logger.warning("No children found under %s to fix.", self._prim_path)
             return
         children_id = 0
         while children_id < len(children):
@@ -114,7 +117,7 @@ class ArticulationObject(SingleArticulation):
                 break
             children_id += 1
         if children_id >= len(children):
-            print(f"Warning: No Xform child found under {self._prim_path} to fix.")
+            logger.warning("No Xform child found under %s to fix.", self._prim_path)
             return
         target_prim = children[children_id]
         target_prim_path = target_prim.GetPath().pathString
@@ -162,7 +165,7 @@ class ArticulationObject(SingleArticulation):
             try:
                 material.set_color(np.array(color))
             except Exception as e:
-                print(f"Error setting color for material {self.color_material_path}: {e}")
+                logger.warning("setting color for material %s failed: %s", self.color_material_path, e)
 
     def _apply_visual_material(self, material_path: str):
         """Applies a visual material from a USD file using the original logic."""
@@ -173,7 +176,7 @@ class ArticulationObject(SingleArticulation):
         visual_material_ref_prim = prims_utils.get_prim_at_path(self.visual_material_path)
         material_children = prims_utils.get_prim_children(visual_material_ref_prim)
         if not material_children:
-            print(f"Warning: Material USD at {material_path} has no child prims to bind.")
+            logger.warning("Material USD at %s has no child prims to bind.", material_path)
             return
         self.material_prim = material_children[0]
         self.material_prim_path = self.material_prim.GetPath()

@@ -1,3 +1,4 @@
+import logging
 import random
 
 from isaacsim.core.api.materials.physics_material import PhysicsMaterial
@@ -14,6 +15,8 @@ import omni.kit.commands
 import omni.usd
 from pxr import Sdf, UsdGeom, UsdPhysics, UsdShade
 import torch
+
+logger = logging.getLogger(__name__)
 
 
 class GeometryObject(SingleGeometryPrim):
@@ -115,7 +118,7 @@ class GeometryObject(SingleGeometryPrim):
     def _remove_rigid_body_if_exists(self, prim_path):
         prim = get_prim_at_path(prim_path)
         if not prim or not prim.IsValid():
-            print(f"Warning: Cannot find prim at {prim_path} to remove rigid body.")
+            logger.warning("Cannot find prim at %s to remove rigid body.", prim_path)
             return
         if prim.HasAPI(UsdPhysics.RigidBodyAPI):
             rb_api = UsdPhysics.RigidBodyAPI.Get(prim.GetStage(), prim.GetPath())
@@ -162,7 +165,7 @@ class GeometryObject(SingleGeometryPrim):
             try:
                 material.set_color(np.array(color_rgb))
             except Exception as e:
-                print(f"Error setting color for material {self.color_material_path}: {e}")
+                logger.warning("setting color for material %s failed: %s", self.color_material_path, e)
 
     def _apply_visual_material(self, material_path: str):
         self.visual_material_path = find_unique_string_name(
@@ -172,7 +175,7 @@ class GeometryObject(SingleGeometryPrim):
         visual_material_ref_prim = prims_utils.get_prim_at_path(self.visual_material_path)
         material_children = prims_utils.get_prim_children(visual_material_ref_prim)
         if not material_children:
-            print(f"Warning: Material USD at {material_path} has no child prims to bind.")
+            logger.warning("Material USD at %s has no child prims to bind.", material_path)
             return
         self.material_prim = material_children[0]
         self.material_prim_path = self.material_prim.GetPath()
@@ -259,7 +262,7 @@ class GeometryObject(SingleGeometryPrim):
                 translation = np.array(translation, dtype=np.float32)
                 orientation = np.array(orientation, dtype=np.float32)
             except (AttributeError, RuntimeError):
-                print(f"Warning: Failed to get pose for {self._prim_path}: {e}")
+                logger.warning("Failed to get pose for %s: %s", self._prim_path, e)
                 translation = np.zeros(3, dtype=np.float32)
                 orientation = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
         if not isinstance(translation, torch.Tensor):
@@ -302,7 +305,7 @@ class GeometryObject(SingleGeometryPrim):
             path = Sdf.Path(prim_path)
             prim = self.stage.GetPrimAtPath(path)
             if not prim.IsValid():
-                print(f"Warning: Invalid prim path {prim_path}")
+                logger.warning("Invalid prim path %s", prim_path)
                 return
             visibility_attribute = prim.GetAttribute("visibility")
             if visibility_attribute is None:
@@ -312,7 +315,7 @@ class GeometryObject(SingleGeometryPrim):
             else:
                 visibility_attribute.Set("invisible")
         except Exception as e:
-            print(f"Warning: Failed to hide prim {prim_path}: {e}")
+            logger.warning("Failed to hide prim %s: %s", prim_path, e)
 
     def destroy(self):
         self._geometry_prim_view.disable_collision()

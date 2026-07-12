@@ -2,6 +2,7 @@ from collections.abc import Mapping as ABCMapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass
 import json
+import logging
 import os
 from pathlib import Path
 import random
@@ -27,6 +28,8 @@ from robodojo.sim.utils.path import (
     resolve_path,
 )
 from robodojo.sim.utils.transformer import _get_link_matrix_from_usd, cal_quat_dis, pose_to_matrix
+
+logger = logging.getLogger(__name__)
 
 OBJECT_CONFIG_TYPES = ("Rigid", "Dynamic", "Geometry", "Articulation", "Garment", "Fluid")
 
@@ -410,12 +413,12 @@ class LayoutManager:
     def get_scene_object(self, env_idx, inst_name):
         instance_type = self.instance_type_by_env[env_idx].get(inst_name, None)
         if instance_type is None:
-            print(f"Instance name {inst_name} not found in env {env_idx}.")
+            logger.warning("Instance name %s not found in env %s.", inst_name, env_idx)
             return None
         key = f"env{env_idx}_{instance_type}_{inst_name}"
         result = self.scene_manager.get_objects(env_ids=[env_idx], object_name=inst_name, object_type=instance_type)
         if len(result) == 0 or result.get(key) is None:
-            print(f"Object {inst_name} of type {instance_type} not found in env {env_idx}.")
+            logger.warning("Object %s of type %s not found in env %s.", inst_name, instance_type, env_idx)
             return None
         return result[key]
 
@@ -433,7 +436,7 @@ class LayoutManager:
         if inst_name is None:
             inst_name = self.get_instance_name(env_idx, label)
         if inst_name is None:
-            print(f"No instance found with label {label} or inst_name {inst_name} in env {env_idx}.")
+            logger.warning("No instance found with label %s or inst_name %s in env %s.", label, inst_name, env_idx)
             return (None, None)
         instance_type = self.instance_type_by_env[env_idx].get(inst_name, None)
         obj = self.get_scene_object(env_idx, inst_name)
@@ -453,8 +456,11 @@ class LayoutManager:
     def get_label_descriptions(self, env_idx, label=None, inst_name=None):
         metadata = self.get_instance_metadata(env_idx=env_idx, label=label, inst_name=inst_name)
         if metadata is None:
-            print(
-                f"No instance found with label {label} or inst_name {inst_name} in env {env_idx} for getting description."
+            logger.warning(
+                "No instance found with label %s or inst_name %s in env %s for getting description.",
+                label,
+                inst_name,
+                env_idx,
             )
             return []
         desc_data = deepcopy(metadata.get("description", None))
@@ -465,7 +471,7 @@ class LayoutManager:
     def get_instance_bbox_vertices(self, inst_name, env_idx):
         obj = self.get_scene_object(env_idx, inst_name)
         if obj is None:
-            print(f"Instance {inst_name} not found in env {env_idx} for getting bbox.")
+            logger.warning("Instance %s not found in env %s for getting bbox.", inst_name, env_idx)
             return None
         physics_type = self.instance_type_by_env[env_idx].get(inst_name, None)
         if physics_type:
@@ -684,7 +690,7 @@ class LayoutManager:
                 env.end_flag[env_idx] = True
                 unstable_envs.append(env_idx)
         if len(unstable_envs) > 0:
-            print(f"Unstable envs: {unstable_envs}")
+            logger.warning("Unstable envs: %s", unstable_envs)
         return (num_fail != self.num_envs, unstable_envs)
 
     @staticmethod

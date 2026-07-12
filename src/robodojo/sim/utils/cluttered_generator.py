@@ -1,3 +1,4 @@
+import logging
 import time
 
 import numpy as np
@@ -17,6 +18,8 @@ from tqdm import tqdm
 import transforms3d as t3d
 
 from robodojo.sim.utils.transformer import rotate_quat_about_world_axis
+
+logger = logging.getLogger(__name__)
 
 
 class UnStableError(Exception):
@@ -755,6 +758,6 @@ if __name__ == "__main__":
             box_info.append((f"model_{i}", origin_pose, origin_bbox_points, placement_center_trans))
 
     elapsed = time.perf_counter() - start_time
-    print(f"Generated {len(box_info)} boxes in {elapsed:.2f} seconds")
+    logger.info("Generated %s boxes in %.2f seconds", len(box_info), elapsed)
 
     generator.visualize()

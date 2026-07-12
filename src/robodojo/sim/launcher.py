@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import logging
 import os
 import sys
 import time
@@ -13,6 +14,8 @@ import yaml
 from robodojo.core.models import EnvironmentConfigDocument, SimulatorLaunchRequest
 from robodojo.core.paths import RepositoryPaths
 from robodojo.core.processes import format_command, run
+
+logger = logging.getLogger(__name__)
 
 
 def load_simulator_config(paths: RepositoryPaths, request: SimulatorLaunchRequest) -> tuple[int, str]:
@@ -110,6 +113,6 @@ def run_simulator(
             return code
         if attempt + 1 >= retries:
             return code
-        print(f"simulator exited with {code}; restarting ({attempt + 1}/{retries})", file=sys.stderr)
+        logger.warning("simulator exited with %s; restarting (%s/%s)", code, attempt + 1, retries)
         time.sleep(5)
     return 1

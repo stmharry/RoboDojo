@@ -2,6 +2,7 @@ from copy import deepcopy
 from datetime import datetime
 import inspect
 import json
+import logging
 import os
 
 from client_server.ws.model_client import WsModelClient
@@ -16,6 +17,8 @@ from robodojo.sim.environment.seed_manager.seed_manager import SeedManager
 from robodojo.sim.utils.cluttered_generator import UnStableError
 from robodojo.sim.utils.pipeline_utils import get_robot_action_dim_info
 from robodojo.sim.utils.save_file import VideoStreamWriter, format_video_saved_message, save_json
+
+logger = logging.getLogger(__name__)
 
 
 def _patch_websockets_proxy_compat():
@@ -161,11 +164,13 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
                     self.eval_result["success_rate"] = self.success_nums / eval_time
                     self.eval_result["score"] = self.total_score / eval_time * 100
                 self.eval_result["eval_time"] = eval_time
-                print(
-                    f"[EvalEnv][resume] save_dir={self.save_dir} "
-                    f"success={self.success_nums} fail={self.fail_nums} "
-                    f"completed={len(completed_layout_ids)} "
-                    f"abandoned={len(abandoned_layout_ids)}"
+                logger.info(
+                    "[EvalEnv][resume] save_dir=%s success=%s fail=%s completed=%s abandoned=%s",
+                    self.save_dir,
+                    self.success_nums,
+                    self.fail_nums,
+                    len(completed_layout_ids),
+                    len(abandoned_layout_ids),
                 )
             self.seed_manager.init_eval(
                 completed_layout_ids=completed_layout_ids,
@@ -291,19 +296,15 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
                     fromlist=["eval_one_episode"],
                 )
             except ImportError as e:
-                print(
-                    "[TestEnv]",
-                    f"Failed to import policy module: XPolicyLab.policy.{policy_name}.deploy. Error: {e}",
-                    "ERROR",
+                logger.error(
+                    "[TestEnv] failed to import policy module XPolicyLab.policy.%s.deploy: %s",
+                    policy_name,
+                    e,
                 )
                 raise e
 
             if not hasattr(eval_module, "eval_one_episode"):
-                print(
-                    "[TestEnv]",
-                    f"Module '.{policy_name}.deploy' does not have 'eval_one_episode' function",
-                    "ERROR",
-                )
+                logger.error("[TestEnv] module '.%s.deploy' does not have an eval_one_episode function", policy_name)
                 raise AttributeError("Missing eval_one_episode in policy module")
 
             eval_module.eval_one_episode(TASK_ENV=self, model_client=self.model_client)
@@ -316,18 +317,16 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
                     fromlist=["eval_one_episode_batch"],
                 )
             except ImportError as e:
-                print(
-                    "[TestEnv]",
-                    f"Failed to import policy module: XPolicyLab.policy.{policy_name}.deploy. Error: {e}",
-                    "ERROR",
+                logger.error(
+                    "[TestEnv] failed to import policy module XPolicyLab.policy.%s.deploy: %s",
+                    policy_name,
+                    e,
                 )
                 raise e
 
             if not hasattr(eval_module, "eval_one_episode_batch"):
-                print(
-                    "[TestEnv]",
-                    f"Module '.{policy_name}.deploy' does not have 'eval_one_episode_batch' function",
-                    "ERROR",
+                logger.error(
+                    "[TestEnv] module '.%s.deploy' does not have an eval_one_episode_batch function", policy_name
                 )
                 raise AttributeError("Missing eval_one_episode_batch in policy module")
 
@@ -886,7 +885,7 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
             try:
                 self.persist_resume_manifest()
             except Exception as e:
-                print(f"[EvalEnv] persist_resume_manifest after run_eval failed: {e}")
+                logger.warning("[EvalEnv] persist_resume_manifest after run_eval failed: %s", e)
 
         def is_episode_end(self):
             pre_end_flag = deepcopy(self.end_flag)
@@ -976,19 +975,20 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
                 try:
                     writer.close(announce=False)
                 except Exception as e:
-                    print(f"[EvalEnv] Failed to finalize video for env {env_idx} cam {cam_key}: {e}")
+                    logger.warning("[EvalEnv] Failed to finalize video for env %s cam %s: %s", env_idx, cam_key, e)
                     writer.abort()
                     continue
                 os.makedirs(os.path.dirname(final_path), exist_ok=True)
                 os.replace(tmp_path, final_path)
-                print(
+                logger.info(
+                    "%s",
                     format_video_saved_message(
                         final_path,
                         writer.n_frames,
                         writer.width,
                         writer.height,
                         writer.fps,
-                    )
+                    ),
                 )
 
         def have_empty(self, env_idx_list=None):

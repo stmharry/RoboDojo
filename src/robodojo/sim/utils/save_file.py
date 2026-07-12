@@ -1,10 +1,13 @@
 import json
+import logging
 import os
 from pathlib import Path
 import subprocess
 from typing import Any
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 def format_video_saved_message(
@@ -100,14 +103,15 @@ class VideoStreamWriter:
         finally:
             self.proc = None
         if announce:
-            print(
+            logger.warning(
+                "%s",
                 format_video_saved_message(
                     self.out_path,
                     self.n_frames,
                     self.width,
                     self.height,
                     self.fps,
-                )
+                ),
             )
 
     def abort(self) -> None:

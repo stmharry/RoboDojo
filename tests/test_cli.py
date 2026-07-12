@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -9,6 +10,7 @@ from robodojo.cli import app
 from robodojo.core.models import PolicyServerLaunchRequest, SimulatorLaunchRequest
 from robodojo.core.paths import RepositoryPaths, discover_repository_root
 from robodojo.core.settings import RuntimeSettings
+from robodojo.policy import adapter as policy_adapter
 from robodojo.policy.adapter import policy_server_command
 from robodojo.sim.launcher import simulator_command
 from robodojo.workflows.task_inventory import build_inventory
@@ -69,6 +71,70 @@ def test_server_cli_rejects_invalid_port(tmp_path):
     )
     assert result.exit_code == 2
     assert "less than or equal to 65535" in result.output
+
+
+def test_cli_rejects_invalid_log_level():
+    result = runner.invoke(app, ["--log-level", "verbose", "tasks"])
+    assert result.exit_code == 2
+    assert "Invalid value for --log-level" in result.output
+
+
+def test_server_dry_run_separates_diagnostics_from_command_output(tmp_path):
+    policy = tmp_path / "Policy"
+    policy.mkdir()
+    (policy / "setup_eval_policy_server.sh").write_text("#!/usr/bin/env bash\n", encoding="utf-8")
+    result = runner.invoke(
+        app,
+        [
+            "--log-level",
+            "INFO",
+            "server",
+            "--policy-dir",
+            str(policy),
+            "--task",
+            "stack_bowls",
+            "--ckpt",
+            "run-1",
+            "--policy-env",
+            "env",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code == 0
+    assert "setup_eval_policy_server.sh" in result.stdout
+    assert "policy server:" not in result.stdout
+    assert "INFO robodojo.policy.adapter: policy server:" in result.stderr
+
+
+def test_cli_log_level_is_propagated_for_child_processes(monkeypatch, tmp_path):
+    policy = tmp_path / "Policy"
+    policy.mkdir()
+    (policy / "setup_eval_policy_server.sh").write_text("#!/usr/bin/env bash\n", encoding="utf-8")
+    seen: list[str | None] = []
+    monkeypatch.setenv("ROBODOJO_LOG_LEVEL", "WARNING")
+    monkeypatch.setattr(
+        policy_adapter,
+        "run_policy_server",
+        lambda request: seen.append(os.environ.get("ROBODOJO_LOG_LEVEL")) or 0,
+    )
+    result = runner.invoke(
+        app,
+        [
+            "--log-level",
+            "debug",
+            "server",
+            "--policy-dir",
+            str(policy),
+            "--task",
+            "stack_bowls",
+            "--ckpt",
+            "run-1",
+            "--policy-env",
+            "env",
+        ],
+    )
+    assert result.exit_code == 0
+    assert seen == ["DEBUG"]
 
 
 def test_repository_root_precedence(monkeypatch, tmp_path):

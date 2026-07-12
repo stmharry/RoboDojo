@@ -1,3 +1,4 @@
+import logging
 import os
 
 import carb
@@ -14,6 +15,8 @@ from scipy.spatial import Delaunay
 import torch
 
 from robodojo.core.storage import assets_root
+
+logger = logging.getLogger(__name__)
 
 
 class FluidObject:
@@ -253,12 +256,12 @@ class FluidObject:
             positions: Array of particle positions
         """
         if not hasattr(self, "point_instancer") or not self.point_instancer:
-            print(f"Warning: point_instancer not valid for {self.prim_path}. Cannot get positions.")
+            logger.warning("point_instancer not valid for %s. Cannot get positions.", self.prim_path)
             return np.array([]), None, None
 
         positions_attr = self.point_instancer.GetPositionsAttr()
         if not positions_attr:
-            print(f"Warning: Could not get PositionsAttr for {self.particle_point_instancer_path}.")
+            logger.warning("Could not get PositionsAttr for %s.", self.particle_point_instancer_path)
             return np.array([]), None, None
 
         positions = np.array(positions_attr.Get(), dtype=np.float32)
@@ -273,7 +276,7 @@ class FluidObject:
             positions: Array of new particle positions
         """
         if not hasattr(self, "point_instancer") or not self.point_instancer:
-            print(f"Warning: point_instancer not valid for {self.prim_path}. Cannot set positions.")
+            logger.warning("point_instancer not valid for %s. Cannot set positions.", self.prim_path)
             return
 
         # Ensure positions is a numpy array
@@ -285,23 +288,25 @@ class FluidObject:
                 else:
                     positions = np.array(positions, dtype=np.float32)
             except Exception as e:
-                print(f"Error converting positions to numpy array: {e}. Positions type: {type(positions)}")
+                logger.warning(
+                    "converting positions to a numpy array failed: %s. Positions type: %s", e, type(positions)
+                )
                 return
 
         if positions.ndim != 2 or positions.shape[1] != 3:
-            print(f"Error: Invalid shape for positions array: {positions.shape}. Expected (N, 3).")
+            logger.warning("Invalid shape for positions array: %s. Expected (N, 3).", positions.shape)
             return
 
         # Convert numpy array to Vt.Vec3fArray, ensuring float type
         try:
             positions_vt = Vt.Vec3fArray.FromNumpy(positions.astype(np.float32))
         except Exception as e:
-            print(f"Error converting numpy array to Vt.Vec3fArray: {e}")
+            logger.warning("converting the numpy array to Vt.Vec3fArray failed: %s", e)
             return
 
         positions_attr = self.point_instancer.GetPositionsAttr()
         if not positions_attr:
-            print(f"Warning: Could not get PositionsAttr for {self.particle_point_instancer_path} to set positions.")
+            logger.warning("could not get PositionsAttr for %s to set positions.", self.particle_point_instancer_path)
             return
 
         positions_attr.Set(positions_vt)
@@ -333,7 +338,7 @@ def generate_particles_in_convex_mesh(vertices: np.ndarray, sphere_diameter: flo
         vertices = np.array(vertices)
 
     if vertices.shape[0] < 4:
-        print("Warning: Need at least 4 vertices for Delaunay triangulation. Returning empty.")
+        logger.warning("Need at least 4 vertices for Delaunay triangulation. Returning empty.")
         return [], []
 
     try:
@@ -345,7 +350,7 @@ def generate_particles_in_convex_mesh(vertices: np.ndarray, sphere_diameter: flo
 
         hull = Delaunay(vertices)
     except Exception as e:
-        print(f"Error during Delaunay triangulation: {e}. Vertices shape: {vertices.shape}. Returning empty.")
+        logger.warning("Delaunay triangulation failed: %s. Vertices shape: %s. Returning empty.", e, vertices.shape)
         return [], []
 
     epsilon = sphere_diameter * 0.01
@@ -354,7 +359,7 @@ def generate_particles_in_convex_mesh(vertices: np.ndarray, sphere_diameter: flo
     z_vals = np.arange(min_bound[2], max_bound[2] + epsilon, sphere_diameter)
 
     if x_vals.size == 0 or y_vals.size == 0 or z_vals.size == 0:
-        print("Warning: Empty dimension range for particle grid. Returning empty.")
+        logger.warning("Empty dimension range for particle grid. Returning empty.")
         return [], []
 
     samples = np.stack(np.meshgrid(x_vals, y_vals, z_vals, indexing="ij"), axis=-1).reshape(-1, 3)

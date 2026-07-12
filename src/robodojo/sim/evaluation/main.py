@@ -1,10 +1,17 @@
 import argparse
 from datetime import datetime
 import json
+import logging
 import os
 import sys
 
 from isaaclab.app import AppLauncher
+
+from robodojo.core.logging import configure_logging
+
+logger = logging.getLogger(__name__)
+
+configure_logging()
 
 MAX_INPROC_RESTARTS = 3
 
@@ -122,7 +129,7 @@ if not os.environ.get("ROBODOJO_RUN_ID"):
     os.environ["ROBODOJO_RUN_ID"] = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 enable_monitor = _physx_monitor_needed(args_cli.task_name)
-print(f"[main] PhysX monitor enabled={enable_monitor} (task={args_cli.task_name})")
+logger.info("[main] PhysX monitor enabled=%s (task=%s)", enable_monitor, args_cli.task_name)
 if enable_monitor:
     # Start before AppLauncher so Kit inherits the redirected stdout/stderr fds.
     from robodojo.sim.evaluation.physx_warning_monitor import (
@@ -179,14 +186,16 @@ def _load_resume_manifest(eval_cfg, run_id):
         with open(path, encoding="utf-8") as fp:
             data = json.load(fp)
     except Exception as e:
-        print(f"[main] failed to load resume manifest at {path}: {e}; ignoring.")
+        logger.warning("[main] failed to load resume manifest at %s: %s; ignoring.", path, e)
         return None
-    print(
-        f"[main] resuming from manifest {path} "
-        f"(success={data.get('success_nums')} fail={data.get('fail_nums')} "
-        f"completed={len(data.get('completed_layout_ids') or [])} "
-        f"abandoned={len(data.get('abandoned_layout_ids') or [])} "
-        f"restart_count={data.get('restart_count', 0)})"
+    logger.info(
+        "[main] resuming from manifest %s (success=%s fail=%s completed=%s abandoned=%s restart_count=%s)",
+        path,
+        data.get("success_nums"),
+        data.get("fail_nums"),
+        len(data.get("completed_layout_ids") or []),
+        len(data.get("abandoned_layout_ids") or []),
+        data.get("restart_count", 0),
     )
     return data
 
@@ -200,9 +209,9 @@ def _delete_resume_manifest(env):
     try:
         if os.path.exists(path):
             os.unlink(path)
-            print(f"[main] removed resume manifest {path} (eval completed)")
+            logger.info("[main] removed resume manifest %s (eval completed)", path)
     except Exception as e:
-        print(f"[main] failed to unlink resume manifest {path}: {e}")
+        logger.warning("[main] failed to unlink resume manifest %s: %s", path, e)
 
 
 def _close_model_client(env):
@@ -213,7 +222,7 @@ def _close_model_client(env):
         if callable(close):
             close()
     except Exception as e:
-        print(f"[main] failed to close model client: {e}")
+        logger.warning("[main] failed to close model client: %s", e)
 
 
 def _restart_or_exit(env, simulation_app, fatal_msg):
@@ -227,10 +236,12 @@ def _restart_or_exit(env, simulation_app, fatal_msg):
     try:
         env.persist_resume_manifest(restart_count=restart_count)
     except Exception as e:
-        print(f"[FATAL] persist_resume_manifest failed: {e}")
-    print(
-        f"[FATAL] PhysX kernel failure detected: {fatal_msg}; persisted manifest. "
-        f"In-process restart attempt {restart_count}/{MAX_INPROC_RESTARTS}."
+        logger.critical("persist_resume_manifest failed: %s", e)
+    logger.critical(
+        "PhysX kernel failure detected: %s; persisted manifest. In-process restart attempt %s/%s.",
+        fatal_msg,
+        restart_count,
+        MAX_INPROC_RESTARTS,
     )
     try:
         simulation_app.close()
@@ -238,11 +249,13 @@ def _restart_or_exit(env, simulation_app, fatal_msg):
         pass
     if restart_count <= MAX_INPROC_RESTARTS:
         os.environ["ROBODOJO_FATAL_RESTART_COUNT"] = str(restart_count)
-        print(f"[FATAL] os.execv self-restart with run_id={os.environ.get('ROBODOJO_RUN_ID')}")
+        logger.critical("os.execv self-restart with run_id=%s", os.environ.get("ROBODOJO_RUN_ID"))
         sys.stdout.flush()
         sys.stderr.flush()
         os.execv(sys.executable, [sys.executable] + sys.argv)
-    print(f"[FATAL] in-process restart cap reached ({MAX_INPROC_RESTARTS}); exiting with rc=99 for bash-level retry.")
+    logger.critical(
+        "in-process restart cap reached (%s); exiting with rc=99 for bash-level retry.", MAX_INPROC_RESTARTS
+    )
     sys.exit(99)
 
 
@@ -252,8 +265,8 @@ def _exit_for_shell_restart(env, fatal_msg):
     try:
         env.persist_resume_manifest(restart_count=restart_count)
     except Exception as e:
-        print(f"[FATAL] persist_resume_manifest failed: {e}")
-    print(f"[FATAL] PhysX requested shell-level restart: {fatal_msg}; exiting with rc=99 for bash-level retry.")
+        logger.critical("persist_resume_manifest failed: %s", e)
+    logger.critical("PhysX requested shell-level restart: %s; exiting with rc=99 for bash-level retry.", fatal_msg)
     sys.stdout.flush()
     sys.stderr.flush()
     os._exit(99)
@@ -318,12 +331,13 @@ def main():
     )
     capped_num_envs = resolve_random_task_num_envs(task_name, num_envs, env_cfg.sim)
     if capped_num_envs != num_envs:
-        print(f"[main] Random task {task_name}: num_envs capped {num_envs} -> {capped_num_envs} ")
+        logger.info("[main] Random task %s: num_envs capped %s -> %s ", task_name, num_envs, capped_num_envs)
     num_envs = capped_num_envs
     if not eval_batch and num_envs != 1:
-        print(
-            f"[main] eval_batch=false in XPolicyLab/policy/{args_cli.policy_name}/deploy.yml; "
-            f"forcing num_envs {num_envs} -> 1"
+        logger.info(
+            "[main] eval_batch=false in XPolicyLab/policy/%s/deploy.yml; forcing num_envs %s -> 1",
+            args_cli.policy_name,
+            num_envs,
         )
         num_envs = 1
     eval_cfg["num_envs"] = num_envs
@@ -394,7 +408,7 @@ def main():
                     _close_model_client(env)
                     env.close()
                     simulation_app.close()
-                    print("[scene-export] scene-only mode complete; policy rollout skipped")
+                    logger.info("[scene-export] scene-only mode complete; policy rollout skipped")
                     return
             env.run_eval()
             env.seed_manager.eval_step()
@@ -426,10 +440,7 @@ def main():
         except Exception as e:
             import traceback
 
-            print(
-                f"[Eval] unhandled exception during reset/run_eval: {type(e).__name__}: {e}",
-                flush=True,
-            )
+            logger.warning("[Eval] unhandled exception during reset/run_eval: %s: %s", type(e).__name__, e)
             traceback.print_exc()
             if enable_monitor and get_monitor().is_fatal():
                 fatal_msg = get_monitor().get_fatal_message() or str(e)
@@ -438,9 +449,10 @@ def main():
                 _restart_or_exit(env, simulation_app, fatal_msg)
             bad = {i for i in get_monitor().get_broken_envs() if i < env.num_envs} if enable_monitor else set()
             if bad:
-                print(
-                    f"[PhysX] downstream exception {type(e).__name__} with "
-                    f"monitor broken_envs={sorted(bad)}; treating as PhysX break."
+                logger.info(
+                    "[PhysX] downstream exception %s with monitor broken_envs=%s; treating as PhysX break.",
+                    type(e).__name__,
+                    sorted(bad),
                 )
                 bad_envs = sorted(bad)
             else:
@@ -464,14 +476,17 @@ def main():
             env.env_seeds = new_batch
 
             real_remaining = sum(1 for s in env.env_seeds if s is not None)
-            print(
-                f"[PhysX] broken envs={bad_envs} -> abandon seeds={sorted(bad_seeds)}; "
-                f"refill from queue={replacements}; new batch={env.env_seeds}; "
-                f"real_remaining={real_remaining}"
+            logger.info(
+                "[PhysX] broken envs=%s -> abandon seeds=%s; refill from queue=%s; new batch=%s; real_remaining=%s",
+                bad_envs,
+                sorted(bad_seeds),
+                replacements,
+                env.env_seeds,
+                real_remaining,
             )
             env.close()
             if real_remaining == 0:
-                print("[PhysX] no real seeds remaining in this batch, advancing.")
+                logger.info("[PhysX] no real seeds remaining in this batch, advancing.")
                 retry_round = False
             else:
                 retry_round = True
@@ -479,14 +494,16 @@ def main():
         if retry_round:
             continue
 
-        print(f"Success nums: {env.success_nums}, Fail nums: {env.fail_nums}, Unstable nums: {env.unstable_nums}")
+        logger.info(
+            "Success nums: %s, Fail nums: %s, Unstable nums: %s", env.success_nums, env.fail_nums, env.unstable_nums
+        )
         eval_time = env.success_nums + env.fail_nums
         if eval_time >= eval_num:
             break
 
         env.env_seeds = env.seed_manager.get_seeds(max_count=eval_num - eval_time)
         if env.env_seeds is None:
-            print("No more seeds to run, exiting.")
+            logger.info("No more seeds to run, exiting.")
             break
 
         env.close()

@@ -1,9 +1,12 @@
 import json
+import logging
 import os
 from pathlib import Path
 import pickle
 
 import yaml
+
+logger = logging.getLogger(__name__)
 
 
 def load_yaml(file_path):
@@ -44,7 +47,7 @@ def load_object_metadata(modeldir, index):
         with p.open("r", encoding="utf-8") as f:
             data = json.load(f)
     except json.JSONDecodeError as e:
-        print(f"Error decoding JSON from file {p}: {e}")
+        logger.error("decoding JSON from file %s failed: %s", p, e)
         return None
 
     output["physics"] = data.get("physics", {})
@@ -70,7 +73,7 @@ def load_desc_info(modeldir, index, key="Rigid"):
         with p.open("r", encoding="utf-8") as f:
             data = json.load(f)
     except json.JSONDecodeError as e:
-        print(f"Error decoding JSON from file {p}: {e}")
+        logger.error("decoding JSON from file %s failed: %s", p, e)
         return None
     output = dict()
     desc = data.get("description", [])

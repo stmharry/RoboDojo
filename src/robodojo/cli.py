@@ -10,6 +10,7 @@ from typing import Any
 from pydantic import ValidationError
 import typer
 
+from robodojo.core.logging import LOG_LEVEL_ENV, configure_logging, parse_log_level
 from robodojo.core.models import (
     DataFormat,
     EvaluationRequest,
@@ -30,6 +31,24 @@ app.add_typer(data_app, name="data")
 app.add_typer(storage_app, name="storage")
 app.add_typer(results_app, name="results")
 app.add_typer(docker_app, name="docker")
+
+
+@app.callback()
+def configure_cli_logging(
+    log_level: str | None = typer.Option(
+        None,
+        "--log-level",
+        help="RoboDojo diagnostic level: DEBUG, INFO, WARNING, ERROR, or CRITICAL.",
+    ),
+) -> None:
+    """Configure RoboDojo diagnostics before dispatching a command."""
+    try:
+        parse_log_level(log_level)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="--log-level") from exc
+    if log_level is not None:
+        os.environ[LOG_LEVEL_ENV] = log_level.strip().upper()
+    configure_logging(log_level)
 
 
 def _paths(root: Path | None = None) -> RepositoryPaths:

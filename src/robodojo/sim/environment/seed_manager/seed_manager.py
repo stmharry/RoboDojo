@@ -1,5 +1,6 @@
 from collections.abc import Iterable, Mapping
 from copy import deepcopy
+import logging
 import os
 from pathlib import Path
 import re
@@ -7,6 +8,8 @@ from typing import Any, Dict, List
 
 from robodojo.sim.environment.global_configs import ASSETS_PATH, BENCHMARK
 from robodojo.sim.utils.load_file import load_json
+
+logger = logging.getLogger(__name__)
 
 
 class SeedManager:
@@ -47,9 +50,11 @@ class SeedManager:
         excluded = set(int(s) for s in (completed_layout_ids or [])) | set(int(s) for s in (abandoned_layout_ids or []))
         if excluded:
             self.seed_list: List[int] = [s for s in all_layout_ids if s not in excluded]
-            print(
-                f"[SeedManager] init_eval resume filter: excluded={len(excluded)} "
-                f"remaining={len(self.seed_list)}/{len(all_layout_ids)}"
+            logger.warning(
+                "[SeedManager] init_eval resume filter: excluded=%s remaining=%s/%s",
+                len(excluded),
+                len(self.seed_list),
+                len(all_layout_ids),
             )
         else:
             self.seed_list = all_layout_ids

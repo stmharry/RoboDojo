@@ -1,9 +1,12 @@
 from copy import deepcopy
+import logging
 from typing import List
 
 import numpy as np
 
 from robodojo.sim.environment.description_manager.desc_manager import DescManager
+
+logger = logging.getLogger(__name__)
 
 
 class ObsManager:
@@ -116,8 +119,8 @@ class ObsManager:
                 import traceback
 
                 stack_trace = traceback.format_exc()
-                print(stack_trace)
-                print("[get_obs] Camera observation capture failed.")
+                logger.error("%s", stack_trace)
+                logger.error("[get_obs] Camera observation capture failed.")
                 raise e
 
             for env_idx in env_idx_list:
@@ -200,7 +203,7 @@ class ObsManager:
                 import traceback
 
                 stack_trace = traceback.format_exc()
-                print(stack_trace)
-                print("[get_obs] Robot observation capture failed.")
+                logger.error("%s", stack_trace)
+                logger.error("[get_obs] Robot observation capture failed.")
                 raise e
         return obs

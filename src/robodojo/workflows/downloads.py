@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import logging
 import os
 from pathlib import Path
 import shutil
@@ -20,6 +21,8 @@ DATASETS = {
     DataFormat.DEMO: ("demo", "1.5GB", "demo dataset"),
     DataFormat.REAL: ("RoboDojo_real", "273GB", "real-world dataset"),
 }
+
+logger = logging.getLogger(__name__)
 
 
 def list_data() -> None:
@@ -80,7 +83,7 @@ def download_assets(paths: RepositoryPaths, revision: str = "main") -> None:
     target = assets_root()
     required = ("Robots", "Object", "Material", "Eval_Layout")
     if target.is_dir() and all((target / item).is_dir() for item in required):
-        print(f"assets already ready: {target}")
+        logger.info("assets already ready: %s", target)
         return
     if target.exists() or target.is_symlink():
         _archive(target)
@@ -95,7 +98,7 @@ def download_data(paths: RepositoryPaths, data_format: DataFormat, revision: str
     directory, size, _ = DATASETS[data_format]
     target = data_root() / directory
     if (target / ".download_complete").is_file():
-        print(f"dataset already ready: {target}")
+        logger.info("dataset already ready: %s", target)
         return
     if target.exists() or target.is_symlink():
         _archive(target)

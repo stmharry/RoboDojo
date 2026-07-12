@@ -1,5 +1,6 @@
 """Ground object with material domain randomization support."""
 
+import logging
 import os
 from pathlib import Path
 import random
@@ -22,6 +23,8 @@ from pxr import Gf, Sdf, UsdGeom, UsdShade
 
 from robodojo.sim.environment.global_configs import ASSETS_PATH
 from robodojo.sim.environment.scene_manager.objects.physics_material import PhysicsMaterial
+
+logger = logging.getLogger(__name__)
 
 
 def resolve_mdl_paths(mdl_path_or_folder: str) -> List[str]:
@@ -161,7 +164,7 @@ class Ground:
         elif self.geometry_type == "plane":
             self._create_plane_ground(physics_material)
         else:
-            print(f"Warning: Unknown geometry type '{self.geometry_type}', using cube.")
+            logger.warning("Unknown geometry type '%s', using cube.", self.geometry_type)
             self._create_cube_ground(physics_material)
 
     def _create_cube_ground(self, physics_material):
@@ -198,7 +201,7 @@ class Ground:
                 float(self.position[2]),
             )
         else:
-            print(f"Warning: Unknown axis '{self.axis}', using Z.")
+            logger.warning("Unknown axis '%s', using Z.", self.axis)
             size_x = self.env_spacing
             size_y = self.env_spacing
             size_z = self.thickness
@@ -415,7 +418,7 @@ class Ground:
         elif material_type == "color":
             self._apply_color_material(material_config)
         else:
-            print(f"Warning: Unknown material type '{material_type}' for ground. Skipping.")
+            logger.warning("Unknown material type '%s' for ground. Skipping.", material_type)
 
     def _apply_mdl_material(self, material_config: dict):
         """Apply an MDL material to the ground using create_mdl_material.
@@ -427,11 +430,11 @@ class Ground:
         """
         mdl_file = material_config.get("mdl_file")
         if not mdl_file:
-            print("Warning: MDL material requires 'mdl_file'. Skipping.")
+            logger.warning("MDL material requires 'mdl_file'. Skipping.")
             return
         resolved_mdls = resolve_mdl_paths(mdl_file)
         if not resolved_mdls:
-            print(f"Warning: No .mdl files found at: {mdl_file}. Skipping.")
+            logger.warning("No .mdl files found at: %s. Skipping.", mdl_file)
             self._apply_color_material({"color": self.base_color})
             return
 
@@ -473,7 +476,7 @@ class Ground:
                     )
 
         except Exception as e:
-            print(f"Warning: Failed to apply MDL material: {e}")
+            logger.warning("Failed to apply MDL material: %s", e)
             # Fallback to color material
             self._apply_color_material({"color": self.base_color})
 
@@ -485,7 +488,7 @@ class Ground:
                 - color: RGB color as list [r, g, b] (values 0-1)
         """
         if self.geometry_prim is None:
-            print("Warning: Geometry prim not initialized. Cannot apply material.")
+            logger.warning("Geometry prim not initialized. Cannot apply material.")
             return
 
         color = material_config.get("color", self.base_color)
@@ -511,7 +514,7 @@ class Ground:
         try:
             self.geometry_prim.apply_visual_material(material)
         except Exception as e:
-            print(f"Warning: Failed to apply visual material: {e}")
+            logger.warning("Failed to apply visual material: %s", e)
 
         self.current_material_path = material_path
         self.current_visual_material = material

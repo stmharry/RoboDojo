@@ -1,10 +1,13 @@
 import copy
+import logging
 
 import numpy as np
 from scipy.spatial import ConvexHull
 from scipy.spatial.transform import Rotation as R
 from shapely.geometry import MultiPoint, Polygon
 import transforms3d as t3d
+
+logger = logging.getLogger(__name__)
 
 
 def quat_to_mat(q):
@@ -318,9 +321,9 @@ def _get_link_matrix_from_usd(usd_path: str, link_name: str) -> np.ndarray:
                 usd_link_matrix_cache[cache_key] = result
                 return result
 
-        print(f"Warning: link '{link_name}' not found in {usd_path}, using identity")
+        logger.warning("link '%s' not found in %s, using identity", link_name, usd_path)
     except Exception as e:
-        print(f"Warning: could not read link transform from {usd_path}: {e}")
+        logger.warning("could not read link transform from %s: %s", usd_path, e)
 
     usd_link_matrix_cache[cache_key] = fallback
     return fallback

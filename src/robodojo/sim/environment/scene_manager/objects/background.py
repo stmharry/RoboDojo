@@ -1,7 +1,11 @@
+import logging
+
 import carb
 from isaacsim.core.utils.stage import get_current_stage
 from omegaconf import DictConfig, OmegaConf
 from pxr import Sdf, UsdLux
+
+logger = logging.getLogger(__name__)
 
 
 class Background:
@@ -54,7 +58,7 @@ class Background:
         This method randomizes the light's intensity and background texture.
         """
         if not self.light_prim:
-            print("Error: Light prim has not been created yet.")
+            logger.warning("Light prim has not been created yet.")
             return
 
         # --- Domain Randomization for Intensity ---
@@ -66,6 +70,6 @@ class Background:
         # --- Domain Randomization for Texture ---
         self.texture_path = self.inst_config.get("texture_path")
         if self.texture_path is None:
-            print("Error: Texture path is not specified.")
+            logger.warning("Texture path is not specified.")
             return
         self.light_prim.GetTextureFileAttr().Set(Sdf.AssetPath(self.texture_path))

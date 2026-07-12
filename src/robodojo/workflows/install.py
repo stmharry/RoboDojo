@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from enum import StrEnum
+import logging
 import os
 from pathlib import Path
 import shutil
 import subprocess
 
 from robodojo.core.paths import RepositoryPaths
+
+logger = logging.getLogger(__name__)
 
 
 class InstallStep(StrEnum):
@@ -27,7 +30,7 @@ def install_system(paths: RepositoryPaths) -> None:
         if subprocess.run(["dpkg", "-s", package], capture_output=True).returncode != 0:
             missing.append(package)
     if not missing:
-        print("system dependencies already installed")
+        logger.info("system dependencies already installed")
         return
     prefix = [] if os.geteuid() == 0 else ["sudo"]
     _command([*prefix, "apt-get", "update"], paths.root)
@@ -52,7 +55,7 @@ def install_sync(paths: RepositoryPaths) -> None:
 def install(paths: RepositoryPaths, start: InstallStep = InstallStep.SYSTEM) -> None:
     steps = [InstallStep.SYSTEM, InstallStep.SUBMODULES, InstallStep.SYNC]
     for step in steps[steps.index(start) :]:
-        print(f">>> {step.value}")
+        logger.info("install step: %s", step.value)
         if step is InstallStep.SYSTEM:
             install_system(paths)
         elif step is InstallStep.SUBMODULES:
