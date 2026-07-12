@@ -95,6 +95,14 @@ explicit AWS CLI publication workflow.
 
 ## 🔌 Policy Integration
 
+This fork keeps its shared boundaries aligned as closely as practical with the
+official [RoboDojo](https://github.com/RoboDojo-Benchmark/RoboDojo) and
+[XPolicyLab](https://github.com/XPolicyLab/XPolicyLab) repositories so future
+upstream developments can be integrated without broad rewrites. Extensions
+should be additive and backward compatible; fork-specific behavior belongs in
+narrow local adapters rather than in redefined policy, configuration,
+observation, or action contracts.
+
 Policies live in [XPolicyLab](https://github.com/XPolicyLab/XPolicyLab/blob/main/README.md), which owns policy structure, dependencies, checkpoint layout, and server behavior. RoboDojo only assumes a policy directory provides:
 
 ```text
