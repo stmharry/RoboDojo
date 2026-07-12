@@ -60,46 +60,7 @@ EVAL_FLAGS = \
 	--env-gpu "$(ENV_GPU)" \
 	--eval-num "$(EVAL_NUM)"
 
-.PHONY: \
-	help \
-	tasks \
-	tasks-check \
-	install \
-	sync \
-	assets \
-	data-list \
-	data \
-	lint \
-	lint-fix \
-	format \
-	format-check \
-	test \
-	pre-commit \
-	check \
-	doctor \
-	eval \
-	eval-dry-run \
-	server \
-	server-dry-run \
-	client \
-	client-dry-run \
-	smoke \
-	smoke-dry-run \
-	benchmark \
-	benchmark-dry-run \
-	summarize \
-	storage-status \
-	storage-doctor \
-	storage-publish \
-	storage-publish-dry-run \
-	storage-pull \
-	storage-pull-dry-run \
-	docker-install \
-	docker-build \
-	docker-smoke \
-	docker-monitor \
-	docker-clean
-
+.PHONY: help
 help: ## Show targets and common configuration variables
 	@printf \
 		'RoboDojo local workflow\n\n'
@@ -113,22 +74,26 @@ help: ## Show targets and common configuration variables
 		"$(SEED)" \
 		"$(EVAL_NUM)"
 
+.PHONY: tasks
 tasks: ## List canonical tasks
 	$(ROBODOJO_BASE) \
 		tasks \
 		$(ARGS)
 
+.PHONY: tasks-check
 tasks-check: ## Validate task code/config pairs
 	$(ROBODOJO_BASE) \
 		tasks \
 		--check \
 		$(ARGS)
 
+.PHONY: install
 install: ## Install system dependencies, submodules, and simulator environment
 	$(ROBODOJO_BASE) \
 		install \
 		$(ARGS)
 
+.PHONY: sync
 sync: ## Synchronize the locked simulator environment
 	$(UV) \
 		sync \
@@ -136,17 +101,20 @@ sync: ## Synchronize the locked simulator environment
 		--locked \
 		$(ARGS)
 
+.PHONY: assets
 assets: ## Download benchmark assets
 	$(ROBODOJO_BASE) \
 		assets \
 		download \
 		$(ARGS)
 
+.PHONY: data-list
 data-list: ## List dataset formats
 	$(ROBODOJO_BASE) \
 		data \
 		list
 
+.PHONY: data
 data: ## Download DATA_TYPE
 	$(call require,DATA_TYPE)
 	$(ROBODOJO_BASE) \
@@ -155,6 +123,7 @@ data: ## Download DATA_TYPE
 		"$(DATA_TYPE)" \
 		$(ARGS)
 
+.PHONY: lint
 lint: ## Run Ruff lint checks
 	$(UV_RUN_SIM) \
 		ruff \
@@ -162,6 +131,7 @@ lint: ## Run Ruff lint checks
 		. \
 		$(ARGS)
 
+.PHONY: lint-fix
 lint-fix: ## Apply Ruff safe fixes
 	$(UV_RUN_SIM) \
 		ruff \
@@ -170,6 +140,7 @@ lint-fix: ## Apply Ruff safe fixes
 		. \
 		$(ARGS)
 
+.PHONY: format
 format: ## Format Python code
 	$(UV_RUN_SIM) \
 		ruff \
@@ -177,6 +148,7 @@ format: ## Format Python code
 		. \
 		$(ARGS)
 
+.PHONY: format-check
 format-check: ## Check Python formatting
 	$(UV_RUN_SIM) \
 		ruff \
@@ -185,11 +157,13 @@ format-check: ## Check Python formatting
 		. \
 		$(ARGS)
 
+.PHONY: test
 test: ## Run tests
 	$(UV_RUN_SIM) \
 		pytest \
 		$(ARGS)
 
+.PHONY: pre-commit
 pre-commit: ## Run all pre-commit hooks
 	$(UV_RUN_SIM) \
 		pre-commit \
@@ -197,8 +171,10 @@ pre-commit: ## Run all pre-commit hooks
 		--all-files \
 		$(ARGS)
 
+.PHONY: check
 check: lint format-check test tasks-check ## Run all non-mutating checks
 
+.PHONY: doctor
 doctor: ## Validate installation and configuration
 	$(ROBODOJO_SIM) \
 		doctor \
@@ -207,6 +183,7 @@ doctor: ## Validate installation and configuration
 		$(if $(strip $(POLICY_DIR)),--policy-dir "$(POLICY_DIR)",--skip-policy) \
 		$(ARGS)
 
+.PHONY: eval
 eval: ## Run local server + simulator evaluation
 	$(call require,POLICY_DIR)
 	$(call require,POLICY_ENV)
@@ -216,6 +193,7 @@ eval: ## Run local server + simulator evaluation
 		$(EVAL_FLAGS) \
 		$(ARGS)
 
+.PHONY: eval-dry-run
 eval-dry-run: ## Print resolved local evaluation commands
 	$(call require,POLICY_DIR)
 	$(call require,POLICY_ENV)
@@ -226,6 +204,7 @@ eval-dry-run: ## Print resolved local evaluation commands
 		--dry-run \
 		$(ARGS)
 
+.PHONY: server
 server: ## Start only the policy server
 	$(call require,POLICY_DIR)
 	$(call require,POLICY_ENV)
@@ -237,6 +216,7 @@ server: ## Start only the policy server
 		$(if $(strip $(POLICY_PORT)),--policy-port "$(POLICY_PORT)") \
 		$(ARGS)
 
+.PHONY: server-dry-run
 server-dry-run: ## Print the resolved server command
 	$(call require,POLICY_DIR)
 	$(call require,POLICY_ENV)
@@ -249,6 +229,7 @@ server-dry-run: ## Print the resolved server command
 		--dry-run \
 		$(ARGS)
 
+.PHONY: client
 client: ## Run simulator client against an external server
 	$(call require,POLICY_PORT)
 	$(call require,CKPT)
@@ -266,11 +247,13 @@ client: ## Run simulator client against an external server
 		--eval-num "$(EVAL_NUM)" \
 		$(ARGS)
 
+.PHONY: client-dry-run
 client-dry-run: ## Print the resolved client command
 	$(MAKE) \
 		client \
 		ARGS="--dry-run $(ARGS)"
 
+.PHONY: smoke
 smoke: ## Run selected/all tasks with one episode
 	$(call require,POLICY_DIR)
 	$(call require,POLICY_ENV)
@@ -288,11 +271,13 @@ smoke: ## Run selected/all tasks with one episode
 		$(if $(strip $(ONLY)),--only "$(ONLY)") \
 		$(ARGS)
 
+.PHONY: smoke-dry-run
 smoke-dry-run: ## Dry-run a smoke sweep
 	$(MAKE) \
 		smoke \
 		ARGS="--dry-run $(ARGS)"
 
+.PHONY: benchmark
 benchmark: ## Run a benchmark sweep
 	$(call require,POLICY_DIR)
 	$(call require,POLICY_ENV)
@@ -311,28 +296,33 @@ benchmark: ## Run a benchmark sweep
 		$(if $(strip $(ONLY)),--only "$(ONLY)") \
 		$(ARGS)
 
+.PHONY: benchmark-dry-run
 benchmark-dry-run: ## Dry-run a benchmark sweep
 	$(MAKE) \
 		benchmark \
 		ARGS="--dry-run $(ARGS)"
 
+.PHONY: summarize
 summarize: ## Aggregate results into Markdown
 	$(ROBODOJO_BASE) \
 		summarize \
 		$(ARGS)
 
+.PHONY: storage-status
 storage-status: ## Check storage configuration
 	$(ROBODOJO_BASE) \
 		storage \
 		status \
 		$(ARGS)
 
+.PHONY: storage-doctor
 storage-doctor: ## Validate storage configuration
 	$(ROBODOJO_BASE) \
 		storage \
 		doctor \
 		$(ARGS)
 
+.PHONY: storage-publish
 storage-publish: ## Publish STORAGE_SOURCE to STORAGE_RELATIVE
 	$(call require,STORAGE_SOURCE)
 	$(call require,STORAGE_RELATIVE)
@@ -343,11 +333,13 @@ storage-publish: ## Publish STORAGE_SOURCE to STORAGE_RELATIVE
 		"$(STORAGE_RELATIVE)" \
 		$(ARGS)
 
+.PHONY: storage-publish-dry-run
 storage-publish-dry-run: ## Preview storage publication
 	$(MAKE) \
 		storage-publish \
 		ARGS="--dry-run $(ARGS)"
 
+.PHONY: storage-pull
 storage-pull: ## Pull and verify STORAGE_RELATIVE into local storage
 	$(call require,STORAGE_RELATIVE)
 	$(ROBODOJO_BASE) \
@@ -356,17 +348,20 @@ storage-pull: ## Pull and verify STORAGE_RELATIVE into local storage
 		"$(STORAGE_RELATIVE)" \
 		$(ARGS)
 
+.PHONY: storage-pull-dry-run
 storage-pull-dry-run: ## Preview storage pull
 	$(MAKE) \
 		storage-pull \
 		ARGS="--dry-run $(ARGS)"
 
+.PHONY: docker-install
 docker-install: ## Install Docker and NVIDIA runtime
 	$(ROBODOJO_BASE) \
 		docker \
 		install \
 		$(ARGS)
 
+.PHONY: docker-build
 docker-build: ## Build simulator image
 	$(ROBODOJO_BASE) \
 		docker \
@@ -374,6 +369,7 @@ docker-build: ## Build simulator image
 		--image "$(IMAGE)" \
 		$(ARGS)
 
+.PHONY: docker-smoke
 docker-smoke: ## Run Docker GPU smoke test
 	$(call require,POLICY_PORT)
 	$(ROBODOJO_BASE) \
@@ -383,12 +379,14 @@ docker-smoke: ## Run Docker GPU smoke test
 		--policy-port "$(POLICY_PORT)" \
 		$(ARGS)
 
+.PHONY: docker-monitor
 docker-monitor: ## Monitor Docker smoke logs
 	$(ROBODOJO_BASE) \
 		docker \
 		monitor \
 		$(ARGS)
 
+.PHONY: docker-clean
 docker-clean: ## Clean Docker smoke state
 	$(ROBODOJO_BASE) \
 		docker \
