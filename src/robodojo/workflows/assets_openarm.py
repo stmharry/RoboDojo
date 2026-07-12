@@ -14,6 +14,7 @@ simulation_app = SimulationApp({"headless": True})
 from pxr import Gf, Usd, UsdGeom, UsdPhysics  # noqa: E402
 from scipy.spatial.transform import Rotation  # noqa: E402
 import trimesh  # noqa: E402
+import yaml  # noqa: E402
 
 
 @dataclass(frozen=True)
@@ -192,8 +193,10 @@ def main() -> None:
     parser.add_argument("--source-root", type=Path, required=True)
     parser.add_argument("--hardware-root", type=Path, required=True)
     parser.add_argument("--output-root", type=Path, required=True)
-    parser.add_argument("--config-template", type=Path, required=True)
+    parser.add_argument("--manifest", type=Path, required=True)
     args = parser.parse_args()
+    build_manifest = yaml.safe_load(args.manifest.read_text(encoding="utf-8"))
+    asset_config = build_manifest["asset"]
 
     source_dir = args.source_root / (
         "source/openarm/openarm/tasks/manager_based/openarm_manipulation/usds/openarm_bimanual"
@@ -212,14 +215,17 @@ def main() -> None:
     if runtime_configuration.exists():
         shutil.rmtree(runtime_configuration)
     shutil.copytree(source_dir / "configuration", runtime_configuration)
-    shutil.copy2(args.config_template, args.output_root / "robot_config.yml")
+    (args.output_root / "robot_config.yml").write_text(
+        yaml.safe_dump(build_manifest["robot_config"], sort_keys=False), encoding="utf-8"
+    )
 
     base = runtime_source / "openarm_bimanual.usd"
-    output = args.output_root / "openarm_bimanual_cloth_folding.usd"
+    output = args.output_root / asset_config["output"]
     stage = Usd.Stage.Open(str(base), load=Usd.Stage.LoadAll)
     if stage is None:
         raise RuntimeError(f"could not open {base}")
-    joint_paths = [shift_joint_anchor(stage, side, 0.05) for side in ("left", "right")]
+    extension = float(asset_config["upper_arm_extension_m"])
+    joint_paths = [shift_joint_anchor(stage, side, extension) for side in ("left", "right")]
 
     prims = list(stage.Traverse())
     prim_paths = {str(prim.GetPath()) for prim in prims}
@@ -239,7 +245,7 @@ def main() -> None:
             raise RuntimeError(f"no {side} finger link found; finger paths={fingers}")
         for finger_path in finger_candidates:
             jaw_paths.append(
-                add_mesh(stage, finger_path, "cloth_folding_jaw", args.hardware_root / "jaw_normal.stl", True)
+                add_mesh(stage, finger_path, "extended_jaw", args.hardware_root / asset_config["jaw_mesh"], True)
             )
         upper_arm_candidates = sorted(
             path for path in prim_paths if f"openarm_{side}_link3" in path and "/joints/" not in path
@@ -294,7 +300,7 @@ def main() -> None:
     manifest = {
         "format": 1,
         "functional_twin": True,
-        "upper_arm_extension_m": 0.05,
+        "upper_arm_extension_m": extension,
         "articulation_roots": articulation_roots,
         "rigid_body_paths": rigid_body_paths,
         "revolute_joint_paths": revolute_joint_paths,

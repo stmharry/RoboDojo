@@ -12,7 +12,7 @@ from robodojo.core.paths import RepositoryPaths, discover_repository_root
 from robodojo.core.settings import RuntimeSettings
 from robodojo.policy import adapter as policy_adapter
 from robodojo.policy.adapter import policy_server_command
-from robodojo.sim.launcher import simulator_command
+from robodojo.sim.launcher import load_simulator_config, simulator_command
 from robodojo.workflows.task_inventory import build_inventory
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,6 +31,18 @@ def test_task_inventory_reads_the_simulator_task_package():
     assert tasks["stack_bowls"]["runnable"] is True
 
 
+def test_removed_openarm_cloth_profile_is_rejected():
+    request = SimulatorLaunchRequest(
+        task="fold_clothes",
+        policy_name="LeRobot_Pi05_OpenArm",
+        port=19000,
+        env_config="openarm_cloth_folding",
+        additional_info="RoboDojo",
+    )
+    with pytest.raises(ValueError, match="environment config not found"):
+        load_simulator_config(RepositoryPaths.resolve(ROOT), request)
+
+
 def test_server_dry_run_validates_and_builds_adapter_argv(tmp_path):
     policy = tmp_path / "Policy"
     policy.mkdir()
@@ -46,6 +58,23 @@ def test_server_dry_run_validates_and_builds_adapter_argv(tmp_path):
     command = policy_server_command(request, 19000)
     assert command[:2] == ["bash", str(adapter)]
     assert command[-2:] == ["19000", "0.0.0.0"]
+
+
+def test_openarm_policy_keeps_its_internal_xpolicylab_environment_name(tmp_path):
+    policy = tmp_path / "LeRobot_Pi05_OpenArm"
+    policy.mkdir()
+    (policy / "setup_eval_policy_server.sh").write_text("#!/usr/bin/env bash\n", encoding="utf-8")
+    request = PolicyServerLaunchRequest(
+        policy_dir=policy,
+        task="fold_clothes",
+        checkpoint="folding_final",
+        policy_env="lerobot-pi05",
+        env_config="openarm",
+        action_type="joint",
+        port=19000,
+    )
+    command = policy_server_command(request, 19000)
+    assert command[5] == "openarm_cloth_folding"
 
 
 def test_server_cli_rejects_invalid_port(tmp_path):

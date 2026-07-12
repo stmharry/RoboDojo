@@ -6,7 +6,7 @@ from robodojo.sim.environment.global_configs import ROBOTS_PATH
 
 def get_robot_config():
     cfg = OPENARM_BI_HIGH_PD_CFG.copy()
-    cfg.spawn.usd_path = f"{ROBOTS_PATH}/openarm/openarm_bimanual_cloth_folding.usd"
+    cfg.spawn.usd_path = f"{ROBOTS_PATH}/openarm/openarm_bimanual.usd"
     right_deg = [-6.546, -2.065, 28.797, 20.819, -23.813, 20.294, -0.667]
     left_deg = [3.945, -0.973, -4.164, 2.983, 7.508, -7.049, -8.338]
     cfg.init_state.joint_pos = {

@@ -17,6 +17,7 @@ from typing import Any
 
 import numpy as np
 from pxr import Ar, Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdLux, UsdPhysics, UsdUtils, Vt
+import yaml
 
 from robodojo.core.storage import assets_root
 from robodojo.sim.environment.global_configs import ROOT_DIR
@@ -431,15 +432,17 @@ def _runtime_versions() -> dict[str, str | None]:
 
 
 def _source_revisions(repo_root: Path) -> dict[str, Any]:
-    result = {}
-    for name, path in {
-        "tracked_openarm_sources": repo_root / "configs/tooling/openarm/sources.json",
-        "generated_openarm_manifest": assets_root() / "Robots/openarm/manifest.json",
-    }.items():
-        try:
-            result[name] = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            result[name] = None
+    tracked_manifest = repo_root / "configs/tooling/openarm.yml"
+    generated_manifest = assets_root() / "Robots/openarm/manifest.json"
+    result = {"tracked_openarm_manifest": None, "generated_openarm_manifest": None}
+    try:
+        result["tracked_openarm_manifest"] = yaml.safe_load(tracked_manifest.read_text(encoding="utf-8"))
+    except (OSError, ValueError, yaml.YAMLError):
+        pass
+    try:
+        result["generated_openarm_manifest"] = json.loads(generated_manifest.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        pass
     return result
 
 

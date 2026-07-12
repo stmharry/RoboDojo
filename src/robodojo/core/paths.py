@@ -61,5 +61,5 @@ class RepositoryPaths(BaseModel):
         return self.root / "XPolicyLab"
 
     @property
-    def openarm_tooling(self) -> Path:
-        return self.root / "configs" / "tooling" / "openarm"
+    def openarm_manifest(self) -> Path:
+        return self.root / "configs" / "tooling" / "openarm.yml"

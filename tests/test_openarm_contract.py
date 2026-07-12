@@ -10,19 +10,32 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def load_rig():
-    config = yaml.safe_load((ROOT / "configs/camera/openarm_cloth_folding.yml").read_text())
+    config = yaml.safe_load((ROOT / "configs/camera/openarm.yml").read_text())
     return normalize_camera_rig(config)
 
 
 def test_openarm_timing_and_dimensions():
-    env_cfg = yaml.safe_load((ROOT / "configs/openarm_cloth_folding.yml").read_text())
-    sim_cfg = yaml.safe_load((ROOT / "configs/sim/openarm_cloth_folding.yml").read_text())
+    env_cfg = yaml.safe_load((ROOT / "configs/openarm.yml").read_text())
+    sim_cfg = yaml.safe_load((ROOT / "configs/sim/real_time_30hz.yml").read_text())
     robot_info = json.loads((ROOT / "configs/robot/_robot_info.json").read_text())["dual_openarm"]
 
-    assert env_cfg["config"]["camera"] == "openarm_cloth_folding"
+    assert env_cfg["config"] == {
+        "sim": "real_time_30hz",
+        "scene": "default",
+        "robot": "dual_openarm",
+        "camera": "openarm",
+    }
+    assert env_cfg["layout_config_name"] == "arx_x5"
     assert env_cfg["observation"]["collect_freq"] == 30
     assert 1.0 / (sim_cfg["dt"] * 30) == 8.0
     assert sum(robot_info["arm_dim"]) + sum(robot_info["ee_dim"]) == 16
+
+
+def test_cloth_specific_environment_profile_is_removed():
+    assert not (ROOT / "configs/openarm_cloth_folding.yml").exists()
+    assert not (ROOT / "configs/camera/openarm_cloth_folding.yml").exists()
+    assert not (ROOT / "configs/scene/openarm_cloth_folding.yml").exists()
+    assert not (ROOT / "configs/sim/openarm_cloth_folding.yml").exists()
 
 
 def test_openarm_uses_the_canonical_dyna_camera_rig():
@@ -51,20 +64,25 @@ def test_openarm_uses_the_canonical_dyna_camera_rig():
 
 
 def test_openarm_asset_inputs_and_mounts_are_pinned():
-    sources = json.loads((ROOT / "configs/tooling/openarm/sources.json").read_text())
-    robot_config = yaml.safe_load((ROOT / "configs/tooling/openarm/robot_config.yml").read_text())
+    manifest = yaml.safe_load((ROOT / "configs/tooling/openarm.yml").read_text())
+    sources = manifest["sources"]
+    robot_config = manifest["robot_config"]
 
     assert sources["openarm_isaac_lab"]["revision"] == "bad82e23716e6941c2de78ccb978f57c78b37734"
     assert sources["hardware_modifications"]["revision"] == "ffe34b93c070343042eb9412fbfeffce16139947"
-    hardware_files = sources["hardware_modifications"]["files"]
-    assert "jaw_normal.stl" in hardware_files
-    assert "jaw_anyskin.stl" not in hardware_files
     hashes = sources["hardware_modifications"]["sha256"]
+    assert "jaw_normal.stl" in hashes
+    assert "jaw_anyskin.stl" not in hashes
     assert hashes["jaw_normal.stl"] == "6ae41c9fbba411333954b8f4d1c6867b61fad1be7d7b936899c27d43410a2137"
     assert hashes["head camera holder v4.stl"] == "959ae5e0ad6e0870465e361df30db3d1bbdeebb9ba8001274c3ce9e1712f03d3"
     assert hashes["arducam_holder.stl"] == "1d31e0ac9ac2b118fb0925dc45bb3736dff087a9e6c2f9c27e64b24ee488074c"
     assert robot_config["left"]["camera_mount_links"]["left_wrist_camera_holder"] == "openarm_left_link7"
     assert robot_config["right"]["camera_mount_links"]["right_wrist_camera_holder"] == "openarm_right_link7"
+    assert manifest["asset"] == {
+        "output": "openarm_bimanual.usd",
+        "upper_arm_extension_m": 0.05,
+        "jaw_mesh": "jaw_normal.stl",
+    }
 
 
 def test_named_hardware_camera_frames_are_relative():

@@ -21,7 +21,6 @@ camera_rig:
       mount:
         kind: scene_fixture
         target: camera_stand
-        # Final fixture->optical target. CameraManager derives the holder pose.
         position: [0.0, -0.33587426, 0.04106626]
         orientation: [120.0, 0.0, -180.0]
         optical_roll_deg: 0.0

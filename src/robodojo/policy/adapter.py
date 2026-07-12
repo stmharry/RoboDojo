@@ -11,6 +11,10 @@ from robodojo.core.storage import checkpoint_label
 
 logger = logging.getLogger(__name__)
 
+POLICY_ENVIRONMENT_NAMES = {
+    ("LeRobot_Pi05_OpenArm", "openarm"): "openarm_cloth_folding",
+}
+
 
 def require_policy_adapter(policy_dir: Path) -> Path:
     """Return the upstream policy adapter or fail with an actionable error."""
@@ -23,13 +27,16 @@ def require_policy_adapter(policy_dir: Path) -> Path:
 def policy_server_command(request: PolicyServerLaunchRequest, port: int) -> list[str]:
     """Build the official XPolicyLab setup adapter argument vector."""
     script = require_policy_adapter(request.policy_dir)
+    policy_environment = POLICY_ENVIRONMENT_NAMES.get(
+        (request.policy_dir.expanduser().resolve().name, request.env_config), request.env_config
+    )
     return [
         "bash",
         str(script),
         request.dataset,
         request.task,
         request.checkpoint,
-        request.env_config,
+        policy_environment,
         request.action_type,
         str(request.seed),
         str(request.policy_gpu),

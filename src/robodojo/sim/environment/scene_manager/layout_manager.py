@@ -17,7 +17,6 @@ import torch
 import transforms3d as t3d
 
 from robodojo.sim.environment.global_configs import ASSETS_PATH, OBJECTS_PATH
-from robodojo.sim.environment.scene_manager.appearance_overrides import apply_appearance_overrides
 from robodojo.sim.environment.seeding import seed_everywhere
 from robodojo.sim.utils.cluttered_generator import ClutteredGenerator
 from robodojo.sim.utils.load_file import load_desc_info, load_object_metadata
@@ -161,7 +160,6 @@ class LayoutManager:
         env_config = deepcopy(self.saved_layouts[env_idx])
         if env_config is None:
             return None
-        env_config = self._apply_appearance_overrides(env_config)
         self.clear_layout_state([env_idx])
         for key, value in env_config.items():
             if key in ["Rigid", "Dynamic", "Geometry", "Articulation", "Garment", "Fluid"]:
@@ -213,11 +211,6 @@ class LayoutManager:
                 value = self.select_light(env_idx, light_cfg=value)
         self.cluttered_generator_init(env_idx)
         return env_config
-
-    def _apply_appearance_overrides(self, env_config):
-        """Apply appearance-only overrides without permitting task-object drift."""
-        overrides = OmegaConf.to_container(self.scene_config.get("appearance_overrides", {}), resolve=True)
-        return apply_appearance_overrides(env_config, overrides)
 
     def cluttered_generator_init(self, env_idx):
         for key in self.cluttered_generator.keys():

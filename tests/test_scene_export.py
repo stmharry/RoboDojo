@@ -19,7 +19,7 @@ def test_camera_fov_contract():
 
 
 def test_completed_export_requires_exact_identity(tmp_path):
-    identity = ExportIdentity("fold_clothes", "openarm_cloth_folding", 0, 0, "abc123")
+    identity = ExportIdentity("fold_clothes", "openarm", 0, 0, "abc123")
     assert not completed_export_matches(tmp_path, identity)
     (tmp_path / "scene_manifest.json").write_text(
         json.dumps({"complete": True, "identity": identity.to_dict()}), encoding="utf-8"
@@ -27,7 +27,7 @@ def test_completed_export_requires_exact_identity(tmp_path):
     assert completed_export_matches(tmp_path, identity)
     assert not completed_export_matches(
         tmp_path,
-        ExportIdentity("fold_clothes", "openarm_cloth_folding", 0, 1, "abc123"),
+        ExportIdentity("fold_clothes", "openarm", 0, 1, "abc123"),
     )
 
 
@@ -48,7 +48,7 @@ def test_scene_only_eval_dry_run_bypasses_policy_orchestrator(tmp_path):
             "--policy-env",
             "unused-in-scene-only",
             "--env-cfg",
-            "openarm_cloth_folding",
+            "openarm",
             "--seed",
             "0",
             "--layout-id",
