@@ -44,6 +44,7 @@ ARGS ?=
 define require
 $(if $(strip $($(1))),,$(error $(1) is required. Pass it as `make $@ $(1)=...` or set it in .env))
 endef
+unexport require
 
 POLICY_FLAGS = --policy-dir "$(POLICY_DIR)" --task "$(TASK)" --ckpt "$(CKPT)" \
 	--policy-env "$(POLICY_ENV)" --env-cfg "$(ENV_CFG)" --action-type "$(ACTION_TYPE)" \
