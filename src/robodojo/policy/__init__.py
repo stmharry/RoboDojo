@@ -1,0 +1,1 @@
+"""Lightweight policy-adapter domain."""

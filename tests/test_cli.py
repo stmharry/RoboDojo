@@ -5,10 +5,11 @@ import sys
 from typer.testing import CliRunner
 
 from robodojo.cli import app
-from robodojo.core.models import ServerRequest
+from robodojo.core.models import PolicyServerLaunchRequest, SimulatorLaunchRequest
 from robodojo.core.paths import RepositoryPaths, discover_repository_root
 from robodojo.core.settings import RuntimeSettings
-from robodojo.server.orchestration import server_command
+from robodojo.policy.adapter import policy_server_command
+from robodojo.sim.launcher import simulator_command
 
 ROOT = Path(__file__).resolve().parents[1]
 runner = CliRunner()
@@ -26,14 +27,14 @@ def test_server_dry_run_validates_and_builds_adapter_argv(tmp_path):
     policy.mkdir()
     adapter = policy / "setup_eval_policy_server.sh"
     adapter.write_text("#!/usr/bin/env bash\n", encoding="utf-8")
-    request = ServerRequest(
+    request = PolicyServerLaunchRequest(
         policy_dir=policy,
         task="stack_bowls",
         checkpoint="run-1",
         policy_env="policy-env",
         port=19000,
     )
-    command = server_command(request, 19000)
+    command = policy_server_command(request, 19000)
     assert command[:2] == ["bash", str(adapter)]
     assert command[-2:] == ["19000", "0.0.0.0"]
 
@@ -82,9 +83,22 @@ def test_runtime_settings_env_overrides_dotenv(monkeypatch, tmp_path):
     assert settings.eval_root == Path("/from-process")
 
 
-def test_server_imports_work_without_simulator_extra():
+def test_policy_imports_work_without_simulator_extra():
     code = (
-        "import sys; from robodojo.server.orchestration import server_command; "
+        "import sys; from robodojo.policy.adapter import policy_server_command; "
         "assert not any(name.startswith(('isaacsim', 'isaaclab', 'torch')) for name in sys.modules)"
     )
     subprocess.run([sys.executable, "-c", code], cwd=ROOT, check=True)
+
+
+def test_simulator_command_uses_the_domain_module_path():
+    request = SimulatorLaunchRequest(
+        task="stack_bowls",
+        policy_name="TestPolicy",
+        port=19000,
+        additional_info="ckpt_name=test,action_type=ee",
+    )
+    command, environment = simulator_command(RepositoryPaths.resolve(ROOT), request)
+    assert command[command.index("-m") + 1] == "robodojo.sim.evaluation.main"
+    assert command[command.index("--policy_server_url") + 1] == "ws://127.0.0.1:19000"
+    assert environment["CUDA_VISIBLE_DEVICES"] == "0"

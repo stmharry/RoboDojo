@@ -9,8 +9,8 @@ import json
 from pathlib import Path
 from typing import Any
 
-from robodojo.client import tasks_registry
 from robodojo.core.paths import discover_repository_root
+from robodojo.sim import tasks_registry
 
 ROOT_DIR = discover_repository_root()
 BENCHMARK = "RoboDojo"
@@ -33,7 +33,7 @@ def _task_records() -> list[dict[str, Any]]:
         config_path = tasks_registry.task_config_path(CONFIG_DIR, name)
         record = {
             "name": name,
-            "module": f"robodojo.client.tasks.{name}",
+            "module": f"robodojo.sim.tasks.{name}",
             "class_name": name,
             "class_exists": name in classes,
             "config": str(config_path.relative_to(ROOT_DIR)) if config_path.exists() else None,
@@ -51,7 +51,7 @@ def build_inventory() -> dict[str, Any]:
     inventory = {
         "benchmark": BENCHMARK,
         "root": str(ROOT_DIR),
-        "task_dir": "robodojo.client.tasks",
+        "task_dir": "robodojo.sim.tasks",
         "config_dir": str(CONFIG_DIR.relative_to(ROOT_DIR)),
         "counts": {
             "tasks": len(tasks),

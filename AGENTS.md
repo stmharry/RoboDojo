@@ -43,8 +43,9 @@ changes unless the task explicitly includes coordinated XPolicyLab work.
 
 ```text
 src/robodojo/core/           settings, paths, models, storage, processes
-src/robodojo/server/         policy adapter orchestration; never imports Isaac
-src/robodojo/client/         simulator managers, tasks, evaluation, scene export
+src/robodojo/policy/         policy adapter validation and launching
+src/robodojo/sim/            simulator managers, tasks, evaluation, scene export
+src/robodojo/orchestration/  coordinated policy/simulator process lifecycle
 src/robodojo/workflows/      install, download, storage, result, Docker workflows
 configs/                     robot, scene, simulator, and camera YAML
 task/RoboDojo/config/        task scene/object YAML
@@ -61,9 +62,11 @@ CLI, and root install/assets/storage workflows. XPolicyLab owns policy code,
 policy-specific dependencies and training, checkpoints, `deploy.yml`, policy
 servers, and `XPolicyLab/policy/<POLICY>/setup_eval_*` scripts.
 
-New code imports through the `robodojo.*` namespace. Core and server code must
-not import `robodojo.client` or simulator dependencies. The evaluation client
-uses `XPolicyLab/client_server/ws/model_client.py` for WebSocket transport.
+New code imports through the `robodojo.*` namespace. Core and policy code must
+not import `robodojo.sim` or simulator dependencies. Orchestration may import
+the lightweight simulator launcher but must not initialize Isaac or Torch. The
+simulator uses `XPolicyLab/client_server/ws/model_client.py` for WebSocket
+transport.
 
 ## Dependency Management
 
@@ -84,9 +87,9 @@ Single-machine evaluation follows this boundary:
 
 ```text
 robodojo eval
-  -> robodojo.server orchestration
-    -> (cwd: policy directory) setup_eval_policy_server.sh
-    -> robodojo.client.evaluation.main
+  -> robodojo.orchestration
+    -> robodojo.policy -> (cwd: policy directory) setup_eval_policy_server.sh
+    -> robodojo.sim.evaluation.main
 ```
 
 - The upstream XPolicyLab adapter surface includes `eval.sh`,
@@ -111,7 +114,7 @@ robodojo eval
   `play_Xylophone`, `swap_T`, and `push_T` retain their upstream spelling.
 - Keep upstream submodule and asset directory casing, including `XPolicyLab/`
   and `Assets/`.
-- Task registration imports `robodojo.client.tasks.<task_name>` and expects the
+- Task registration imports `robodojo.sim.tasks.<task_name>` and expects the
   exported environment class name to match the module basename.
 - Task success checks must call `reward_manager.check(...)` or an equivalent
   meaningful check; never leave success trivially true.

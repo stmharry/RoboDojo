@@ -3,7 +3,7 @@
 #
 # Scope: this image contains ONLY the RoboDojo simulation-evaluation side
 # (Isaac Sim, IsaacLab, CuRobo, the RoboDojo Python stack) plus the lightweight
-# XPolicyLab client_server + policy deploy adapters used by robodojo.client.evaluation.
+# XPolicyLab client_server + policy deploy adapters used by robodojo.sim.evaluation.
 # It deliberately does NOT install any policy-specific environment, dependency
 # set, or checkpoints (e.g. GR00T_N17). The policy server runs OUTSIDE this
 # container and is reached over TCP (see docker/README.md).

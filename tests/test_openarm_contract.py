@@ -3,8 +3,8 @@ from pathlib import Path
 
 import yaml
 
-from robodojo.client.environment.camera_manager.mount_registry import CameraMountRegistry
-from robodojo.client.environment.camera_manager.rig_spec import hardware_camera_parent, normalize_camera_rig
+from robodojo.sim.environment.camera_manager.mount_registry import CameraMountRegistry
+from robodojo.sim.environment.camera_manager.rig_spec import hardware_camera_parent, normalize_camera_rig
 
 ROOT = Path(__file__).resolve().parents[1]
 

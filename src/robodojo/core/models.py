@@ -65,7 +65,7 @@ class EvaluationRequest(StrictModel):
         return value
 
 
-class ServerRequest(StrictModel):
+class PolicyServerLaunchRequest(StrictModel):
     policy_dir: Path
     task: str
     checkpoint: str
@@ -80,7 +80,7 @@ class ServerRequest(StrictModel):
     dry_run: bool = False
 
 
-class ClientRequest(StrictModel):
+class SimulatorLaunchRequest(StrictModel):
     task: str
     policy_name: str
     host: str = "127.0.0.1"

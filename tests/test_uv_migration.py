@@ -32,10 +32,24 @@ def test_only_xpolicy_adapter_shell_remains():
 
 def test_lightweight_imports_do_not_load_simulator_modules():
     code = (
-        "import sys; import robodojo, robodojo.core, robodojo.server; "
+        "import sys; import robodojo, robodojo.core, robodojo.policy, robodojo.orchestration; "
+        "assert 'robodojo.sim' not in sys.modules; "
         "assert not any(name.startswith(('isaacsim', 'isaaclab', 'torch')) for name in sys.modules)"
     )
     subprocess.run([sys.executable, "-c", code], cwd=ROOT, check=True)
+
+
+def test_lightweight_launchers_do_not_initialize_simulator_runtime():
+    code = (
+        "import sys; import robodojo.policy.adapter, robodojo.orchestration.evaluation; "
+        "assert not any(name.startswith(('isaacsim', 'isaaclab', 'torch')) for name in sys.modules)"
+    )
+    subprocess.run([sys.executable, "-c", code], cwd=ROOT, check=True)
+
+
+def test_removed_transport_packages_have_no_compatibility_shims():
+    assert not (ROOT / "src/robodojo/client").exists()
+    assert not (ROOT / "src/robodojo/server").exists()
 
 
 def test_docker_uses_the_locked_sim_extra_and_cli_entrypoint():

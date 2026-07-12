@@ -10,7 +10,14 @@ from typing import Any
 from pydantic import ValidationError
 import typer
 
-from robodojo.core.models import ClientRequest, DataFormat, EvaluationRequest, ServerRequest, StorageKind, SweepRequest
+from robodojo.core.models import (
+    DataFormat,
+    EvaluationRequest,
+    PolicyServerLaunchRequest,
+    SimulatorLaunchRequest,
+    StorageKind,
+    SweepRequest,
+)
 from robodojo.core.paths import RepositoryPaths
 
 app = typer.Typer(no_args_is_help=True, help="RoboDojo evaluation and operations CLI.")
@@ -174,7 +181,7 @@ def evaluate(
 ) -> None:
     """Run a local policy server and simulator evaluation."""
     request = _evaluation_request(**{key: value for key, value in locals().items() if key != "root"})
-    from robodojo.server.orchestration import run_evaluation
+    from robodojo.orchestration.evaluation import run_evaluation
 
     raise typer.Exit(run_evaluation(_paths(root), request))
 
@@ -195,10 +202,10 @@ def server(
     dry_run: bool = typer.Option(False, "--dry-run"),
 ) -> None:
     """Start an XPolicyLab policy server adapter without simulator dependencies."""
-    from robodojo.server.orchestration import run_server
+    from robodojo.policy.adapter import run_policy_server
 
     request = _model(
-        ServerRequest,
+        PolicyServerLaunchRequest,
         policy_dir=policy_dir,
         task=task,
         checkpoint=checkpoint,
@@ -212,7 +219,7 @@ def server(
         host=bind_host,
         dry_run=dry_run,
     )
-    raise typer.Exit(run_server(request))
+    raise typer.Exit(run_policy_server(request))
 
 
 def _client(
@@ -234,7 +241,7 @@ def _client(
     connect_timeout: float | None = None,
 ) -> int:
     from robodojo.core.storage import checkpoint_label as safe_checkpoint_label
-    from robodojo.server.orchestration import run_client
+    from robodojo.orchestration.evaluation import run_simulator_session
 
     resolved_name = policy_name or (policy_dir.resolve().name if policy_dir else None)
     _ = connect_timeout
@@ -243,7 +250,7 @@ def _client(
     parsed_eval_num: int | str = eval_num if eval_num == "native" else int(eval_num)
     label = safe_checkpoint_label(checkpoint, checkpoint_label)
     request = _model(
-        ClientRequest,
+        SimulatorLaunchRequest,
         task=task,
         policy_name=resolved_name,
         host=policy_host,
@@ -255,7 +262,7 @@ def _client(
         additional_info=f"ckpt_name={label},action_type={action_type}",
         dry_run=dry_run,
     )
-    return run_client(_paths(root), request)
+    return run_simulator_session(_paths(root), request)
 
 
 @app.command()
@@ -634,10 +641,10 @@ def adapter_client(
     policy_server_url: str = typer.Option("", "--policy-server-url", "--policy_server_url"),
 ) -> None:
     """Private adapter used by unchanged XPolicyLab shell launchers."""
-    from robodojo.server.orchestration import run_client
+    from robodojo.orchestration.evaluation import run_simulator_session
 
     request = _model(
-        ClientRequest,
+        SimulatorLaunchRequest,
         task=task_name,
         policy_name=policy_name,
         host=host,
@@ -650,7 +657,7 @@ def adapter_client(
         protocol=protocol,
         policy_server_url=policy_server_url,
     )
-    raise typer.Exit(run_client(_paths(root_dir), request))
+    raise typer.Exit(run_simulator_session(_paths(root_dir), request))
 
 
 if __name__ == "__main__":

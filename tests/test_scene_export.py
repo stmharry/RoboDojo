@@ -4,7 +4,7 @@ import subprocess
 
 import pytest
 
-from robodojo.client.scene_export.contracts import ExportIdentity, calculate_fov_degrees, completed_export_matches
+from robodojo.sim.scene_export.contracts import ExportIdentity, calculate_fov_degrees, completed_export_matches
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -61,7 +61,7 @@ def test_scene_only_eval_dry_run_bypasses_policy_orchestrator(tmp_path):
         capture_output=True,
         text=True,
     )
-    assert "robodojo.client.evaluation.main" in result.stdout
+    assert "robodojo.sim.evaluation.main" in result.stdout
     assert "ROBODOJO_EXPORT_SCENE_ONLY=true" in result.stdout
     assert "setup_eval_policy_server.sh" not in result.stdout
 
@@ -91,11 +91,11 @@ def test_export_and_continue_keeps_policy_orchestrator(tmp_path):
         text=True,
     )
     assert "setup_eval_policy_server.sh" in result.stdout
-    assert "robodojo.client.evaluation.main" in result.stdout
+    assert "robodojo.sim.evaluation.main" in result.stdout
 
 
 def test_export_hook_precedes_rollout():
-    source = (ROOT / "src/robodojo/client/evaluation/main.py").read_text(encoding="utf-8")
+    source = (ROOT / "src/robodojo/sim/evaluation/main.py").read_text(encoding="utf-8")
     reset = source.index("env.reset(seed=env.env_seeds)")
     export = source.index("export_scene_snapshot(env, export_dir", reset)
     rollout = source.index("env.run_eval()", export)

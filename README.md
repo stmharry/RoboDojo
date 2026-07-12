@@ -46,10 +46,11 @@ The [RoboDojo documentation](https://robodojo-benchmark.com/doc/) is the canonic
 ## 🗂️ Repository Structure
 
 ```text
-src/robodojo/core/      lightweight settings, paths, storage, and process contracts
-src/robodojo/server/    policy-server orchestration (no Isaac imports)
-src/robodojo/client/    simulator, tasks, evaluation client, and scene export
-src/robodojo/workflows/ install, download, storage, result, and Docker workflows
+src/robodojo/core/          lightweight settings, paths, storage, and process contracts
+src/robodojo/policy/        XPolicyLab adapter validation and launching
+src/robodojo/sim/           simulator runtime, tasks, evaluation, and scene export
+src/robodojo/orchestration/ coordinated policy/simulator evaluation lifecycle
+src/robodojo/workflows/     install, download, storage, result, and Docker workflows
 configs/   simulator, scene, robot, and camera YAML
 task/RoboDojo/config/  task YAML configurations
 XPolicyLab/             policy implementations and server adapters (submodule)

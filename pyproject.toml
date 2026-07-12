@@ -136,11 +136,11 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
-"src/robodojo/client/evaluation/main.py" = ["E402"]  # late imports after AppLauncher bootstrap
-"src/robodojo/client/evaluation/eval_env.py" = ["E501"]
-"src/robodojo/client/environment/**/*.py" = ["E501"]
-"src/robodojo/client/tasks/**/*.py" = ["E501"]
-"src/robodojo/client/utils/save_file.py" = ["E501"]
+"src/robodojo/sim/evaluation/main.py" = ["E402"]  # late imports after AppLauncher bootstrap
+"src/robodojo/sim/evaluation/eval_env.py" = ["E501"]
+"src/robodojo/sim/environment/**/*.py" = ["E501"]
+"src/robodojo/sim/tasks/**/*.py" = ["E501"]
+"src/robodojo/sim/utils/save_file.py" = ["E501"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["robodojo"]

@@ -9,7 +9,7 @@ import time
 from robodojo.core.models import EvaluationRequest, SmokeRecord, SmokeSummary, SweepRequest
 from robodojo.core.paths import RepositoryPaths
 from robodojo.core.storage import run_work_root, storage_mode
-from robodojo.server.orchestration import run_evaluation
+from robodojo.orchestration.evaluation import run_evaluation
 from robodojo.workflows.task_inventory import build_inventory
 
 
