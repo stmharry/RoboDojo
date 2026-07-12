@@ -1,0 +1,22 @@
+schema_version: 1
+profile_id: openarm_anvil_v2
+status: pending_measurement
+identity:
+  vendor: Anvil Robotics
+  model: OpenArm Quest Teleop Kit
+  hardware_revision: v2
+  robot_serial:
+  calibration_date:
+sources: []
+robot: {}
+cameras: {}
+controller: {}
+measurement_requirements:
+  robot: [link_geometry, joint_zeros, joint_limits, jaw_geometry, gripper_opening_conversion]
+  cameras: [camera_serials, charuco_intrinsics, distortion, mount_extrinsics, exposure, white_balance, focus]
+  controller: [latency, interpolation, clipping, damping, tracking_error, settled_pose]
+policy_reference:
+  checkpoint: folding_final
+  lerobot_contract: v0.5.1
+  state_action_order: right_first_16d
+  observation_frequency_hz: 30

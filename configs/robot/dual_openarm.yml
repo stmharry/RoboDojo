@@ -1,9 +1,0 @@
-robots:
-  - robot_type: arm
-    robot_name: openarm
-    coupled: true
-    need_planner: false
-    enabled_self_collisions: false
-    default_root_pos: [0.0, -0.48, 0.78]
-    default_root_rot: [0.7071068, 0.0, 0.0, 0.7071068]
-    grasp_perfect_direction: top_down

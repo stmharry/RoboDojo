@@ -43,6 +43,31 @@ def test_removed_openarm_cloth_profile_is_rejected():
         load_simulator_config(RepositoryPaths.resolve(ROOT), request)
 
 
+def test_removed_generic_openarm_profile_is_rejected():
+    request = SimulatorLaunchRequest(
+        task="fold_clothes",
+        policy_name="LeRobot_Pi05_OpenArm",
+        port=19000,
+        env_config="openarm",
+        additional_info="RoboDojo",
+    )
+    with pytest.raises(ValueError, match="environment config not found"):
+        load_simulator_config(RepositoryPaths.resolve(ROOT), request)
+
+
+@pytest.mark.parametrize("profile", ["openarm_wowrobo_v1_1", "openarm_anvil_v2"])
+def test_unmeasured_openarm_profiles_are_release_blocked(profile):
+    request = SimulatorLaunchRequest(
+        task="fold_clothes",
+        policy_name="LeRobot_Pi05_OpenArm",
+        port=19000,
+        env_config=profile,
+        additional_info="RoboDojo",
+    )
+    with pytest.raises(ValueError, match="calibration is not release-ready"):
+        load_simulator_config(RepositoryPaths.resolve(ROOT), request)
+
+
 def test_server_dry_run_validates_and_builds_adapter_argv(tmp_path):
     policy = tmp_path / "Policy"
     policy.mkdir()
@@ -60,7 +85,8 @@ def test_server_dry_run_validates_and_builds_adapter_argv(tmp_path):
     assert command[-2:] == ["19000", "0.0.0.0"]
 
 
-def test_openarm_policy_keeps_its_internal_xpolicylab_environment_name(tmp_path):
+@pytest.mark.parametrize("profile", ["openarm_wowrobo_v1_1", "openarm_anvil_v2"])
+def test_openarm_policy_keeps_its_internal_xpolicylab_environment_name(tmp_path, profile):
     policy = tmp_path / "LeRobot_Pi05_OpenArm"
     policy.mkdir()
     (policy / "setup_eval_policy_server.sh").write_text("#!/usr/bin/env bash\n", encoding="utf-8")
@@ -69,7 +95,7 @@ def test_openarm_policy_keeps_its_internal_xpolicylab_environment_name(tmp_path)
         task="fold_clothes",
         checkpoint="folding_final",
         policy_env="lerobot-pi05",
-        env_config="openarm",
+        env_config=profile,
         action_type="joint",
         port=19000,
     )

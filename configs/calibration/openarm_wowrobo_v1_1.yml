@@ -1,0 +1,22 @@
+schema_version: 1
+profile_id: openarm_wowrobo_v1_1
+status: pending_measurement
+identity:
+  vendor: WowRobo
+  model: OpenArm Follower
+  hardware_revision: v1.1
+  robot_serial:
+  calibration_date:
+sources: []
+robot: {}
+cameras: {}
+controller: {}
+measurement_requirements:
+  robot: [link_geometry, joint_zeros, joint_limits, jaw_geometry, gripper_opening_conversion]
+  cameras: [camera_serials, charuco_intrinsics, distortion, mount_extrinsics, exposure, white_balance, focus]
+  controller: [latency, interpolation, clipping, damping, tracking_error, settled_pose]
+policy_reference:
+  checkpoint: folding_final
+  lerobot_contract: v0.5.1
+  state_action_order: right_first_16d
+  observation_frequency_hz: 30

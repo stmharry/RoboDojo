@@ -3,10 +3,12 @@ from datetime import datetime
 import json
 import logging
 import os
+from pathlib import Path
 import sys
 
 from isaaclab.app import AppLauncher
 
+from robodojo.core.calibration import calibration_name, load_hardware_calibration
 from robodojo.core.logging import configure_logging
 
 logger = logging.getLogger(__name__)
@@ -86,6 +88,18 @@ from robodojo.sim.environment.global_configs import BENCHMARK, ROOT_DIR
 task_registry = tasks_registry
 
 
+def _validate_hardware_calibration(env_config: str) -> None:
+    import yaml
+
+    config_root = os.path.join(ROOT_DIR, "configs")
+    config_path = os.path.join(config_root, f"{env_config}.yml")
+    with open(config_path, encoding="utf-8") as stream:
+        payload = yaml.safe_load(stream) or {}
+    calibration = calibration_name(payload)
+    if calibration:
+        load_hardware_calibration(Path(config_root), calibration)
+
+
 class PhysXBrokenError(Exception):
     pass
 
@@ -100,6 +114,9 @@ class SceneExportError(RuntimeError):
 
 def get_monitor():
     return None
+
+
+_validate_hardware_calibration(args_cli.env_cfg_type)
 
 
 def _physx_monitor_needed(task_name) -> bool:

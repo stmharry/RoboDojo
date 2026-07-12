@@ -1,13 +1,21 @@
 # OpenArm
 
-RoboDojo provides the generic `openarm` environment profile. It reuses the
-standard RoboDojo scene and ARX X5 evaluation layouts while selecting the
-OpenArm embodiment, its 30 Hz camera rig, and its 30 Hz simulator timing.
+RoboDojo separates the office OpenArm builds into the explicit
+`openarm_wowrobo_v1_1` and `openarm_anvil_v2` hardware profiles. Both reuse
+the standard scene, ARX X5 layouts, the right-first 16-D policy contract, and
+30 Hz timing. The ambiguous `openarm` profile has been removed.
 
-The LeRobot Pi0.5 folding checkpoint uses the profile's 16-dimensional,
-right-first action contract and three cameras: one Waveshare base camera and
-two Arducam wrist cameras. Cloth folding remains an ordinary RoboDojo task and
-does not have a separate scene or environment profile.
+Each profile is release-blocked until its manifest under
+`configs/calibration/` contains measured robot, camera, and controller data.
+Vendor specifications and another robot's calibration are not substitutes for
+serial-numbered office measurements. Cloth folding remains an ordinary task
+and does not have a separate scene or environment profile.
+
+Promoting a manifest to `measured` requires checksummed raw captures plus the
+robot geometry and gripper conversion, three-camera ChArUco calibration and
+camera settings, and controller step-response fit listed in that manifest.
+Populate the corresponding robot, camera, and simulator configuration only
+from those results.
 
 ## Build the assets
 
@@ -44,7 +52,7 @@ Verify the installation with:
 ```bash
 uv run --extra sim --locked robodojo doctor \
   --policy-dir XPolicyLab/policy/LeRobot_Pi05_OpenArm \
-  --task fold_clothes --env-cfg openarm \
+  --task fold_clothes --env-cfg openarm_wowrobo_v1_1 \
   --ckpt folding_final --policy-env lerobot-pi05
 ```
 
@@ -56,7 +64,7 @@ Run one recorded episode:
 OMNI_KIT_ACCEPT_EULA=YES uv run --extra sim --locked robodojo eval \
   --policy-dir XPolicyLab/policy/LeRobot_Pi05_OpenArm \
   --task fold_clothes --ckpt folding_final \
-  --env-cfg openarm --action-type joint --seed 0 \
+  --env-cfg openarm_wowrobo_v1_1 --action-type joint --seed 0 \
   --policy-gpu 0 --env-gpu 1 --policy-env lerobot-pi05 --eval-num 1
 ```
 
@@ -66,7 +74,7 @@ Export the composed pre-rollout scene without starting the policy:
 OMNI_KIT_ACCEPT_EULA=YES uv run --extra sim --locked robodojo eval \
   --policy-dir XPolicyLab/policy/LeRobot_Pi05_OpenArm \
   --task fold_clothes --ckpt folding_final \
-  --env-cfg openarm --action-type joint --seed 0 \
+  --env-cfg openarm_wowrobo_v1_1 --action-type joint --seed 0 \
   --layout-id 0 --env-gpu 0 --policy-env lerobot-pi05 \
   --export-scene-only
 ```
@@ -82,7 +90,7 @@ measured states, interpolated targets, safety clamps, and initial camera image
 statistics. Compare the adapter paths without changing the checkpoint:
 
 ```bash
-# Existing absolute-action re-anchoring behavior.
+# Legacy absolute-action re-anchoring behavior.
 ROBODOJO_OPENARM_TRACE=1 ROBODOJO_OPENARM_RTC_MODE=current <evaluation command>
 
 # Pinned LeRobot semantics: retain original model-space RTC leftovers.
@@ -92,7 +100,11 @@ ROBODOJO_OPENARM_RTC_MODE=official <evaluation command>
 ROBODOJO_OPENARM_RTC_MODE=synchronous <evaluation command>
 ```
 
-`official` and `synchronous` enable tracing automatically. Set
+`official` is the default. `official` and `synchronous` enable tracing automatically. Set
 `ROBODOJO_OPENARM_TRACE_PATH` to choose an explicit trace destination. Scene
 exports record effective and published camera FOVs, their diagonal error, and
 whether a zero-distortion fisheye postprocess is active.
+
+Use `openarm_anvil_v2` in the same commands for the Anvil Quest Teleop kit.
+The launcher stops with `hardware calibration is not release-ready` while the
+selected manifest remains `pending_measurement`.

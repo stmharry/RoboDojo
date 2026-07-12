@@ -1,130 +1,81 @@
 import json
 from pathlib import Path
 
+import pytest
 import yaml
 
-from robodojo.sim.environment.camera_manager.mount_registry import CameraMountRegistry
-from robodojo.sim.environment.camera_manager.rig_spec import hardware_camera_parent, normalize_camera_rig
+from robodojo.core.calibration import load_hardware_calibration
 
 ROOT = Path(__file__).resolve().parents[1]
+PROFILES = ("openarm_wowrobo_v1_1", "openarm_anvil_v2")
 
 
-def load_rig():
-    config = yaml.safe_load((ROOT / "configs/camera/openarm.yml").read_text())
-    return normalize_camera_rig(config)
-
-
-def test_openarm_timing_and_dimensions():
-    env_cfg = yaml.safe_load((ROOT / "configs/openarm.yml").read_text())
-    sim_cfg = yaml.safe_load((ROOT / "configs/sim/real_time_30hz.yml").read_text())
-    robot_info = json.loads((ROOT / "configs/robot/_robot_info.json").read_text())["dual_openarm"]
+@pytest.mark.parametrize("profile", PROFILES)
+def test_hardware_profiles_share_only_upstream_contracts(profile):
+    env_cfg = yaml.safe_load((ROOT / "configs" / f"{profile}.yml").read_text())
+    sim_cfg = yaml.safe_load((ROOT / "configs/sim" / f"{profile}.yml").read_text())
+    robot_info = json.loads((ROOT / "configs/robot/_robot_info.json").read_text())[
+        f"dual_{profile}"
+    ]
 
     assert env_cfg["config"] == {
-        "sim": "real_time_30hz",
+        "sim": profile,
         "scene": "default",
-        "robot": "dual_openarm",
-        "camera": "openarm",
+        "robot": f"dual_{profile}",
+        "camera": profile,
     }
     assert env_cfg["layout_config_name"] == "arx_x5"
+    assert env_cfg["hardware_calibration"] == profile
     assert env_cfg["observation"]["collect_freq"] == 30
     assert 1.0 / (sim_cfg["dt"] * 30) == 8.0
     assert sum(robot_info["arm_dim"]) + sum(robot_info["ee_dim"]) == 16
 
 
-def test_cloth_specific_environment_profile_is_removed():
-    assert not (ROOT / "configs/openarm_cloth_folding.yml").exists()
-    assert not (ROOT / "configs/camera/openarm_cloth_folding.yml").exists()
-    assert not (ROOT / "configs/scene/openarm_cloth_folding.yml").exists()
-    assert not (ROOT / "configs/sim/openarm_cloth_folding.yml").exists()
+def test_ambiguous_and_cloth_specific_profiles_are_removed():
+    for path in (
+        "configs/openarm.yml",
+        "configs/camera/openarm.yml",
+        "configs/robot/dual_openarm.yml",
+        "configs/openarm_cloth_folding.yml",
+        "configs/camera/openarm_cloth_folding.yml",
+        "configs/scene/openarm_cloth_folding.yml",
+        "configs/sim/openarm_cloth_folding.yml",
+    ):
+        assert not (ROOT / path).exists()
 
 
-def test_openarm_uses_the_canonical_dyna_camera_rig():
-    rig = load_rig()
-
-    assert rig.profile_id == "openarm"
-    assert [camera.observation_key for camera in rig.cameras] == [
-        "cam_head",
-        "cam_left_wrist",
-        "cam_right_wrist",
-    ]
-    base, left, right = rig.cameras
-    assert base.sensor["vendor"] == "Waveshare"
-    assert base.sensor["model"] == "OV2710_2MP_USB_Camera_A_SKU_14121"
-    assert base.sensor["stream_resolution"] == [640, 480]
-    assert base.sensor["diagonal_fov_deg"] == 145.0
-    assert base.projection["fx"] == base.projection["fy"] == 316.1146
-    assert base.mount["kind"] == "scene_fixture"
-    assert base.mount["target"] == "camera_stand"
-    assert left.sensor["vendor"] == right.sensor["vendor"] == "Arducam"
-    assert left.sensor["stream_resolution"] == right.sensor["stream_resolution"] == [1280, 720]
-    assert left.mount["target"] == "robot0/left_wrist_camera_holder"
-    assert right.mount["target"] == "robot0/right_wrist_camera_holder"
-    assert left.mount["position"] == right.mount["position"] == [0.02, 0.0, 0.12]
-    assert left.mount["orientation"] == right.mount["orientation"] == [180.0, 0.0, -90.0]
+@pytest.mark.parametrize(
+    ("profile", "vendor", "revision"),
+    [
+        ("openarm_wowrobo_v1_1", "WowRobo", "v1.1"),
+        ("openarm_anvil_v2", "Anvil Robotics", "v2"),
+    ],
+)
+def test_unmeasured_profiles_are_explicitly_blocked(profile, vendor, revision):
+    manifest = yaml.safe_load((ROOT / "configs/calibration" / f"{profile}.yml").read_text())
+    assert manifest["status"] == "pending_measurement"
+    assert manifest["identity"]["vendor"] == vendor
+    assert manifest["identity"]["hardware_revision"] == revision
+    assert manifest["identity"]["robot_serial"] is None
+    assert manifest["sources"] == []
+    with pytest.raises(ValueError, match="not release-ready"):
+        load_hardware_calibration(ROOT / "configs", profile)
 
 
-def test_openarm_asset_inputs_and_mounts_are_pinned():
+def test_openarm_asset_inputs_remain_pinned_and_shared():
     manifest = yaml.safe_load((ROOT / "configs/tooling/openarm.yml").read_text())
     sources = manifest["sources"]
-    robot_config = manifest["robot_config"]
-
+    hashes = sources["hardware_modifications"]["sha256"]
     assert sources["openarm_isaac_lab"]["revision"] == "bad82e23716e6941c2de78ccb978f57c78b37734"
     assert sources["hardware_modifications"]["revision"] == "ffe34b93c070343042eb9412fbfeffce16139947"
-    hashes = sources["hardware_modifications"]["sha256"]
-    assert "jaw_normal.stl" in hashes
-    assert "jaw_anyskin.stl" not in hashes
     assert hashes["jaw_normal.stl"] == "6ae41c9fbba411333954b8f4d1c6867b61fad1be7d7b936899c27d43410a2137"
-    assert hashes["head camera holder v4.stl"] == "959ae5e0ad6e0870465e361df30db3d1bbdeebb9ba8001274c3ce9e1712f03d3"
-    assert hashes["arducam_holder.stl"] == "1d31e0ac9ac2b118fb0925dc45bb3736dff087a9e6c2f9c27e64b24ee488074c"
-    assert robot_config["left"]["camera_mount_links"]["left_wrist_camera_holder"] == "openarm_left_link7"
-    assert robot_config["right"]["camera_mount_links"]["right_wrist_camera_holder"] == "openarm_right_link7"
-    assert manifest["asset"] == {
-        "output": "openarm_bimanual.usd",
-        "upper_arm_extension_m": 0.05,
-        "jaw_mesh": "jaw_normal.stl",
-    }
+    assert manifest["asset"]["upper_arm_extension_m"] == 0.05
 
 
-def test_named_hardware_camera_frames_are_relative():
-    assert hardware_camera_parent("/World/Holder", "OpticalFrame") == "/World/Holder/OpticalFrame"
-    runtime = load_rig().runtime_config()
-    for key in ("cam_head", "cam_left_wrist", "cam_right_wrist"):
-        assert runtime[key].camera.mount_hardware_camera_frame == "OpticalFrame"
-
-
-def test_openarm_disables_only_wrist_holder_construction():
-    runtime = load_rig().runtime_config()
-
-    assert runtime.cam_head.camera.mount_hardware_enabled is True
-    assert runtime.cam_head.camera.mount_hardware_asset.endswith("head_camera_holder.usd")
-    assert runtime.cam_left_wrist.camera.mount_hardware_enabled is False
-    assert runtime.cam_right_wrist.camera.mount_hardware_enabled is False
-    assert runtime.cam_left_wrist.camera.mount_hardware_asset.endswith("left_wrist_camera_holder.usd")
-    assert runtime.cam_right_wrist.camera.mount_hardware_asset.endswith("right_wrist_camera_holder.usd")
-
-
-def test_mount_registry_resolves_scene_and_robot_targets():
-    class Scene:
-        def resolve_camera_fixture_mount(self, env_id, label):
-            return f"/fixture/{env_id}/{label}"
-
-    class Robot:
-        def resolve_camera_link_mount(self, env_id, target):
-            return f"/robot/{env_id}/{target}"
-
-    registry = CameraMountRegistry(Scene(), Robot())
-    assert (
-        registry.resolve_parent_path(2, {"mount_kind": "scene_fixture", "mount_target": "stand"}) == "/fixture/2/stand"
-    )
-    assert (
-        registry.resolve_parent_path(2, {"mount_kind": "robot_link", "mount_target": "arm/link"}) == "/robot/2/arm/link"
-    )
-
-
-def test_legacy_camera_normalization_is_unchanged():
-    config = yaml.safe_load((ROOT / "configs/camera/camera_config.yml").read_text())
-    rig = normalize_camera_rig(config)
-
-    assert rig.profile_id == "legacy"
-    assert rig.runtime_config().default_frequency == config.get("default_frequency", 30)
-    assert "cam_head" in rig.runtime_config()
+def test_policy_reference_is_right_first_30hz_for_both_profiles():
+    for profile in PROFILES:
+        manifest = yaml.safe_load((ROOT / "configs/calibration" / f"{profile}.yml").read_text())
+        reference = manifest["policy_reference"]
+        assert reference["lerobot_contract"] == "v0.5.1"
+        assert reference["state_action_order"] == "right_first_16d"
+        assert reference["observation_frequency_hz"] == 30

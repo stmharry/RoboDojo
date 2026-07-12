@@ -1,0 +1,5 @@
+calibration_required: openarm_wowrobo_v1_1
+decimation: 1
+dt: 0.004166666666666667
+render_interval: 8
+scene: {num_envs: 1, env_spacing: 7}

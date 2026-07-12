@@ -3,7 +3,11 @@
         "arm_dim": [6, 6],
         "ee_dim": [1, 1]
     },
-    "dual_openarm": {
+    "dual_openarm_wowrobo_v1_1": {
+        "arm_dim": [7, 7],
+        "ee_dim": [1, 1]
+    },
+    "dual_openarm_anvil_v2": {
         "arm_dim": [7, 7],
         "ee_dim": [1, 1]
     }

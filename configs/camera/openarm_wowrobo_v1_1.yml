@@ -1,0 +1,5 @@
+calibration_required: openarm_wowrobo_v1_1
+default_frequency: 30
+camera_rig:
+  profile_id: openarm_wowrobo_v1_1
+  cameras: {}

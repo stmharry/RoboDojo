@@ -1,0 +1,5 @@
+calibration_required: openarm_anvil_v2
+default_frequency: 30
+camera_rig:
+  profile_id: openarm_anvil_v2
+  cameras: {}

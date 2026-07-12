@@ -1,17 +1,16 @@
-config_name: openarm
+config_name: openarm_anvil_v2
 layout_config_name: arx_x5
+hardware_calibration: openarm_anvil_v2
 
 config:
-  sim: real_time_30hz
+  sim: openarm_anvil_v2
   scene: default
-  robot: dual_openarm
-  camera: openarm
+  robot: dual_openarm_anvil_v2
+  camera: openarm_anvil_v2
 
 observation:
   collect_freq: 30
-  robot:
-    joint_states: true
-    world_ee_state: true
+  robot: {joint_states: true, world_ee_state: true}
   vision:
     approximate_depth: false
     depth: false

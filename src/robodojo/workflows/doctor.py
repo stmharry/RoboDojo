@@ -9,6 +9,7 @@ import subprocess
 
 import yaml
 
+from robodojo.core.calibration import calibration_name, load_hardware_calibration
 from robodojo.core.models import EnvironmentConfigDocument
 from robodojo.core.paths import RepositoryPaths
 from robodojo.core.storage import assets_root
@@ -31,6 +32,13 @@ def run_doctor(paths: RepositoryPaths, task: str, env_config: str, policy_dir: P
         payload = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
         document = EnvironmentConfigDocument.model_validate({"config": payload.get("config", {})})
         record("environment config", True, str(config_path))
+        calibration = calibration_name(payload)
+        if calibration:
+            try:
+                load_hardware_calibration(paths.environment_configs, calibration)
+                record("hardware calibration", True, calibration)
+            except ValueError as exc:
+                record("hardware calibration", False, str(exc))
         for kind, name in document.config.model_dump().items():
             referenced = paths.environment_configs / kind / f"{name}.yml"
             record(f"{kind} config", referenced.is_file(), str(referenced))

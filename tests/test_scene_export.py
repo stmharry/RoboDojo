@@ -26,7 +26,7 @@ def test_openarm_camera_contract_exposes_large_published_fov_mismatch():
 
 
 def test_completed_export_requires_exact_identity(tmp_path):
-    identity = ExportIdentity("fold_clothes", "openarm", 0, 0, "abc123")
+    identity = ExportIdentity("fold_clothes", "openarm_wowrobo_v1_1", 0, 0, "abc123")
     assert not completed_export_matches(tmp_path, identity)
     (tmp_path / "scene_manifest.json").write_text(
         json.dumps({"complete": True, "identity": identity.to_dict()}), encoding="utf-8"
@@ -34,7 +34,7 @@ def test_completed_export_requires_exact_identity(tmp_path):
     assert completed_export_matches(tmp_path, identity)
     assert not completed_export_matches(
         tmp_path,
-        ExportIdentity("fold_clothes", "openarm", 0, 1, "abc123"),
+        ExportIdentity("fold_clothes", "openarm_wowrobo_v1_1", 0, 1, "abc123"),
     )
 
 
@@ -55,7 +55,7 @@ def test_scene_only_eval_dry_run_bypasses_policy_orchestrator(tmp_path):
             "--policy-env",
             "unused-in-scene-only",
             "--env-cfg",
-            "openarm",
+            "arx_x5",
             "--seed",
             "0",
             "--layout-id",
@@ -107,3 +107,10 @@ def test_export_hook_precedes_rollout():
     export = source.index("export_scene_snapshot(env, export_dir", reset)
     rollout = source.index("env.run_eval()", export)
     assert reset < export < rollout
+
+
+def test_direct_simulator_entrypoint_validates_calibration_before_kit_startup():
+    source = (ROOT / "src/robodojo/sim/evaluation/main.py").read_text(encoding="utf-8")
+    validation = source.index("_validate_hardware_calibration(args_cli.env_cfg_type)")
+    app_launch = source.index("app_launcher = AppLauncher(args_cli)")
+    assert validation < app_launch
