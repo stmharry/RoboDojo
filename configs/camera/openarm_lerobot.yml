@@ -55,24 +55,24 @@ camera_rig:
       mount:
         kind: robot_link
         target: robot0/left_wrist_camera_holder
-        position: [0.0, 0.06693704, 0.00863446]
-        orientation: [171.063067, -44.755820, -83.148832]
+        position: [0.06557645, -0.00138226, 0.00877863]
+        orientation: [179.720489, 13.308171, -90.424283]
         optical_roll_deg: 0.0
-        basis: fitted_link7_registration_from_reference_frames
+        basis: fitted_from_dataset_jaw_landmarks
         hardware:
           enabled: false
           asset: Robots/openarm/left_wrist_camera_holder.usd
           collision: true
           camera_frame: OpticalFrame
-      projection: &wrist_projection
+      projection:
         model: opencvFisheye
         backend: native
-        cx: 640.0
-        cy: 360.0
-        fx: 824.9654
-        fy: 824.9654
-        distortion_coefficients: [0.0, 0.0, 0.0, 0.0]
-        parameter_source: fitted_from_published_diagonal_fov
+        cx: 648.165400
+        cy: 352.171825
+        fx: 822.313665
+        fy: 817.365367
+        distortion_coefficients: [-0.05265260, -0.01620788, -0.00371215, -0.00074605]
+        parameter_source: fitted_from_pinned_dataset_frames
     cam_right_wrist:
       role: right_wrist
       type: openarm_wrist
@@ -81,13 +81,21 @@ camera_rig:
       mount:
         kind: robot_link
         target: robot0/right_wrist_camera_holder
-        position: [0.0, 0.06693704, 0.00863446]
-        orientation: [-148.390963, -28.660921, -96.955035]
+        position: [0.06521671, 0.00083540, 0.00966321]
+        orientation: [178.880380, 14.783219, -89.306700]
         optical_roll_deg: 0.0
-        basis: fitted_link7_registration_from_reference_frames
+        basis: fitted_from_dataset_jaw_landmarks
         hardware:
           enabled: false
           asset: Robots/openarm/right_wrist_camera_holder.usd
           collision: true
           camera_frame: OpticalFrame
-      projection: *wrist_projection
+      projection:
+        model: opencvFisheye
+        backend: native
+        cx: 646.243890
+        cy: 362.091028
+        fx: 810.379361
+        fy: 819.198121
+        distortion_coefficients: [-0.00749399, 0.00515787, 0.00125338, 0.00016383]
+        parameter_source: fitted_from_pinned_dataset_frames

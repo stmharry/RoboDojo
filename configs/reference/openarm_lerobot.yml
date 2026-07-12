@@ -18,9 +18,9 @@ sources:
     revision: ffe34b93c070343042eb9412fbfeffce16139947
 camera_parameters:
   base_intrinsics: fitted_to_published_reference_frames
-  wrist_intrinsics: fitted_from_published_diagonal_fov
+  wrist_intrinsics: fitted_from_pinned_training_dataset_frames
   base_extrinsics: fitted_to_published_reference_frames
-  wrist_extrinsics: fitted_link7_registration_from_published_reference_frames
+  wrist_extrinsics: independent_link7_registration_from_pinned_training_dataset_frames
   distortion_model: published_lens_model_nominal
 initial_state:
   order: [right_arm_7, right_gripper, left_arm_7, left_gripper]

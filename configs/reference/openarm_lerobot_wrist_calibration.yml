@@ -1,0 +1,136 @@
+schema_version: 1
+profile_id: openarm_lerobot
+dataset:
+  repository: https://huggingface.co/datasets/lerobot-data-collection/level2_final_quality3
+  revision: 2e1b2e913cd367d74dc4481736954eed4a051ddc
+  fps: 30
+  state_order: [right_arm_7, right_gripper, left_arm_7, left_gripper]
+  videos:
+    left: videos/observation.images.left_wrist/chunk-000/file-000.mp4
+    right: videos/observation.images.right_wrist/chunk-000/file-000.mp4
+landmark_definition:
+  parent_frame: link7
+  source: generated OpenArm jaw CAD bounds
+  names: [jaw_left_tip_inner, jaw_right_tip_inner, jaw_left_shaft_outer, jaw_right_shaft_outer]
+holder_audit:
+  asset: Robots/openarm/arducam_holder.step
+  optical_frame_registered: false
+  rendered: false
+  reason: generated asset manifest records attachment_anchor_embedded=false; rendering an unregistered holder can intersect the optical origin
+cameras:
+  left:
+    initial_guess:
+      position: [0.066, -0.0015, 0.009]
+      orientation: [180.4, 14.0, -90.7]
+      fx: 820.0
+      fy: 818.0
+      cx: 638.0
+      cy: 358.0
+      distortion: [-0.03, 0.01, 0.0, 0.0]
+    priors:
+      pose_sigma: [0.03, 0.03, 0.03, 8.0, 8.0, 8.0]
+      intrinsic_sigma: [180.0, 180.0, 80.0, 80.0]
+      distortion_sigma: 0.25
+    observations:
+      - frame_file: left_wrist_10.jpg
+        video_time_s: 10
+        global_index: 300
+        split: training
+        sha256: c697b2c1cf24508c3b5a1ca9891c67c8c2f731e7f29a6ae205f3b55c302aeffc
+        state: [25.299406, 6.415011, 14.130511, 93.886482, 6.677295, 38.763283, -45.320362, -1.803198, -16.687773, -12.316385, -17.387196, 104.290382, -11.114253, -7.682714, 40.249554, -1.038205]
+        landmarks:
+          - {name: jaw_left_tip_inner, point_link_m: [0.04957, -0.0135, 0.09851], pixel: [535, 308]}
+          - {name: jaw_right_tip_inner, point_link_m: [0.04957, 0.0135, 0.09851], pixel: [777, 306]}
+          - {name: jaw_left_shaft_outer, point_link_m: [-0.01, -0.0305, 0.13169], pixel: [481, 609]}
+          - {name: jaw_right_shaft_outer, point_link_m: [-0.01, 0.0305, 0.13169], pixel: [827, 605]}
+      - frame_file: left_wrist_100.jpg
+        video_time_s: 100
+        global_index: 3000
+        split: training
+        sha256: d1de5b635a971338ad592ff8d5a261a81864e2b97cf479e19d242f1e80646572
+        state: [-19.529175, 20.381596, 22.501719, 93.711624, 50.893883, 39.244133, -63.090054, -3.442468, 13.540374, -30.173504, -38.216858, 68.663574, -27.463243, -39.9217, 41.954395, -10.436688]
+        landmarks:
+          - {name: jaw_left_tip_inner, point_link_m: [0.04957, -0.0165, 0.09851], pixel: [509, 308]}
+          - {name: jaw_right_tip_inner, point_link_m: [0.04957, 0.0165, 0.09851], pixel: [803, 306]}
+          - {name: jaw_left_shaft_outer, point_link_m: [-0.01, -0.0335, 0.13169], pixel: [465, 608]}
+          - {name: jaw_right_shaft_outer, point_link_m: [-0.01, 0.0335, 0.13169], pixel: [843, 604]}
+      - frame_file: left_wrist_300.jpg
+        video_time_s: 300
+        global_index: 9000
+        split: training
+        sha256: 5ed891d5cd69164ff1ae9628b2b59b0826c06bcee78653b30037485c3cf1dcfa
+        state: [9.540554, 11.463964, 17.037483, 100.880699, 12.360099, 40.074696, -64.379616, -1.125632, -7.92314, -7.791999, -35.878166, 87.591682, 4.644599, -40.380695, 49.12347, -2.743046]
+        landmarks:
+          - {name: jaw_left_tip_inner, point_link_m: [0.04957, -0.014, 0.09851], pixel: [531, 308]}
+          - {name: jaw_right_tip_inner, point_link_m: [0.04957, 0.014, 0.09851], pixel: [781, 306]}
+          - {name: jaw_left_shaft_outer, point_link_m: [-0.01, -0.031, 0.13169], pixel: [479, 609]}
+          - {name: jaw_right_shaft_outer, point_link_m: [-0.01, 0.031, 0.13169], pixel: [830, 605]}
+      - frame_file: left_wrist_600.jpg
+        video_time_s: 600
+        global_index: 18000
+        split: held_out
+        sha256: 462ed4aac5744a51ccadf977ac0b04aa9a8c1d3cc7626c221b7d1c99e88c51fc
+        state: [-14.414651, 13.103235, 36.949154, 103.459824, 50.303745, 39.899841, -68.860283, -39.943554, 7.660857, -8.622562, -46.741062, 100.946274, -26.435968, -39.965412, 66.543449, -35.83445]
+        landmarks:
+          - {name: jaw_left_tip_inner, point_link_m: [0.04957, -0.025, 0.09851], pixel: [436, 310]}
+          - {name: jaw_right_tip_inner, point_link_m: [0.04957, 0.025, 0.09851], pixel: [875, 306]}
+          - {name: jaw_left_shaft_outer, point_link_m: [-0.01, -0.04, 0.13169], pixel: [430, 607]}
+          - {name: jaw_right_shaft_outer, point_link_m: [-0.01, 0.04, 0.13169], pixel: [878, 601]}
+  right:
+    initial_guess:
+      position: [0.065, 0.001, 0.009]
+      orientation: [179.3, 14.5, -89.4]
+      fx: 815.0
+      fy: 821.0
+      cx: 642.0
+      cy: 361.0
+      distortion: [-0.025, 0.008, 0.0, 0.0]
+    priors:
+      pose_sigma: [0.03, 0.03, 0.03, 8.0, 8.0, 8.0]
+      intrinsic_sigma: [180.0, 180.0, 80.0, 80.0]
+      distortion_sigma: 0.25
+    observations:
+      - frame_file: right_wrist_10.jpg
+        video_time_s: 10
+        global_index: 300
+        split: training
+        sha256: d3bc8063e01b72f05a4c80acdbb781dc35c6a00c7584dd7dd6b5cf7c662ba393
+        state: [25.299406, 6.415011, 14.130511, 93.886482, 6.677295, 38.763283, -45.320362, -1.803198, -16.687773, -12.316385, -17.387196, 104.290382, -11.114253, -7.682714, 40.249554, -1.038205]
+        landmarks:
+          - {name: jaw_left_tip_inner, point_link_m: [0.04957, -0.014, 0.09851], pixel: [499, 293]}
+          - {name: jaw_right_tip_inner, point_link_m: [0.04957, 0.014, 0.09851], pixel: [749, 295]}
+          - {name: jaw_left_shaft_outer, point_link_m: [-0.01, -0.031, 0.13169], pixel: [450, 598]}
+          - {name: jaw_right_shaft_outer, point_link_m: [-0.01, 0.031, 0.13169], pixel: [800, 600]}
+      - frame_file: right_wrist_100.jpg
+        video_time_s: 100
+        global_index: 3000
+        split: training
+        sha256: 9ab3e329c3a2f8c32c945fef99db053c4a364548ac6c089949b3aefeeb79e66f
+        state: [-19.529175, 20.381596, 22.501719, 93.711624, 50.893883, 39.244133, -63.090054, -3.442468, 13.540374, -30.173504, -38.216858, 68.663574, -27.463243, -39.9217, 41.954395, -10.436688]
+        landmarks:
+          - {name: jaw_left_tip_inner, point_link_m: [0.04957, -0.018, 0.09851], pixel: [465, 293]}
+          - {name: jaw_right_tip_inner, point_link_m: [0.04957, 0.018, 0.09851], pixel: [784, 295]}
+          - {name: jaw_left_shaft_outer, point_link_m: [-0.01, -0.035, 0.13169], pixel: [429, 597]}
+          - {name: jaw_right_shaft_outer, point_link_m: [-0.01, 0.035, 0.13169], pixel: [822, 600]}
+      - frame_file: right_wrist_300.jpg
+        video_time_s: 300
+        global_index: 9000
+        split: training
+        sha256: 67c6391071942b2ba50806ad8ca5fef1b7cf49b312fe1c9a5ba6e11c6f1700c0
+        state: [9.540554, 11.463964, 17.037483, 100.880699, 12.360099, 40.074696, -64.379616, -1.125632, -7.92314, -7.791999, -35.878166, 87.591682, 4.644599, -40.380695, 49.12347, -2.743046]
+        landmarks:
+          - {name: jaw_left_tip_inner, point_link_m: [0.04957, -0.014, 0.09851], pixel: [499, 293]}
+          - {name: jaw_right_tip_inner, point_link_m: [0.04957, 0.014, 0.09851], pixel: [749, 295]}
+          - {name: jaw_left_shaft_outer, point_link_m: [-0.01, -0.031, 0.13169], pixel: [450, 598]}
+          - {name: jaw_right_shaft_outer, point_link_m: [-0.01, 0.031, 0.13169], pixel: [800, 600]}
+      - frame_file: right_wrist_600.jpg
+        video_time_s: 600
+        global_index: 18000
+        split: held_out
+        sha256: 6329480d68bc6110e6016bac13fe609dc807a1c9a763fd11d6652219c8d13d69
+        state: [-14.414651, 13.103235, 36.949154, 103.459824, 50.303745, 39.899841, -68.860283, -39.943554, 7.660857, -8.622562, -46.741062, 100.946274, -26.435968, -39.965412, 66.543449, -35.83445]
+        landmarks:
+          - {name: jaw_left_tip_inner, point_link_m: [0.04957, -0.025, 0.09851], pixel: [406, 293]}
+          - {name: jaw_right_tip_inner, point_link_m: [0.04957, 0.025, 0.09851], pixel: [843, 297]}
+          - {name: jaw_left_shaft_outer, point_link_m: [-0.01, -0.04, 0.13169], pixel: [402, 595]}
+          - {name: jaw_right_shaft_outer, point_link_m: [-0.01, 0.04, 0.13169], pixel: [849, 598]}

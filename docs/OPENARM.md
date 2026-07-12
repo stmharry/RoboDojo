@@ -25,11 +25,11 @@ The builder pins the OpenArm Isaac Lab source and LeRobot hardware
 modifications, then generates the extended-arm functional twin, enlarged jaws,
 camera holders, and named optical frames.
 
-The generated wrist-camera holder assets remain available, but the camera
-profile does not instantiate their geometry because it occludes the wrist
-views. Both wrist cameras attach directly to link 7 at `[0.02, 0.0, 0.12]`
-with intrinsic XYZ orientation `[180.0, 0.0, -90.0]`. The head-camera holder
-remains enabled.
+The generated wrist-camera holder assets remain available as non-rendered
+references. Their generated attachment anchors are not registered to an
+optical frame, so the profile does not instantiate them around a camera. Each
+wrist camera instead uses its own rigid camera-to-link-7 transform and native
+OpenCV fisheye parameters fitted from pinned training-video jaw landmarks.
 
 ```bash
 uv run --extra sim --locked robodojo assets build-openarm
@@ -39,6 +39,32 @@ Generated assets are written under `.robodojo/assets/Robots/openarm/` by
 default and remain untracked. Authoritative source revisions, checksums, build
 parameters, and the generated robot configuration live in
 `configs/tooling/openarm.yml`.
+
+## Reproduce wrist calibration
+
+The calibration manifest stores only the pinned video locations, frame and
+state identifiers, checksums, and named 2-D/3-D jaw landmarks. Refit both
+cameras and emit training/held-out reprojection metrics with:
+
+```bash
+uv run --extra sim --locked python \
+  scripts/fit_openarm_lerobot_wrist_cameras.py --fetch \
+  --report wrist_calibration_report.json
+```
+
+For matched-state visual evidence, set the internal developer output variable
+on a scene-only evaluation. This drives the simulator through the manifest's
+right-first 16-D states and writes upstream/rendered pairs; it does not add a
+public launcher argument.
+
+```bash
+ROBODOJO_MATCHED_REPLAY_DIR=/tmp/openarm-matched-replay \
+  OMNI_KIT_ACCEPT_EULA=YES uv run --extra sim --locked robodojo eval \
+  --policy-dir XPolicyLab/policy/LeRobot_Pi05_OpenArm \
+  --task fold_clothes --ckpt folding_final --env-cfg openarm_lerobot \
+  --action-type joint --seed 0 --layout-id 0 --env-gpu 0 \
+  --policy-env lerobot-pi05 --export-scene-only
+```
 
 ## Install the folding policy
 

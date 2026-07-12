@@ -411,6 +411,17 @@ def main():
         bad_envs = None
         try:
             env.reset(seed=env.env_seeds)
+            matched_replay_dir = os.environ.get("ROBODOJO_MATCHED_REPLAY_DIR")
+            if matched_replay_dir:
+                from robodojo.core.paths import discover_repository_root
+                from robodojo.sim.calibration.matched_replay import run_matched_state_replay
+
+                report = run_matched_state_replay(
+                    env,
+                    discover_repository_root() / "configs/reference/openarm_lerobot_wrist_calibration.yml",
+                    Path(matched_replay_dir),
+                )
+                logger.info("[matched-replay] wrote %s", report)
             if export_pending:
                 from robodojo.sim.scene_export.exporter import export_scene_snapshot
 
