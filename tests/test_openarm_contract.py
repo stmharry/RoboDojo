@@ -46,8 +46,7 @@ def test_openarm_uses_the_canonical_dyna_camera_rig():
     assert left.sensor["stream_resolution"] == right.sensor["stream_resolution"] == [1280, 720]
     assert left.mount["target"] == "robot0/left_wrist_camera_holder"
     assert right.mount["target"] == "robot0/right_wrist_camera_holder"
-    assert left.mount["position"] == [0.05, 0.0, 0.12]
-    assert right.mount["position"] == [0.035, 0.0, 0.12]
+    assert left.mount["position"] == right.mount["position"] == [0.02, 0.0, 0.12]
     assert left.mount["orientation"] == right.mount["orientation"] == [180.0, 0.0, -90.0]
 
 
@@ -57,7 +56,11 @@ def test_openarm_asset_inputs_and_mounts_are_pinned():
 
     assert sources["openarm_isaac_lab"]["revision"] == "bad82e23716e6941c2de78ccb978f57c78b37734"
     assert sources["hardware_modifications"]["revision"] == "ffe34b93c070343042eb9412fbfeffce16139947"
+    hardware_files = sources["hardware_modifications"]["files"]
+    assert "jaw_normal.stl" in hardware_files
+    assert "jaw_anyskin.stl" not in hardware_files
     hashes = sources["hardware_modifications"]["sha256"]
+    assert hashes["jaw_normal.stl"] == "6ae41c9fbba411333954b8f4d1c6867b61fad1be7d7b936899c27d43410a2137"
     assert hashes["head camera holder v4.stl"] == "959ae5e0ad6e0870465e361df30db3d1bbdeebb9ba8001274c3ce9e1712f03d3"
     assert hashes["arducam_holder.stl"] == "1d31e0ac9ac2b118fb0925dc45bb3736dff087a9e6c2f9c27e64b24ee488074c"
     assert robot_config["left"]["camera_mount_links"]["left_wrist_camera_holder"] == "openarm_left_link7"

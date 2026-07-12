@@ -27,6 +27,19 @@ wrist cameras directly to their link-7 targets at the configured optical poses;
 it does not instantiate the wrist holder visuals or collisions. The head-camera
 holder remains enabled.
 
+Both wrist optical frames use the same link-7-local position
+`[0.02, 0.0, 0.12]` and intrinsic XYZ orientation
+`[180.0, 0.0, -90.0]`. The shared 20 mm offset was selected by comparing
+frames 0, 10, and 30 against revision
+`2e1b2e913cd367d74dc4481736954eed4a051ddc` of the
+[folding reference dataset](https://huggingface.co/datasets/lerobot-data-collection/level2_final_quality3).
+It keeps both grippers entering from the bottom despite the different left and
+right gripper openings in the reference state. Keeping the local Y coordinate
+at zero is intentional: mirrored lateral offsets move each lens toward one jaw
+and produce less symmetric occlusion. The reference imagery is used only as a
+visual validation oracle; camera intrinsics, robot state, and policy interfaces
+remain unchanged.
+
 ```bash
 uv run --extra sim --locked robodojo assets build-openarm
 ```
