@@ -103,10 +103,13 @@ class RobotManager:
             if robot.robot_type == "arm":
                 joint_list = self.get_joint(robot=robot)
                 if robot.ee_type == "gripper":
-                    gripper_scale = robot.gripper_scale
-                    val = gripper_scale[1] if robot.gripper_move["sign"] == 1 else gripper_scale[0]
-                    mimic = robot.gripper_move["mimic"]
-                    gripper_list = [[val, val * mimic[1] + mimic[2]] for _ in range(len(joint_list))]
+                    if getattr(robot, "physical_gripper_interface", False):
+                        gripper_list = self.get_end_effector_real_val(robot=robot)
+                    else:
+                        gripper_scale = robot.gripper_scale
+                        val = gripper_scale[1] if robot.gripper_move["sign"] == 1 else gripper_scale[0]
+                        mimic = robot.gripper_move["mimic"]
+                        gripper_list = [[val, val * mimic[1] + mimic[2]] for _ in range(len(joint_list))]
                 elif robot.ee_type == "hand":
                     gripper_list = self.get_end_effector_real_val(robot=robot)
                 for env_idx in env_idx_list:

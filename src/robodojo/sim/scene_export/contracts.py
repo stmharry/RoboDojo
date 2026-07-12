@@ -34,6 +34,41 @@ def calculate_fov_degrees(width: int, height: int, fx: float, fy: float) -> dict
     }
 
 
+def calculate_fisheye_fov_degrees(
+    width: int,
+    height: int,
+    fx: float,
+    fy: float,
+    coefficients: list[float] | tuple[float, ...],
+) -> dict[str, float]:
+    """Calculate OpenCV equidistant fisheye FOV from output intrinsics."""
+    if width <= 0 or height <= 0 or fx <= 0 or fy <= 0:
+        raise ValueError("resolution and focal lengths must be positive")
+    if len(coefficients) != 4:
+        raise ValueError("fisheye distortion requires four coefficients")
+
+    def invert(theta_distorted: float) -> float:
+        theta = theta_distorted
+        for _ in range(10):
+            theta2 = theta * theta
+            powers = (theta2, theta2**2, theta2**3, theta2**4)
+            scale = 1.0 + sum(k * power for k, power in zip(coefficients, powers, strict=True))
+            derivative = 1.0 + sum(
+                (2 * index + 1) * k * power
+                for index, (k, power) in enumerate(zip(coefficients, powers, strict=True), start=1)
+            )
+            theta -= (theta * scale - theta_distorted) / derivative
+        return theta
+
+    half_x = width / (2.0 * fx)
+    half_y = height / (2.0 * fy)
+    return {
+        "horizontal": math.degrees(2.0 * invert(half_x)),
+        "vertical": math.degrees(2.0 * invert(half_y)),
+        "diagonal": math.degrees(2.0 * invert(math.hypot(half_x, half_y))),
+    }
+
+
 def completed_export_matches(output_dir: str | Path, identity: ExportIdentity) -> bool:
     """Return whether an atomic export already completed for this exact scene."""
     manifest_path = Path(output_dir) / "scene_manifest.json"

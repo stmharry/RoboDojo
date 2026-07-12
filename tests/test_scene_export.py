@@ -4,7 +4,12 @@ import subprocess
 
 import pytest
 
-from robodojo.sim.scene_export.contracts import ExportIdentity, calculate_fov_degrees, completed_export_matches
+from robodojo.sim.scene_export.contracts import (
+    ExportIdentity,
+    calculate_fisheye_fov_degrees,
+    calculate_fov_degrees,
+    completed_export_matches,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -18,11 +23,11 @@ def test_camera_fov_contract():
         calculate_fov_degrees(640, 480, 0, 320)
 
 
-def test_openarm_camera_contract_exposes_large_published_fov_mismatch():
-    base = calculate_fov_degrees(640, 480, 316.1146, 316.1146)
-    wrist = calculate_fov_degrees(1280, 720, 824.9654, 824.9654)
-    assert 145.0 - base["diagonal"] > 40.0
-    assert 102.0 - wrist["diagonal"] > 18.0
+def test_openarm_fisheye_intrinsics_match_fitted_and_published_diagonal_fov():
+    base = calculate_fisheye_fov_degrees(640, 480, 416.7350, 416.7350, [0.0] * 4)
+    wrist = calculate_fisheye_fov_degrees(1280, 720, 824.9654, 824.9654, [0.0] * 4)
+    assert base["diagonal"] == pytest.approx(110.0, abs=0.1)
+    assert wrist["diagonal"] == pytest.approx(102.0, abs=0.1)
 
 
 def test_completed_export_requires_exact_identity(tmp_path):

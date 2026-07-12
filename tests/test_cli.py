@@ -85,7 +85,9 @@ def test_server_dry_run_validates_and_builds_adapter_argv(tmp_path):
     assert command[-2:] == ["19000", "0.0.0.0"]
 
 
-@pytest.mark.parametrize("profile", ["openarm_wowrobo_v1_1", "openarm_anvil_v2"])
+@pytest.mark.parametrize(
+    "profile", ["openarm_lerobot", "openarm_wowrobo_v1_1", "openarm_anvil_v2"]
+)
 def test_openarm_policy_keeps_its_internal_xpolicylab_environment_name(tmp_path, profile):
     policy = tmp_path / "LeRobot_Pi05_OpenArm"
     policy.mkdir()

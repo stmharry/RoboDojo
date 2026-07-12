@@ -1,0 +1,18 @@
+config_name: openarm_lerobot
+layout_config_name: arx_x5
+
+config:
+  sim: real_time_30hz
+  scene: default
+  robot: dual_openarm_lerobot
+  camera: openarm_lerobot
+
+observation:
+  collect_freq: 30
+  robot: {joint_states: true, world_ee_state: true}
+  vision:
+    approximate_depth: false
+    depth: false
+    intrinsic_matrix: false
+    extrinsic_matrix: false
+    shape: true

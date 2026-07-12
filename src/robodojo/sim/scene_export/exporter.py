@@ -21,7 +21,12 @@ import yaml
 
 from robodojo.core.storage import assets_root
 from robodojo.sim.environment.global_configs import ROOT_DIR
-from robodojo.sim.scene_export.contracts import ExportIdentity, calculate_fov_degrees, completed_export_matches
+from robodojo.sim.scene_export.contracts import (
+    ExportIdentity,
+    calculate_fisheye_fov_degrees,
+    calculate_fov_degrees,
+    completed_export_matches,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -107,9 +112,15 @@ def _camera_state(env, stage: Usd.Stage) -> list[dict[str, Any]]:
         fy = float(spec.projection.get("fy", fx))
         cx = float(spec.projection.get("cx", width / 2.0))
         cy = float(spec.projection.get("cy", height / 2.0))
-        effective_fov = calculate_fov_degrees(width, height, fx, fy)
-        published_diagonal_fov = float(spec.sensor["diagonal_fov_deg"])
         coefficients = _json_value(spec.projection.get("distortion_coefficients", []))
+        if spec.projection.get("model") == "opencvFisheye":
+            effective_fov = calculate_fisheye_fov_degrees(width, height, fx, fy, coefficients)
+        else:
+            effective_fov = calculate_fov_degrees(width, height, fx, fy)
+        published_diagonal_fov = float(spec.sensor["diagonal_fov_deg"])
+        fitted_diagonal_fov = float(
+            spec.projection.get("fitted_diagonal_fov_deg", published_diagonal_fov)
+        )
         parent = stage.GetPrimAtPath(xform_path).GetParent()
         backing = {}
         if usd_camera:
@@ -138,7 +149,8 @@ def _camera_state(env, stage: Usd.Stage) -> list[dict[str, Any]]:
                 "effective_intrinsic_matrix": [[fx, 0.0, cx], [0.0, fy, cy], [0.0, 0.0, 1.0]],
                 "effective_fov_degrees": effective_fov,
                 "published_diagonal_fov_degrees": published_diagonal_fov,
-                "diagonal_fov_error_degrees": effective_fov["diagonal"] - published_diagonal_fov,
+                "fitted_diagonal_fov_degrees": fitted_diagonal_fov,
+                "diagonal_fov_error_degrees": effective_fov["diagonal"] - fitted_diagonal_fov,
                 "projection_model": spec.projection.get("model", "pinhole"),
                 "projection_backend": spec.projection.get("backend", "native"),
                 "distortion_coefficients": coefficients,
@@ -442,10 +454,21 @@ def _runtime_versions() -> dict[str, str | None]:
 
 def _source_revisions(repo_root: Path) -> dict[str, Any]:
     tracked_manifest = repo_root / "configs/tooling/openarm.yml"
+    lerobot_reference = repo_root / "configs/reference/openarm_lerobot.yml"
     generated_manifest = assets_root() / "Robots/openarm/manifest.json"
-    result = {"tracked_openarm_manifest": None, "generated_openarm_manifest": None}
+    result = {
+        "tracked_openarm_manifest": None,
+        "generated_openarm_manifest": None,
+        "openarm_lerobot_reference": None,
+    }
     try:
         result["tracked_openarm_manifest"] = yaml.safe_load(tracked_manifest.read_text(encoding="utf-8"))
+    except (OSError, ValueError, yaml.YAMLError):
+        pass
+    try:
+        result["openarm_lerobot_reference"] = yaml.safe_load(
+            lerobot_reference.read_text(encoding="utf-8")
+        )
     except (OSError, ValueError, yaml.YAMLError):
         pass
     try:

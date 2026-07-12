@@ -3,6 +3,10 @@
         "arm_dim": [6, 6],
         "ee_dim": [1, 1]
     },
+    "dual_openarm_lerobot": {
+        "arm_dim": [7, 7],
+        "ee_dim": [1, 1]
+    },
     "dual_openarm_wowrobo_v1_1": {
         "arm_dim": [7, 7],
         "ee_dim": [1, 1]

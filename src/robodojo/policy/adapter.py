@@ -12,6 +12,7 @@ from robodojo.core.storage import checkpoint_label
 logger = logging.getLogger(__name__)
 
 POLICY_ENVIRONMENT_NAMES = {
+    ("LeRobot_Pi05_OpenArm", "openarm_lerobot"): "openarm_cloth_folding",
     ("LeRobot_Pi05_OpenArm", "openarm_wowrobo_v1_1"): "openarm_cloth_folding",
     ("LeRobot_Pi05_OpenArm", "openarm_anvil_v2"): "openarm_cloth_folding",
 }

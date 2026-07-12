@@ -1,0 +1,30 @@
+schema_version: 1
+profile_id: openarm_lerobot
+sources:
+  folding_project:
+    repository: https://huggingface.co/spaces/lerobot/robot-folding
+    revision: 170e1d479579e0b4be1afe0c99ebf868b24803db
+    reference_images:
+      cam_base.jpg: 1fbd6ffa678606b17a4570e09857a04019d0f997a27ec845a53bf5a634e34488
+      cam_left_wrist.jpg: 0ee381ba6a9536630049cbd52ea81e114a158f5a80585639beb1a747bbee3ab3
+      cam_right_wrist.jpg: d9421480beecccb408e159fbacceac5f61bd3e880575a94b1059ec2185c871e1
+  training_dataset:
+    repository: https://huggingface.co/datasets/lerobot-data-collection/level2_final_quality3
+    revision: 2e1b2e913cd367d74dc4481736954eed4a051ddc
+    robot_type: openarms_follower
+    fps: 30
+  hardware_modifications:
+    repository: https://huggingface.co/datasets/lerobot/openarms-hardware-modifications
+    revision: ffe34b93c070343042eb9412fbfeffce16139947
+camera_parameters:
+  base_intrinsics: fitted_to_published_reference_frames
+  wrist_intrinsics: fitted_from_published_diagonal_fov
+  base_extrinsics: fitted_to_published_reference_frames
+  wrist_extrinsics: fitted_link7_registration_from_published_reference_frames
+  distortion_model: published_lens_model_nominal
+initial_state:
+  order: [right_arm_7, right_gripper, left_arm_7, left_gripper]
+  units: degrees
+  values: [-6.546153, -2.065481, 28.796516, 20.818735, -23.813135, 20.294168, -0.666637, -11.551393, 3.945178, -0.972634, -4.163747, 2.983472, 7.507858, -7.048863, -8.338422, -26.567110]
+  simulator_max_abs_tolerance_deg: 0.01
+  physical_gripper_joint_seed_m: {right: 0.00782, left: 0.01798}

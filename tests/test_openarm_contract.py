@@ -1,3 +1,4 @@
+import ast
 import json
 from pathlib import Path
 
@@ -5,6 +6,7 @@ import pytest
 import yaml
 
 from robodojo.core.calibration import load_hardware_calibration
+from robodojo.sim.environment.camera_manager.rig_spec import normalize_camera_rig
 
 ROOT = Path(__file__).resolve().parents[1]
 PROFILES = ("openarm_wowrobo_v1_1", "openarm_anvil_v2")
@@ -29,6 +31,93 @@ def test_hardware_profiles_share_only_upstream_contracts(profile):
     assert env_cfg["observation"]["collect_freq"] == 30
     assert 1.0 / (sim_cfg["dt"] * 30) == 8.0
     assert sum(robot_info["arm_dim"]) + sum(robot_info["ee_dim"]) == 16
+
+
+def test_lerobot_profile_is_runnable_and_uses_standard_scene_contracts():
+    env_cfg = yaml.safe_load((ROOT / "configs/openarm_lerobot.yml").read_text())
+    robot_info = json.loads((ROOT / "configs/robot/_robot_info.json").read_text())[
+        "dual_openarm_lerobot"
+    ]
+    assert env_cfg["config"] == {
+        "sim": "real_time_30hz",
+        "scene": "default",
+        "robot": "dual_openarm_lerobot",
+        "camera": "openarm_lerobot",
+    }
+    assert env_cfg["layout_config_name"] == "arx_x5"
+    assert "hardware_calibration" not in env_cfg
+    assert env_cfg["observation"]["collect_freq"] == 30
+    assert sum(robot_info["arm_dim"]) + sum(robot_info["ee_dim"]) == 16
+
+
+def test_lerobot_camera_contract_matches_published_project():
+    config = yaml.safe_load((ROOT / "configs/camera/openarm_lerobot.yml").read_text())
+    rig = normalize_camera_rig(config)
+    assert rig.profile_id == "openarm_lerobot"
+    assert [camera.observation_key for camera in rig.cameras] == [
+        "cam_head",
+        "cam_left_wrist",
+        "cam_right_wrist",
+    ]
+    base, left, right = rig.cameras
+    assert (base.sensor["vendor"], base.sensor["stream_resolution"], base.sensor["fps"]) == (
+        "Fafeicy",
+        [640, 480],
+        30,
+    )
+    assert base.projection["backend"] == "native"
+    assert base.projection["parameter_source"] == "fitted_to_published_reference_frames"
+    assert base.sensor["diagonal_fov_deg"] == 145.0
+    assert base.projection["fitted_diagonal_fov_deg"] == 110.0
+    assert base.mount["kind"] == "world"
+    assert base.mount["hardware"]["enabled"] is False
+    assert left.mount["basis"] == right.mount["basis"] == (
+        "fitted_link7_registration_from_reference_frames"
+    )
+    assert left.mount["orientation"] == [171.063067, -44.755820, -83.148832]
+    assert right.mount["orientation"] == [-148.390963, -28.660921, -96.955035]
+    assert left.sensor["vendor"] == right.sensor["vendor"] == "Arducam"
+    assert left.sensor["stream_resolution"] == right.sensor["stream_resolution"] == [1280, 720]
+    assert left.sensor["fps"] == right.sensor["fps"] == 30
+    assert left.projection["backend"] == right.projection["backend"] == "native"
+
+
+def test_lerobot_reference_sources_are_pinned():
+    reference = yaml.safe_load((ROOT / "configs/reference/openarm_lerobot.yml").read_text())
+    assert reference["sources"]["training_dataset"]["revision"] == (
+        "2e1b2e913cd367d74dc4481736954eed4a051ddc"
+    )
+    assert reference["sources"]["folding_project"]["revision"] == (
+        "170e1d479579e0b4be1afe0c99ebf868b24803db"
+    )
+    assert reference["sources"]["training_dataset"]["robot_type"] == "openarms_follower"
+    assert set(reference["sources"]["folding_project"]["reference_images"]) == {
+        "cam_base.jpg",
+        "cam_left_wrist.jpg",
+        "cam_right_wrist.jpg",
+    }
+
+
+def test_lerobot_initial_state_is_right_first_and_seeds_the_simulator_pose():
+    reference = yaml.safe_load((ROOT / "configs/reference/openarm_lerobot.yml").read_text())
+    initial = reference["initial_state"]
+    assert initial["order"] == ["right_arm_7", "right_gripper", "left_arm_7", "left_gripper"]
+    assert len(initial["values"]) == 16
+    assert initial["simulator_max_abs_tolerance_deg"] == 0.01
+
+    source = ast.parse(
+        (ROOT / "src/robodojo/sim/environment/robot_manager/robot_config/openarm.py").read_text()
+    )
+    assignments = {
+        node.targets[0].id: ast.literal_eval(node.value)
+        for node in ast.walk(source)
+        if isinstance(node, ast.Assign)
+        and len(node.targets) == 1
+        and isinstance(node.targets[0], ast.Name)
+        and node.targets[0].id in {"right_deg", "left_deg"}
+    }
+    assert assignments["right_deg"] == pytest.approx(initial["values"][:7], abs=0.001)
+    assert assignments["left_deg"] == pytest.approx(initial["values"][8:15], abs=0.001)
 
 
 def test_ambiguous_and_cloth_specific_profiles_are_removed():
