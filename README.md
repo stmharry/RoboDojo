@@ -81,7 +81,7 @@ After setup, run every native command through the lockfile:
 
 ```bash
 uv run --extra sim --locked robodojo doctor --skip-policy
-uv run --extra sim --locked robodojo tasks
+uv run --locked robodojo tasks
 ```
 
 The simulator environment is always the repository's `.venv`. Policy servers

@@ -9,9 +9,11 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
 UV ?= uv
-UV_RUN ?= $(UV) run --extra sim --locked
-ROBODOJO ?= $(UV_RUN) robodojo
-BASE_CLI ?= $(UV) run --locked robodojo
+# Keep lightweight workflows on the base environment; simulator workflows opt
+# into the large `sim` dependency extra explicitly.
+UV_RUN_SIM ?= $(UV) run --extra sim --locked
+ROBODOJO_BASE ?= $(UV) run --locked robodojo
+ROBODOJO_SIM ?= $(UV_RUN_SIM) robodojo
 
 DATASET ?= RoboDojo
 TASK ?= stack_bowls
@@ -64,55 +66,55 @@ help: ## Show targets and common configuration variables
 	@printf '\nTASK=%s ENV_CFG=%s SEED=%s EVAL_NUM=%s\n' "$(TASK)" "$(ENV_CFG)" "$(SEED)" "$(EVAL_NUM)"
 
 tasks: ## List canonical tasks
-	$(BASE_CLI) tasks $(ARGS)
+	$(ROBODOJO_BASE) tasks $(ARGS)
 tasks-check: ## Validate task code/config pairs
-	$(BASE_CLI) tasks --check $(ARGS)
+	$(ROBODOJO_BASE) tasks --check $(ARGS)
 install: ## Install system dependencies, submodules, and simulator environment
-	$(BASE_CLI) install $(ARGS)
+	$(ROBODOJO_BASE) install $(ARGS)
 sync: ## Synchronize the locked simulator environment
 	$(UV) sync --extra sim --locked $(ARGS)
 assets: ## Download benchmark assets
-	$(BASE_CLI) assets download $(ARGS)
+	$(ROBODOJO_BASE) assets download $(ARGS)
 data-list: ## List dataset formats
-	$(BASE_CLI) data list
+	$(ROBODOJO_BASE) data list
 data: ## Download DATA_TYPE
 	$(call require,DATA_TYPE)
-	$(BASE_CLI) data download "$(DATA_TYPE)" $(ARGS)
+	$(ROBODOJO_BASE) data download "$(DATA_TYPE)" $(ARGS)
 
 lint: ## Run Ruff lint checks
-	$(UV_RUN) ruff check . $(ARGS)
+	$(UV_RUN_SIM) ruff check . $(ARGS)
 lint-fix: ## Apply Ruff safe fixes
-	$(UV_RUN) ruff check --fix . $(ARGS)
+	$(UV_RUN_SIM) ruff check --fix . $(ARGS)
 format: ## Format Python code
-	$(UV_RUN) ruff format . $(ARGS)
+	$(UV_RUN_SIM) ruff format . $(ARGS)
 format-check: ## Check Python formatting
-	$(UV_RUN) ruff format --check . $(ARGS)
+	$(UV_RUN_SIM) ruff format --check . $(ARGS)
 test: ## Run tests
-	$(UV_RUN) pytest $(ARGS)
+	$(UV_RUN_SIM) pytest $(ARGS)
 pre-commit: ## Run all pre-commit hooks
-	$(UV_RUN) pre-commit run --all-files $(ARGS)
+	$(UV_RUN_SIM) pre-commit run --all-files $(ARGS)
 check: lint format-check test tasks-check ## Run all non-mutating checks
 
 doctor: ## Validate installation and configuration
-	$(BASE_CLI) doctor --task "$(TASK)" --env-cfg "$(ENV_CFG)" \
+	$(ROBODOJO_SIM) doctor --task "$(TASK)" --env-cfg "$(ENV_CFG)" \
 		$(if $(strip $(POLICY_DIR)),--policy-dir "$(POLICY_DIR)",--skip-policy) $(ARGS)
 eval: ## Run local server + simulator evaluation
 	$(call require,POLICY_DIR)$(call require,POLICY_ENV)$(call require,CKPT)
-	$(ROBODOJO) eval $(EVAL_FLAGS) $(ARGS)
+	$(ROBODOJO_SIM) eval $(EVAL_FLAGS) $(ARGS)
 eval-dry-run: ## Print resolved local evaluation commands
 	$(call require,POLICY_DIR)$(call require,POLICY_ENV)$(call require,CKPT)
-	$(ROBODOJO) eval $(EVAL_FLAGS) --dry-run $(ARGS)
+	$(ROBODOJO_SIM) eval $(EVAL_FLAGS) --dry-run $(ARGS)
 server: ## Start only the policy server
 	$(call require,POLICY_DIR)$(call require,POLICY_ENV)$(call require,CKPT)
-	$(BASE_CLI) server $(POLICY_FLAGS) --bind-host "$(BIND_HOST)" \
+	$(ROBODOJO_BASE) server $(POLICY_FLAGS) --bind-host "$(BIND_HOST)" \
 		$(if $(strip $(POLICY_PORT)),--policy-port "$(POLICY_PORT)") $(ARGS)
 server-dry-run: ## Print the resolved server command
 	$(call require,POLICY_DIR)$(call require,POLICY_ENV)$(call require,CKPT)
-	$(BASE_CLI) server $(POLICY_FLAGS) --bind-host "$(BIND_HOST)" \
+	$(ROBODOJO_BASE) server $(POLICY_FLAGS) --bind-host "$(BIND_HOST)" \
 		$(if $(strip $(POLICY_PORT)),--policy-port "$(POLICY_PORT)") --dry-run $(ARGS)
 client: ## Run simulator client against an external server
 	$(call require,POLICY_PORT)$(call require,CKPT)
-	$(ROBODOJO) client --task "$(TASK)" $(if $(strip $(POLICY_DIR)),--policy-dir "$(POLICY_DIR)",--policy-name "$(POLICY_NAME)") \
+	$(ROBODOJO_SIM) client --task "$(TASK)" $(if $(strip $(POLICY_DIR)),--policy-dir "$(POLICY_DIR)",--policy-name "$(POLICY_NAME)") \
 		--policy-host "$(POLICY_HOST)" --policy-port "$(POLICY_PORT)" --ckpt "$(CKPT)" \
 		--env-cfg "$(ENV_CFG)" --action-type "$(ACTION_TYPE)" --seed "$(SEED)" \
 		--env-gpu "$(ENV_GPU)" --eval-num "$(EVAL_NUM)" $(ARGS)
@@ -120,48 +122,48 @@ client-dry-run: ## Print the resolved client command
 	$(MAKE) client ARGS="--dry-run $(ARGS)"
 smoke: ## Run selected/all tasks with one episode
 	$(call require,POLICY_DIR)$(call require,POLICY_ENV)$(call require,CKPT)
-	$(ROBODOJO) smoke --policy-dir "$(POLICY_DIR)" --ckpt "$(CKPT)" --policy-env "$(POLICY_ENV)" \
+	$(ROBODOJO_SIM) smoke --policy-dir "$(POLICY_DIR)" --ckpt "$(CKPT)" --policy-env "$(POLICY_ENV)" \
 		--env-cfg "$(ENV_CFG)" --action-type "$(ACTION_TYPE)" --seed "$(SEED)" \
 		--policy-gpu "$(POLICY_GPU)" --env-gpu "$(ENV_GPU)" $(if $(strip $(ONLY)),--only "$(ONLY)") $(ARGS)
 smoke-dry-run: ## Dry-run a smoke sweep
 	$(MAKE) smoke ARGS="--dry-run $(ARGS)"
 benchmark: ## Run a benchmark sweep
 	$(call require,POLICY_DIR)$(call require,POLICY_ENV)$(call require,CKPT)
-	$(ROBODOJO) benchmark --policy-dir "$(POLICY_DIR)" --ckpt "$(CKPT)" --policy-env "$(POLICY_ENV)" \
+	$(ROBODOJO_SIM) benchmark --policy-dir "$(POLICY_DIR)" --ckpt "$(CKPT)" --policy-env "$(POLICY_ENV)" \
 		--eval-num "$(EVAL_NUM)" --env-cfg "$(ENV_CFG)" --action-type "$(ACTION_TYPE)" \
 		--seed "$(SEED)" --policy-gpu "$(POLICY_GPU)" --env-gpu "$(ENV_GPU)" \
 		$(if $(strip $(ONLY)),--only "$(ONLY)") $(ARGS)
 benchmark-dry-run: ## Dry-run a benchmark sweep
 	$(MAKE) benchmark ARGS="--dry-run $(ARGS)"
 summarize: ## Aggregate results into Markdown
-	ROBODOJO_EVAL_ROOT="$(EVAL_ROOT)" $(BASE_CLI) summarize $(ARGS)
+	ROBODOJO_EVAL_ROOT="$(EVAL_ROOT)" $(ROBODOJO_BASE) summarize $(ARGS)
 
 storage-status: ## Check storage configuration
-	$(BASE_CLI) storage status $(ARGS)
+	$(ROBODOJO_BASE) storage status $(ARGS)
 storage-doctor: ## Validate storage configuration
-	$(BASE_CLI) storage doctor $(ARGS)
+	$(ROBODOJO_BASE) storage doctor $(ARGS)
 storage-publish: ## Publish STORAGE_SOURCE to STORAGE_RELATIVE
 	$(call require,STORAGE_SOURCE)$(call require,STORAGE_RELATIVE)
-	$(BASE_CLI) storage publish "$(STORAGE_SOURCE)" "$(STORAGE_RELATIVE)" $(ARGS)
+	$(ROBODOJO_BASE) storage publish "$(STORAGE_SOURCE)" "$(STORAGE_RELATIVE)" $(ARGS)
 storage-publish-dry-run: ## Preview storage publication
 	$(MAKE) storage-publish ARGS="--dry-run $(ARGS)"
 storage-hydrate: ## Hydrate and verify a payload
 	$(call require,STORAGE_SOURCE)$(call require,STORAGE_DESTINATION)
-	$(BASE_CLI) storage hydrate "$(STORAGE_SOURCE)" "$(STORAGE_DESTINATION)" $(ARGS)
+	$(ROBODOJO_BASE) storage hydrate "$(STORAGE_SOURCE)" "$(STORAGE_DESTINATION)" $(ARGS)
 storage-link: ## Link a durable payload locally
 	$(call require,STORAGE_KIND)$(call require,STORAGE_DESTINATION)
-	$(BASE_CLI) storage link "$(STORAGE_KIND)" "$(STORAGE_DESTINATION)" \
+	$(ROBODOJO_BASE) storage link "$(STORAGE_KIND)" "$(STORAGE_DESTINATION)" \
 		$(if $(strip $(STORAGE_POLICY)),--policy "$(STORAGE_POLICY)") \
 		$(if $(strip $(STORAGE_CHECKPOINT)),--checkpoint "$(STORAGE_CHECKPOINT)") $(ARGS)
 
 docker-install: ## Install Docker and NVIDIA runtime
-	$(BASE_CLI) docker install $(ARGS)
+	$(ROBODOJO_BASE) docker install $(ARGS)
 docker-build: ## Build simulator image
-	$(BASE_CLI) docker build --image "$(IMAGE)" $(ARGS)
+	$(ROBODOJO_BASE) docker build --image "$(IMAGE)" $(ARGS)
 docker-smoke: ## Run Docker GPU smoke test
 	$(call require,POLICY_PORT)
-	$(BASE_CLI) docker smoke --image "$(IMAGE)" --policy-port "$(POLICY_PORT)" $(ARGS)
+	$(ROBODOJO_BASE) docker smoke --image "$(IMAGE)" --policy-port "$(POLICY_PORT)" $(ARGS)
 docker-monitor: ## Monitor Docker smoke logs
-	$(BASE_CLI) docker monitor $(ARGS)
+	$(ROBODOJO_BASE) docker monitor $(ARGS)
 docker-clean: ## Clean Docker smoke state
-	$(BASE_CLI) docker clean $(ARGS)
+	$(ROBODOJO_BASE) docker clean $(ARGS)
