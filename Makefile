@@ -14,6 +14,7 @@ UV ?= uv
 UV_RUN_SIM ?= $(UV) run --extra sim --locked
 ROBODOJO_BASE ?= $(UV) run --locked robodojo
 ROBODOJO_SIM ?= $(UV_RUN_SIM) robodojo
+OMNI_KIT_ACCEPT_EULA ?= yes
 
 DATASET ?= RoboDojo
 TASK ?= stack_bowls
