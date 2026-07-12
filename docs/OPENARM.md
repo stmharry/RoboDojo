@@ -73,7 +73,3 @@ OMNI_KIT_ACCEPT_EULA=YES uv run --extra sim --locked robodojo eval \
 
 The default export is `scene_snapshot/` inside the evaluation run directory.
 Use `--export-scene-dir PATH` to select another ignored artifact directory.
-
-For a transport and camera smoke test without checkpoint weights, set
-`ROBODOJO_OPENARM_ZERO_ACTION=1` and optionally limit the rollout with
-`ROBODOJO_OPENARM_SMOKE_STEPS`.

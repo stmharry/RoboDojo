@@ -9,6 +9,20 @@ import socket
 import subprocess
 import time
 
+_INHERITED_ENV_DENYLIST = frozenset(
+    {
+        "ROBODOJO_OPENARM_ZERO_ACTION",
+        "ROBODOJO_OPENARM_SMOKE_STEPS",
+    }
+)
+
+
+def _subprocess_environment(env: Mapping[str, str] | None = None) -> dict[str, str]:
+    merged = {key: value for key, value in os.environ.items() if key not in _INHERITED_ENV_DENYLIST}
+    if env:
+        merged.update(env)
+    return merged
+
 
 def format_command(argv: Sequence[str], env: Mapping[str, str] | None = None) -> str:
     import shlex
@@ -20,10 +34,7 @@ def format_command(argv: Sequence[str], env: Mapping[str, str] | None = None) ->
 
 
 def run(argv: Sequence[str], *, cwd: str | os.PathLike[str] | None = None, env: Mapping[str, str] | None = None) -> int:
-    merged = os.environ.copy()
-    if env:
-        merged.update(env)
-    return subprocess.run(list(argv), cwd=cwd, env=merged, check=False).returncode
+    return subprocess.run(list(argv), cwd=cwd, env=_subprocess_environment(env), check=False).returncode
 
 
 def start(
@@ -32,10 +43,7 @@ def start(
     cwd: str | os.PathLike[str],
     env: Mapping[str, str] | None = None,
 ) -> subprocess.Popen:
-    merged = os.environ.copy()
-    if env:
-        merged.update(env)
-    return subprocess.Popen(list(argv), cwd=cwd, env=merged, start_new_session=True)
+    return subprocess.Popen(list(argv), cwd=cwd, env=_subprocess_environment(env), start_new_session=True)
 
 
 def free_port(host: str = "127.0.0.1") -> int:
