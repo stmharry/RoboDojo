@@ -56,6 +56,8 @@ class CameraSpec:
         if hardware is not None:
             if not isinstance(hardware, Mapping) or not hardware.get("asset"):
                 raise ValueError(f"{self.observation_key}: mount hardware requires an asset")
+            if not isinstance(hardware.get("enabled", True), bool):
+                raise ValueError(f"{self.observation_key}: mount hardware enabled must be a boolean")
             if len(hardware.get("position", [0, 0, 0])) != 3:
                 raise ValueError(f"{self.observation_key}: invalid mount hardware position")
             if len(hardware.get("orientation", [0, 0, 0])) not in (3, 4):
@@ -100,6 +102,7 @@ class CameraSpec:
         if self.mount.get("hardware"):
             hardware = self.mount["hardware"]
             result.update(
+                mount_hardware_enabled=bool(hardware.get("enabled", True)),
                 mount_hardware_asset=hardware["asset"],
                 mount_hardware_collision=bool(hardware.get("collision", True)),
                 mount_hardware_camera_frame=hardware.get("camera_frame"),
@@ -165,6 +168,7 @@ def _legacy_camera_spec(name: str, section: Mapping[str, Any], frequency: float)
     }
     if camera.get("mount_hardware_asset"):
         hardware = {
+            "enabled": bool(camera.get("mount_hardware_enabled", True)),
             "asset": camera["mount_hardware_asset"],
             "collision": bool(camera.get("mount_hardware_collision", True)),
             "camera_frame": camera.get("mount_hardware_camera_frame"),

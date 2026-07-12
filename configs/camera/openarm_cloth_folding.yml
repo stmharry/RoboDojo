@@ -57,6 +57,7 @@ camera_rig:
         optical_roll_deg: 0.0
         basis: lerobot_arducam_holder_optical_frame
         hardware:
+          enabled: false
           asset: Robots/openarm/left_wrist_camera_holder.usd
           collision: true
           camera_frame: OpticalFrame
@@ -81,6 +82,7 @@ camera_rig:
         optical_roll_deg: 0.0
         basis: lerobot_arducam_holder_optical_frame
         hardware:
+          enabled: false
           asset: Robots/openarm/right_wrist_camera_holder.usd
           collision: true
           camera_frame: OpticalFrame

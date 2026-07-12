@@ -232,7 +232,8 @@ class CameraManager:
                     if self.mount_registry is not None
                     else env_name
                 )
-                hardware_asset = camera_config.camera.get("mount_hardware_asset")
+                hardware_enabled = camera_config.camera.get("mount_hardware_enabled", True)
+                hardware_asset = camera_config.camera.get("mount_hardware_asset") if hardware_enabled else None
                 camera_parent_path = parent_path
                 if hardware_asset:
                     hardware_path = find_unique_string_name(
@@ -536,7 +537,9 @@ class CameraManager:
                 else:
                     position = torch.tensor([0, 0, 1])
                 final_position = position + random_pos
-                if camera_config.camera.get("mount_hardware_camera_frame"):
+                if camera_config.camera.get("mount_hardware_enabled", True) and camera_config.camera.get(
+                    "mount_hardware_camera_frame"
+                ):
                     final_position = torch.zeros(3)
                     orientation = euler_angles_to_quat(torch.tensor([0, 0, 0]))
                 cur_camera_xform.set_local_pose(

@@ -46,6 +46,9 @@ def test_openarm_uses_the_canonical_dyna_camera_rig():
     assert left.sensor["stream_resolution"] == right.sensor["stream_resolution"] == [1280, 720]
     assert left.mount["target"] == "robot0/left_wrist_camera_holder"
     assert right.mount["target"] == "robot0/right_wrist_camera_holder"
+    assert left.mount["position"] == [0.05, 0.0, 0.12]
+    assert right.mount["position"] == [0.035, 0.0, 0.12]
+    assert left.mount["orientation"] == right.mount["orientation"] == [180.0, 0.0, -90.0]
 
 
 def test_openarm_asset_inputs_and_mounts_are_pinned():
@@ -66,6 +69,17 @@ def test_named_hardware_camera_frames_are_relative():
     runtime = load_rig().runtime_config()
     for key in ("cam_head", "cam_left_wrist", "cam_right_wrist"):
         assert runtime[key].camera.mount_hardware_camera_frame == "OpticalFrame"
+
+
+def test_openarm_disables_only_wrist_holder_construction():
+    runtime = load_rig().runtime_config()
+
+    assert runtime.cam_head.camera.mount_hardware_enabled is True
+    assert runtime.cam_head.camera.mount_hardware_asset.endswith("head_camera_holder.usd")
+    assert runtime.cam_left_wrist.camera.mount_hardware_enabled is False
+    assert runtime.cam_right_wrist.camera.mount_hardware_enabled is False
+    assert runtime.cam_left_wrist.camera.mount_hardware_asset.endswith("left_wrist_camera_holder.usd")
+    assert runtime.cam_right_wrist.camera.mount_hardware_asset.endswith("right_wrist_camera_holder.usd")
 
 
 def test_mount_registry_resolves_scene_and_robot_targets():

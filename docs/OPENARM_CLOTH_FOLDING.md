@@ -11,6 +11,22 @@ The builder pins the OpenArm Isaac Lab source and the LeRobot hardware
 modifications, then generates the extended-arm functional twin, enlarged jaws,
 camera holders, and their named optical frames.
 
+The upstream OpenArm fingers include a dark gripping surface, and the
+[physical assembly guide](https://github.com/enactic/openarm/blob/main/website/versioned_docs/version-1.0/hardware/assembly-guide/gripper-sub-assembly.mdx)
+recommends applying 3M tape there. The upstream Isaac asset renders that region
+as part of each rigid finger mesh; it is not a separate soft or deformable body.
+The [cloth-folding hardware package](https://huggingface.co/datasets/lerobot/openarms-hardware-modifications)
+provides enlarged `jaw_normal.stl` and AnySkin-compatible `jaw_anyskin.stl`
+variants, but no standalone soft-pad or tape CAD. RoboDojo continues to use the
+enlarged normal jaws.
+
+The generated wrist-camera holder assets remain available, but this camera
+profile sets their hardware mounts to `enabled: false` because their geometry
+occludes the wrist-camera views. Scene construction therefore attaches both
+wrist cameras directly to their link-7 targets at the configured optical poses;
+it does not instantiate the wrist holder visuals or collisions. The head-camera
+holder remains enabled.
+
 ```bash
 uv run --extra sim --locked robodojo assets build-openarm
 ```
