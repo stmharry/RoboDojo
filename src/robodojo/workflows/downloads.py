@@ -10,7 +10,7 @@ import subprocess
 
 from robodojo.core.models import DataFormat
 from robodojo.core.paths import RepositoryPaths
-from robodojo.core.storage import assets_root, data_root, local_scratch_root, storage_root
+from robodojo.core.storage import assets_root, data_root, storage_root
 
 HF_REPO_ID = "RoboDojo-Benchmark/RoboDojo"
 DATASETS = {
@@ -64,14 +64,16 @@ def _sparse_payload(paths: RepositoryPaths, remote_dir: str, cache: Path, revisi
     return payload
 
 
-def _link_or_publish(payload: Path, target: Path, relative: str) -> None:
-    if storage_root() is not None:
-        from robodojo.workflows.storage import publish
-
-        publish(payload, relative)
-    else:
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.symlink_to(payload, target_is_directory=True)
+def _install_payload(payload: Path, target: Path, cache: Path) -> None:
+    staging_root = storage_root() / ".staging"
+    staging_root.mkdir(parents=True, exist_ok=True)
+    staged = staging_root / f"{target.name}.installing"
+    if staged.exists():
+        shutil.rmtree(staged)
+    shutil.copytree(payload, staged, symlinks=False)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    os.replace(staged, target)
+    shutil.rmtree(cache, ignore_errors=True)
 
 
 def download_assets(paths: RepositoryPaths, revision: str = "main") -> None:
@@ -80,17 +82,11 @@ def download_assets(paths: RepositoryPaths, revision: str = "main") -> None:
     if target.is_dir() and all((target / item).is_dir() for item in required):
         print(f"assets already ready: {target}")
         return
-    if storage_root() is not None and (target.exists() or target.is_symlink()):
-        raise RuntimeError(f"mounted asset payload is incomplete: {target}")
     if target.exists() or target.is_symlink():
         _archive(target)
-    cache = (
-        local_scratch_root() / "git" / "robodojo_assets_repo"
-        if storage_root()
-        else paths.root / ".cache" / "robodojo_assets_repo"
-    )
+    cache = storage_root() / ".cache" / "git" / "robodojo_assets_repo"
     payload = _sparse_payload(paths, "Assets", cache, revision)
-    _link_or_publish(payload, target, "assets")
+    _install_payload(payload, target, cache)
     if not all((target / item).is_dir() for item in required):
         raise RuntimeError(f"asset download is incomplete: {target}")
 
@@ -101,19 +97,13 @@ def download_data(paths: RepositoryPaths, data_format: DataFormat, revision: str
     if (target / ".download_complete").is_file():
         print(f"dataset already ready: {target}")
         return
-    if storage_root() is not None and (target.exists() or target.is_symlink()):
-        raise RuntimeError(f"mounted dataset payload is incomplete: {target}")
     if target.exists() or target.is_symlink():
         _archive(target)
-    cache = (
-        local_scratch_root() / "git" / f"robodojo_data_{data_format.value}_repo"
-        if storage_root()
-        else paths.root / ".cache" / f"robodojo_data_{data_format.value}_repo"
-    )
+    cache = storage_root() / ".cache" / "git" / f"robodojo_data_{data_format.value}_repo"
     payload = _sparse_payload(paths, f"data/{directory}", cache, revision)
     marker = payload / ".download_complete"
     marker.write_text(
         f"repo_id={HF_REPO_ID}\nrevision={revision}\ndata_type={data_format.value}\nsize={size}\n",
         encoding="utf-8",
     )
-    _link_or_publish(payload, target, f"datasets/{directory}")
+    _install_payload(payload, target, cache)

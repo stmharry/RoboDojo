@@ -15,7 +15,6 @@ from robodojo.core.models import (
     EvaluationRequest,
     PolicyServerLaunchRequest,
     SimulatorLaunchRequest,
-    StorageKind,
     SweepRequest,
 )
 from robodojo.core.paths import RepositoryPaths
@@ -462,17 +461,12 @@ def _publish_arguments(command: str, values: list[str], replace: bool, dry_run: 
 
 
 @storage_app.command()
-def hydrate(source: Path, destination: Path) -> None:
-    _storage_passthrough(["hydrate", str(source), str(destination)])
-
-
-@storage_app.command()
-def link(kind: StorageKind, destination: Path, policy: str | None = None, checkpoint: str | None = None) -> None:
-    args = ["link", kind.value, str(destination)]
-    if policy:
-        args += ["--policy", policy]
-    if checkpoint:
-        args += ["--checkpoint", checkpoint]
+def pull(relative: str, replace: bool = False, dry_run: bool = False) -> None:
+    args = ["pull", relative]
+    if replace:
+        args.append("--replace")
+    if dry_run:
+        args.append("--dry-run")
     _storage_passthrough(args)
 
 
@@ -541,16 +535,6 @@ def storage_publish_run(
     dry_run: bool = False,
 ) -> None:
     _storage_passthrough(_publish_arguments("publish-run", [kind, run_id, str(source)], replace, dry_run))
-
-
-@storage_app.command("materialize-checkpoint")
-def storage_materialize_checkpoint(policy: str, checkpoint: str, destination: Path) -> None:
-    _storage_passthrough(["materialize-checkpoint", policy, checkpoint, str(destination)])
-
-
-@storage_app.command("materialize-model")
-def storage_materialize_model(policy: str, model: str, destination: Path) -> None:
-    _storage_passthrough(["materialize-model", policy, model, str(destination)])
 
 
 @results_app.command("stats")

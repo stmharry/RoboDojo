@@ -13,6 +13,8 @@ from pxr import Gf, PhysxSchema, Sdf, UsdGeom, Vt
 from scipy.spatial import Delaunay
 import torch
 
+from robodojo.core.storage import assets_root
+
 
 class FluidObject:
     """
@@ -187,7 +189,7 @@ class FluidObject:
         if visual_mdl_path:
             material_url = visual_mdl_path
         else:
-            material_url = "./Assets/Material/Fluid/Linen_Blue.mdl"
+            material_url = str(assets_root() / "Material" / "Fluid" / "Linen_Blue.mdl")
         material_name = os.path.splitext(os.path.basename(material_url))[0]
         looks_path = f"{self.prim_path}/Looks"  # Consistent Looks path
         if is_prim_path_valid(f"{looks_path}/material"):  # Check specific material path

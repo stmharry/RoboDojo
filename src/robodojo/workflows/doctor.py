@@ -11,6 +11,7 @@ import yaml
 
 from robodojo.core.models import EnvironmentConfigDocument
 from robodojo.core.paths import RepositoryPaths
+from robodojo.core.storage import assets_root
 from robodojo.workflows.task_inventory import build_inventory
 
 
@@ -43,8 +44,9 @@ def run_doctor(paths: RepositoryPaths, task: str, env_config: str, policy_dir: P
     record("task inventory", not broken, ", ".join(broken) if broken else f"{inventory['counts']['runnable']} runnable")
 
     required_assets = ["Robots", "Object", "Material", "Eval_Layout"]
-    missing_assets = [name for name in required_assets if not (paths.assets / name).is_dir()]
-    record("assets", not missing_assets, ", ".join(missing_assets) if missing_assets else str(paths.assets))
+    assets = assets_root()
+    missing_assets = [name for name in required_assets if not (assets / name).is_dir()]
+    record("assets", not missing_assets, ", ".join(missing_assets) if missing_assets else str(assets))
 
     if policy_dir is not None:
         adapter = policy_dir.resolve() / "setup_eval_policy_server.sh"

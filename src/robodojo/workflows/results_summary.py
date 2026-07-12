@@ -33,7 +33,7 @@ import os
 import re
 import statistics
 
-from robodojo.core.storage import eval_root, storage_mode, summary_path
+from robodojo.core.storage import eval_root, summary_path
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT = str(eval_root())
@@ -111,13 +111,20 @@ def list_subdirs(path):
     return sorted(name for name in os.listdir(path) if os.path.isdir(os.path.join(path, name)))
 
 
+def completed_result(path):
+    try:
+        with open(path) as fh:
+            return int(json.load(fh).get("eval_time", 0)) >= 1
+    except (json.JSONDecodeError, OSError, TypeError, ValueError):
+        return False
+
+
 def latest_timestamp_dir(run_dir):
     """Return the latest timestamp subdir that contains a `_result.json`."""
     candidates = []
     for name in list_subdirs(run_dir):
         result_file = os.path.join(run_dir, name, "_result.json")
-        complete_file = os.path.join(run_dir, name, "_COMPLETE.json")
-        if os.path.isfile(result_file) and (not storage_mode() or os.path.isfile(complete_file)):
+        if os.path.isfile(result_file) and completed_result(result_file):
             candidates.append(name)
     if not candidates:
         return None
@@ -220,7 +227,7 @@ def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Aggregate RoboDojo evaluation results into Markdown.")
     parser.add_argument(
         "--output",
-        help="Markdown output path (default: ROBODOJO_SUMMARY_PATH or a writable local path)",
+        help="Markdown output path (default: <storage-root>/runs/reports/_summary.md)",
     )
     return parser.parse_args(argv)
 
@@ -231,8 +238,7 @@ def main(argv=None):
     if not os.path.isdir(ROOT):
         raise SystemExit(
             f"Eval result directory not found: {ROOT}\n"
-            "Set ROBODOJO_EVAL_ROOT or run from the RoboDojo repo with "
-            "eval_result/RoboDojo present."
+            "Populate the local storage root or use `robodojo storage pull`."
         )
 
     random_of = discover_random_tasks()

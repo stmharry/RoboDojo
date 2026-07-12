@@ -2,6 +2,7 @@ from pathlib import Path
 import subprocess
 import sys
 
+import pytest
 from typer.testing import CliRunner
 
 from robodojo.cli import app
@@ -10,6 +11,7 @@ from robodojo.core.paths import RepositoryPaths, discover_repository_root
 from robodojo.core.settings import RuntimeSettings
 from robodojo.policy.adapter import policy_server_command
 from robodojo.sim.launcher import simulator_command
+from robodojo.workflows.task_inventory import build_inventory
 
 ROOT = Path(__file__).resolve().parents[1]
 runner = CliRunner()
@@ -20,6 +22,11 @@ def test_cli_exposes_the_unified_command_surface():
     assert result.exit_code == 0
     for command in ("eval", "server", "client", "smoke", "storage", "assets", "data", "docker"):
         assert command in result.stdout
+
+
+def test_task_inventory_reads_the_simulator_task_package():
+    tasks = {item["name"]: item for item in build_inventory()["tasks"]}
+    assert tasks["stack_bowls"]["runnable"] is True
 
 
 def test_server_dry_run_validates_and_builds_adapter_argv(tmp_path):
@@ -73,14 +80,13 @@ def test_repository_root_precedence(monkeypatch, tmp_path):
     assert RepositoryPaths.resolve(ROOT).root == ROOT
 
 
-def test_runtime_settings_env_overrides_dotenv(monkeypatch, tmp_path):
+def test_runtime_settings_rejects_removed_dotenv_variable(tmp_path):
     root = tmp_path / "repo"
     root.mkdir()
     (root / "pyproject.toml").write_text('[project]\nname = "robodojo"\n', encoding="utf-8")
     (root / ".env").write_text("ROBODOJO_EVAL_ROOT=/from-file\n", encoding="utf-8")
-    monkeypatch.setenv("ROBODOJO_EVAL_ROOT", "/from-process")
-    settings = RuntimeSettings.load(RepositoryPaths.resolve(root))
-    assert settings.eval_root == Path("/from-process")
+    with pytest.raises(RuntimeError, match="ROBODOJO_EVAL_ROOT"):
+        RuntimeSettings.load(RepositoryPaths.resolve(root))
 
 
 def test_policy_imports_work_without_simulator_extra():

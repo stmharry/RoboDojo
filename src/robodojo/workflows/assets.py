@@ -11,14 +11,15 @@ from urllib.parse import quote
 from urllib.request import urlopen
 
 from robodojo.core.paths import RepositoryPaths
+from robodojo.core.storage import assets_root, storage_root
 
 
 def build_openarm(paths: RepositoryPaths) -> int:
     spec = json.loads((paths.openarm_tooling / "sources.json").read_text(encoding="utf-8"))
-    cache = paths.root / ".cache" / "openarm_cloth_folding"
+    cache = storage_root() / ".cache" / "openarm_cloth_folding"
     source = cache / "openarm_isaac_lab"
     hardware = cache / "hardware"
-    output = paths.assets / "Robots" / "openarm"
+    output = assets_root() / "Robots" / "openarm"
     hardware.mkdir(parents=True, exist_ok=True)
     output.mkdir(parents=True, exist_ok=True)
 

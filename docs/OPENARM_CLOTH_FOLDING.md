@@ -15,8 +15,8 @@ camera holders, and their named optical frames.
 uv run --extra sim --locked robodojo assets build-openarm
 ```
 
-Generated assets are written under `Assets/Robots/openarm/` and remain
-untracked.
+Generated assets are written under `.robodojo/assets/Robots/openarm/` by
+default and remain untracked.
 
 ## Install the policy
 

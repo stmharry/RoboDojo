@@ -28,26 +28,11 @@ def _completed_result(storage_root: Path) -> Path:
     return run
 
 
-def _read_only_tree(root: Path) -> None:
-    for path in root.rglob("*"):
-        path.chmod(0o555 if path.is_dir() else 0o444)
-    root.chmod(0o555)
-
-
-def test_summarize_reads_durable_tree_and_writes_local_scratch(tmp_path):
-    durable = tmp_path / "durable"
-    scratch = tmp_path / "scratch"
-    _completed_result(durable)
-    _read_only_tree(durable)
-    before = sorted(str(path.relative_to(durable)) for path in durable.rglob("*"))
+def test_summarize_reads_and_writes_single_local_root(tmp_path):
+    local = tmp_path / "local"
+    _completed_result(local)
     environment = os.environ.copy()
-    environment.update(
-        {
-            "ROBODOJO_STORAGE_ROOT": str(durable),
-            "ROBODOJO_LOCAL_SCRATCH_ROOT": str(scratch),
-        }
-    )
-    environment.pop("ROBODOJO_SUMMARY_PATH", None)
+    environment["ROBODOJO_STORAGE_ROOT"] = str(local)
 
     result = subprocess.run(
         [str(ROOT / ".venv/bin/robodojo"), "summarize"],
@@ -58,25 +43,18 @@ def test_summarize_reads_durable_tree_and_writes_local_scratch(tmp_path):
         capture_output=True,
     )
 
-    output = scratch / "runs/reports/_summary.md"
+    output = local / "runs/reports/_summary.md"
     assert result.returncode == 0, result.stderr
     assert output.is_file()
     assert "RoboDojo Evaluation Summary" in output.read_text(encoding="utf-8")
-    assert not (durable / "runs/eval_result/RoboDojo/_summary.md").exists()
-    assert sorted(str(path.relative_to(durable)) for path in durable.rglob("*")) == before
+    assert not (local / "runs/eval_result/RoboDojo/_summary.md").exists()
 
 
 def test_cli_output_overrides_environment_and_creates_parents(tmp_path):
-    durable = tmp_path / "durable"
-    _completed_result(durable)
+    local = tmp_path / "local"
+    _completed_result(local)
     environment = os.environ.copy()
-    environment.update(
-        {
-            "ROBODOJO_STORAGE_ROOT": str(durable),
-            "ROBODOJO_LOCAL_SCRATCH_ROOT": str(tmp_path / "scratch"),
-            "ROBODOJO_SUMMARY_PATH": str(tmp_path / "environment.md"),
-        }
-    )
+    environment["ROBODOJO_STORAGE_ROOT"] = str(local)
     output = tmp_path / "nested/cli/summary.md"
 
     result = subprocess.run(
@@ -90,4 +68,4 @@ def test_cli_output_overrides_environment_and_creates_parents(tmp_path):
 
     assert result.returncode == 0, result.stderr
     assert output.is_file()
-    assert not (tmp_path / "environment.md").exists()
+    assert not (local / "runs/reports/_summary.md").exists()

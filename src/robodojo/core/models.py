@@ -24,12 +24,6 @@ class DataFormat(StrEnum):
     REAL = "real"
 
 
-class StorageKind(StrEnum):
-    ASSETS = "assets"
-    DATASETS = "datasets"
-    CHECKPOINT = "checkpoint"
-
-
 class EvaluationRequest(StrictModel):
     policy_dir: Path
     task: str

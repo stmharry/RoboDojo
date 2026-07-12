@@ -74,8 +74,8 @@ cp .env.example .env
 make help
 ```
 
-The `storage-*` targets wrap the S3-backed storage helper. Start with
-`make storage-status`; publishing and hydration targets list their required
+The `storage-*` targets wrap the local storage and optional S3 helper. Start with
+`make storage-status`; publishing and pull targets list their required
 `STORAGE_*` variables in `make help` and report missing values before running.
 
 After setup, run every native command through the lockfile:
@@ -89,10 +89,10 @@ The simulator environment is always the repository's `.venv`. Policy servers
 remain independent and `--policy-env` may identify a uv project, environment
 path, or policy-specific Conda environment.
 
-Large assets, datasets, model weights, and completed runs can be consumed from
-a read-only Mountpoint for S3 while active work remains on local POSIX scratch.
-See [S3-backed storage](docs/STORAGE.md) for the environment contract and
-explicit AWS CLI publication workflow.
+Large assets, datasets, model weights, and runs live below one writable local
+root, `.robodojo/` by default. S3 is an optional explicit publication and
+restore target; it is never mounted by the application. See
+[Local storage and S3 publication](docs/STORAGE.md) for the contract.
 
 ## 🔌 Policy Integration
 

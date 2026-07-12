@@ -1,5 +1,8 @@
+import hashlib
+import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 
 import pytest
@@ -19,7 +22,7 @@ def test_storage_cli_help_runs_through_typer():
     )
     assert result.returncode == 0, result.stderr
     assert "publish-checkpoint" in result.stdout
-    assert "publish-checkpoint" in result.stdout
+    assert "pull" in result.stdout
 
 
 def test_publish_uses_canonical_destination_and_completion_is_last(monkeypatch, tmp_path):
@@ -27,9 +30,8 @@ def test_publish_uses_canonical_destination_and_completion_is_last(monkeypatch, 
     source.mkdir()
     (source / "video.mp4").write_bytes(b"video")
     (source / "_result.json").write_text('{"eval_time": 1}\n', encoding="utf-8")
-    scratch = tmp_path / "scratch"
     monkeypatch.setenv("ROBODOJO_S3_URI", "s3://bucket/robodojo")
-    monkeypatch.setenv("ROBODOJO_LOCAL_SCRATCH_ROOT", str(scratch))
+    monkeypatch.setenv("ROBODOJO_STORAGE_ROOT", str(tmp_path / "local"))
     calls = []
 
     def fake_aws(*args, check=True):
@@ -92,34 +94,48 @@ def test_destination_cannot_escape_prefix(monkeypatch):
         storage_cli._destination("../other")
 
 
-def test_link_payload_creates_idempotent_local_link(tmp_path):
-    source = tmp_path / "mount" / "assets"
-    source.mkdir(parents=True)
-    destination = tmp_path / "repo" / "Assets"
+def test_pull_verifies_and_installs_canonical_payload(monkeypatch, tmp_path):
+    remote = tmp_path / "remote"
+    remote.mkdir()
+    (remote / "weights.bin").write_bytes(b"weights")
+    manifest, complete = storage_cli._metadata(remote, "datasets/example")
+    manifest_text = json.dumps(manifest, indent=2) + "\n"
+    complete["manifest_sha256"] = hashlib.sha256(manifest_text.encode()).hexdigest()
+    (remote / "_MANIFEST.json").write_text(manifest_text, encoding="utf-8")
+    (remote / "_COMPLETE.json").write_text(json.dumps(complete), encoding="utf-8")
+    local = tmp_path / "local"
+    monkeypatch.setenv("ROBODOJO_STORAGE_ROOT", str(local))
+    monkeypatch.setenv("ROBODOJO_S3_URI", "s3://bucket/robodojo")
 
-    storage_cli.link_payload(source, destination)
-    assert destination.is_symlink()
-    assert destination.resolve() == source.resolve()
-    storage_cli.link_payload(source, destination)
+    def fake_aws(*args, check=True):
+        if args[:2] == ("s3", "sync"):
+            shutil.copytree(remote, Path(args[3]), dirs_exist_ok=True)
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(storage_cli, "_aws", fake_aws)
+    storage_cli.pull("datasets/example")
+    assert (local / "datasets/example/weights.bin").read_bytes() == b"weights"
+
+    (remote / "weights.bin").write_bytes(b"replacement")
+    manifest, complete = storage_cli._metadata(remote, "datasets/example")
+    manifest_text = json.dumps(manifest, indent=2) + "\n"
+    complete["manifest_sha256"] = hashlib.sha256(manifest_text.encode()).hexdigest()
+    (remote / "_MANIFEST.json").write_text(manifest_text, encoding="utf-8")
+    (remote / "_COMPLETE.json").write_text(json.dumps(complete), encoding="utf-8")
+    storage_cli.pull("datasets/example", replace=True)
+    assert (local / "datasets/example/weights.bin").read_bytes() == b"replacement"
 
 
-def test_link_payload_refuses_real_directory_and_mismatched_link(tmp_path):
-    source = tmp_path / "mount" / "datasets"
-    source.mkdir(parents=True)
-    real_destination = tmp_path / "data"
-    real_destination.mkdir()
-    with pytest.raises(SystemExit, match="refusing to replace existing path"):
-        storage_cli.link_payload(source, real_destination)
-
-    other = tmp_path / "other"
-    other.mkdir()
-    link_destination = tmp_path / "dataset-link"
-    link_destination.symlink_to(other, target_is_directory=True)
-    with pytest.raises(SystemExit, match="refusing to replace existing symlink"):
-        storage_cli.link_payload(source, link_destination)
+def test_pull_preserves_existing_destination_without_replace(monkeypatch, tmp_path):
+    local = tmp_path / "local"
+    (local / "assets").mkdir(parents=True)
+    monkeypatch.setenv("ROBODOJO_STORAGE_ROOT", str(local))
+    monkeypatch.setenv("ROBODOJO_S3_URI", "s3://bucket/robodojo")
+    with pytest.raises(SystemExit, match="already exists"):
+        storage_cli.pull("assets")
 
 
-def test_status_publish_and_hydrate_aliases(monkeypatch, tmp_path):
+def test_status_publish_and_pull_aliases(monkeypatch, tmp_path):
     seen = []
     monkeypatch.setattr(storage_cli, "doctor", lambda: seen.append("status"))
     monkeypatch.setattr(
@@ -127,35 +143,12 @@ def test_status_publish_and_hydrate_aliases(monkeypatch, tmp_path):
         "publish",
         lambda source, relative, **kwargs: seen.append((source, relative, kwargs)),
     )
-    monkeypatch.setattr(
-        storage_cli,
-        "materialize",
-        lambda source, destination: seen.append((source, destination)),
-    )
+    monkeypatch.setattr(storage_cli, "pull", lambda relative, **kwargs: seen.append((relative, kwargs)))
 
     assert storage_cli.main(["status"]) == 0
     assert storage_cli.main(["publish", str(tmp_path), "datasets/example", "--dry-run"]) == 0
-    assert storage_cli.main(["hydrate", str(tmp_path / "source"), str(tmp_path / "dest")]) == 0
+    assert storage_cli.main(["pull", "datasets/example", "--dry-run"]) == 0
     assert seen[0] == "status"
     assert seen[1][1] == "datasets/example"
     assert seen[1][2]["dry_run"] is True
-
-
-@pytest.mark.parametrize(
-    ("arguments", "relative_source"),
-    [
-        (["assets"], "assets"),
-        (["datasets"], "datasets"),
-        (["checkpoint", "--policy", "SmolVLA", "--checkpoint", "run-1"], "model_weights/SmolVLA/run-1"),
-    ],
-)
-def test_link_cli_resolves_supported_durable_sources(monkeypatch, tmp_path, arguments, relative_source):
-    mount = tmp_path / "mount"
-    monkeypatch.setenv("ROBODOJO_STORAGE_ROOT", str(mount))
-    seen = []
-    monkeypatch.setattr(storage_cli, "link_payload", lambda source, destination: seen.append((source, destination)))
-    destination = tmp_path / "destination"
-
-    command = ["link", arguments[0], str(destination), *arguments[1:]]
-    assert storage_cli.main(command) == 0
-    assert seen == [(mount / relative_source, destination)]
+    assert seen[2] == ("datasets/example", {"replace": False, "dry_run": True})

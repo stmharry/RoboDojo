@@ -422,7 +422,7 @@ class Ground:
 
         Args:
             material_config: Material configuration containing:
-                - mdl_path: Path to the MDL file (e.g., "./Assets/Material/Base/Wood.mdl")
+                - mdl_path: Path to the MDL file below the configured assets root.
                 - mdl_name: Name of the material in the MDL file (optional, defaults to filename)
         """
         mdl_file = material_config.get("mdl_file")

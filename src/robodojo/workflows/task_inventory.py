@@ -14,7 +14,7 @@ from robodojo.sim import tasks_registry
 
 ROOT_DIR = discover_repository_root()
 BENCHMARK = "RoboDojo"
-TASK_DIR = ROOT_DIR / "src" / "robodojo" / "client" / "tasks"
+TASK_DIR = ROOT_DIR / "src" / "robodojo" / "sim" / "tasks"
 CONFIG_DIR = ROOT_DIR / "task" / BENCHMARK / "config"
 
 

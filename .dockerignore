@@ -15,14 +15,9 @@
 Dev/
 Untitled
 
-# ── Runtime outputs (regenerated; eval_result is mounted at runtime) ──
-eval_result/
-smoke_results/
+# ── Runtime storage (mounted at runtime) ─────────────────────────────
+.robodojo/
 docker/smoke_logs/
-data/
-
-# ── Assets are mounted at runtime, never baked into the image ─────────
-Assets/
 
 # ── Python caches / build artifacts ──────────────────────────────────
 **/__pycache__/

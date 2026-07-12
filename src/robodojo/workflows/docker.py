@@ -9,6 +9,7 @@ import signal
 import subprocess
 
 from robodojo.core.paths import RepositoryPaths
+from robodojo.core.storage import s3_uri, storage_root
 
 
 def build(paths: RepositoryPaths, image: str, extra_args: tuple[str, ...] = ()) -> int:
@@ -33,7 +34,17 @@ def install(paths: RepositoryPaths) -> int:
 
 
 def smoke(paths: RepositoryPaths, image: str, task: str, policy: str, port: int, env_config: str) -> int:
-    storage_args: list[str] = []
+    local_storage = storage_root()
+    local_storage.mkdir(parents=True, exist_ok=True)
+    container_storage = Path("/workspace/RoboDojo/.robodojo")
+    storage_args: list[str] = [
+        "-v",
+        f"{local_storage}:{container_storage}",
+        "-e",
+        f"ROBODOJO_STORAGE_ROOT={container_storage}",
+    ]
+    if remote := s3_uri():
+        storage_args += ["-e", f"ROBODOJO_S3_URI={remote}"]
     if profile := os.environ.get("AWS_PROFILE"):
         storage_args += ["-e", f"AWS_PROFILE={profile}"]
         credentials = Path.home() / ".aws"
@@ -55,10 +66,6 @@ def smoke(paths: RepositoryPaths, image: str, task: str, policy: str, port: int,
         *storage_args,
         "--ipc",
         "host",
-        "-v",
-        f"{paths.assets}:{paths.root / 'Assets'}:ro",
-        "-v",
-        f"{paths.root / 'eval_result'}:{paths.root / 'eval_result'}",
         image,
         "client",
         "--task",

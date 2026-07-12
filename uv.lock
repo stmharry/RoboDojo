@@ -3125,6 +3125,7 @@ source = { editable = "." }
 dependencies = [
     { name = "pydantic", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "pydantic-settings", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "python-dotenv", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "pyyaml", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "typer", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
@@ -3209,6 +3210,7 @@ requires-dist = [
     { name = "psutil", marker = "extra == 'sim'", specifier = "==5.9.8" },
     { name = "pydantic", specifier = ">=2.5" },
     { name = "pydantic-settings", specifier = ">=2.2" },
+    { name = "python-dotenv", specifier = ">=1.0" },
     { name = "pyyaml", specifier = ">=6" },
     { name = "scikit-learn", marker = "extra == 'sim'" },
     { name = "scipy", marker = "extra == 'sim'", specifier = "==1.15.3" },

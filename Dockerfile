@@ -13,8 +13,7 @@
 #
 # Run (Linux host, policy server already listening on the host):
 #   docker run --rm -it --gpus all --network host --ipc host \
-#     -v "$PWD/Assets:/workspace/RoboDojo/Assets:ro" \
-#     -v "$PWD/eval_result:/workspace/RoboDojo/eval_result" \
+#     -v "$PWD/.robodojo:/workspace/RoboDojo/.robodojo" \
 #     robodojo:cuda12.8 \
 #     client --task stack_bowls \
 #       --policy-name GR00T_N17 --policy-host 127.0.0.1 --policy-port 9999 --eval-num 1

@@ -39,9 +39,9 @@ uv run --locked robodojo docker smoke \
   --task stack_bowls
 ```
 
-The default Docker workflow uses host networking and mounts `Assets/` read-only
-and `eval_result/` read-write. Override the policy and environment options for
-your external server.
+The default Docker workflow uses host networking and mounts the single local
+`.robodojo/` storage root read-write. Override the policy and environment
+options for your external server.
 
 When `AWS_PROFILE` is set, `~/.aws` is mounted read-only and the profile is
 forwarded. `ROBODOJO_AWS_ENV_FILE` may name an explicit protected Docker env
@@ -53,8 +53,7 @@ Because `robodojo` is the image entrypoint, commands follow the normal CLI:
 
 ```bash
 docker run --rm --gpus all --network host --ipc host \
-  -v "$PWD/Assets:/workspace/RoboDojo/Assets:ro" \
-  -v "$PWD/eval_result:/workspace/RoboDojo/eval_result" \
+  -v "$PWD/.robodojo:/workspace/RoboDojo/.robodojo" \
   robodojo:cuda12.8 \
   client --task stack_bowls --policy-name demo_policy \
   --policy-host 127.0.0.1 --policy-port 9999 --eval-num 1

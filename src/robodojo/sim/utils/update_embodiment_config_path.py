@@ -3,6 +3,8 @@ import glob
 import os
 import sys
 
+from robodojo.core.storage import assets_root
+
 
 def print_color(message, color_code):
     NC = "\033[0m"
@@ -14,45 +16,19 @@ YELLOW = "\033[0;33m"
 GREEN = "\033[0;32m"
 
 
-def prompt_path():
-    answer = input("Do you want to manually specify the absolute path to the Assets directory? (y/n): ")
-    if answer.lower() != "y":
-        sys.exit(1)
-    return input("Please enter the absolute path: ")
-
-
 def main():
-    assets_path = os.getcwd()
-    print_color(f"Current path: {assets_path}", BLUE)
-
-    if not os.path.isdir(os.path.join(assets_path, "Assets", "Robots")):
-        print_color("Warning: ./Assets/Robots directory not found", YELLOW)
-        parent = os.path.abspath(os.path.join(assets_path, ".."))
-        if os.path.isdir(os.path.join(parent, "Assets", "Robots")):
-            print("Found Assets/Robots in parent directory, switching...")
-            assets_path = parent
-            os.chdir(assets_path)
-            print_color(f"Updated path: {assets_path}", BLUE)
-        else:
-            print_color("Please ensure you're running this script in the correct directory", YELLOW)
-            print("Script should be run in the repository root directory containing Assets/Robots")
-            assets_path = prompt_path()
-            if not os.path.isdir(os.path.join(assets_path, "Assets", "Robots")):
-                print_color("Error: Cannot find Assets/Robots directory at the specified path", YELLOW)
-                sys.exit(1)
-            os.chdir(assets_path)
-            print_color(f"Switched to: {assets_path}", BLUE)
-
-    # Export environment variable
-    os.environ["ASSETS_PATH"] = assets_path
-    print_color(f"Setting environment variable: ASSETS_PATH={assets_path}", BLUE)
+    assets_path = assets_root()
+    print_color(f"Assets root: {assets_path}", BLUE)
+    if not (assets_path / "Robots").is_dir():
+        print_color(f"Error: {assets_path / 'Robots'} is unavailable", YELLOW)
+        sys.exit(1)
 
     # Counters
     count_total = count_updated = count_error = 0
 
     # Find *_tmp.yml files
     print_color("Searching for configuration template files...", BLUE)
-    pattern = os.path.join(assets_path, "Assets", "Robots", "**", "*_tmp.yml")
+    pattern = os.path.join(assets_path, "Robots", "**", "*_tmp.yml")
     config_files = glob.glob(pattern, recursive=True)
 
     if not config_files:
@@ -69,8 +45,8 @@ def main():
             with open(tmp_file) as f:
                 content = f.read()
 
-            new_content = content.replace("${ASSETS_PATH}", assets_path)
-            new_content = new_content.replace("$ASSETS_PATH", assets_path)
+            new_content = content.replace("${ASSETS_PATH}/Assets", str(assets_path))
+            new_content = new_content.replace("$ASSETS_PATH/Assets", str(assets_path))
 
             with open(target_file, "w") as f:
                 f.write(new_content)
@@ -78,7 +54,7 @@ def main():
             print_color(f"  ✓ Successfully replaced ${{ASSETS_PATH}} -> {assets_path}", GREEN)
             count_updated += 1
 
-            if "${ASSETS_PATH}" in content and assets_path in new_content:
+            if "${ASSETS_PATH}" in content and str(assets_path) in new_content:
                 print_color("  ✓ Confirmed path was correctly replaced", GREEN)
             elif "${ASSETS_PATH}" in content:
                 print_color("  ! Warning: Could not confirm if path was correctly replaced", YELLOW)

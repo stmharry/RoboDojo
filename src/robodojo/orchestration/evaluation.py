@@ -9,7 +9,7 @@ from pathlib import Path
 from robodojo.core.models import EvaluationRequest, PolicyServerLaunchRequest, SimulatorLaunchRequest
 from robodojo.core.paths import RepositoryPaths
 from robodojo.core.processes import format_command, free_port, start, terminate_process_group, wait_for_port
-from robodojo.core.storage import checkpoint_label
+from robodojo.core.storage import checkpoint_label, s3_uri
 from robodojo.policy.adapter import policy_server_command
 from robodojo.sim.launcher import run_simulator, simulator_command
 
@@ -32,7 +32,7 @@ def run_simulator_session(
         code == 0
         and not request.dry_run
         and launch_env.get("ROBODOJO_EXPORT_SCENE_ONLY", "").lower() != "true"
-        and (os.environ.get("ROBODOJO_STORAGE_ROOT") or os.environ.get("ROBODOJO_S3_URI"))
+        and s3_uri() is not None
     ):
         from robodojo.workflows.storage import main as storage_main
 

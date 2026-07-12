@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""Publish immutable RoboDojo payloads with AWS CLI.
-
-The durable Mountpoint view is never written. Payloads are assembled on local
-storage and published directly to S3, with completion metadata uploaded last.
-"""
+"""Manage canonical local RoboDojo storage and immutable S3 payloads."""
 
 from __future__ import annotations
 
@@ -18,12 +14,7 @@ import subprocess
 import tempfile
 
 from robodojo.core.storage import (
-    assets_root,
-    checkpoint_root,
-    data_root,
     eval_work_root,
-    local_scratch_root,
-    model_root,
     s3_uri,
     storage_root,
 )
@@ -60,6 +51,16 @@ def _destination(relative: str) -> str:
     if not destination.startswith(_base_uri() + "/"):
         raise SystemExit("refusing destination outside ROBODOJO_S3_URI")
     return destination
+
+
+def _relative_path(relative: str) -> Path:
+    clean = relative.strip("/")
+    path = Path(clean)
+    if not clean or ".." in path.parts:
+        raise SystemExit(f"invalid storage destination: {relative!r}")
+    if path.parts[0] not in CANONICAL_TOP_LEVEL:
+        raise SystemExit(f"destination must use a canonical storage root: {relative!r}")
+    return path
 
 
 def _s3_location(uri: str) -> tuple[str, str]:
@@ -153,8 +154,9 @@ def publish(source: Path, relative: str, *, replace: bool = False, dry_run: bool
         _aws("s3", "rm", destination, "--recursive", "--only-show-errors")
 
     manifest, complete = _metadata(source, relative)
-    local_scratch_root().mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(dir=local_scratch_root()) as temporary:
+    staging_root = storage_root() / ".staging"
+    staging_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=staging_root) as temporary:
         temporary_path = Path(temporary)
         manifest_path = temporary_path / "_MANIFEST.json"
         complete_path = temporary_path / "_COMPLETE.json"
@@ -238,7 +240,25 @@ def _verify_materialized(path: Path) -> None:
     if hashlib.sha256(manifest_bytes).hexdigest() != complete.get("manifest_sha256"):
         raise SystemExit(f"durable payload manifest hash mismatch: {path}")
     manifest = json.loads(manifest_bytes)
-    for entry in manifest.get("files", []):
+    entries = manifest.get("files", [])
+    expected = {entry["path"] for entry in entries}
+    actual: set[str] = set()
+    for candidate in path.rglob("*"):
+        if candidate.is_symlink():
+            raise SystemExit(f"materialized payload contains unsupported symlink: {candidate}")
+        if candidate.is_file() and candidate.name not in INTERNAL_FILES:
+            relative = str(candidate.relative_to(path))
+            actual.add(relative)
+            if relative not in expected:
+                raise SystemExit(f"materialized payload contains unmanifested file: {candidate}")
+    if actual != expected:
+        missing = sorted(expected - actual)
+        raise SystemExit(f"materialized payload is missing manifest files: {', '.join(missing)}")
+    if manifest.get("file_count") != len(entries):
+        raise SystemExit(f"materialized payload manifest file count mismatch: {path}")
+    if manifest.get("total_bytes") != sum(entry["size"] for entry in entries):
+        raise SystemExit(f"materialized payload manifest byte count mismatch: {path}")
+    for entry in entries:
         candidate = path / entry["path"]
         if not candidate.is_file() or candidate.stat().st_size != entry["size"]:
             raise SystemExit(f"materialized payload failed size verification: {candidate}")
@@ -246,69 +266,77 @@ def _verify_materialized(path: Path) -> None:
             raise SystemExit(f"materialized payload failed hash verification: {candidate}")
 
 
-def materialize(source: Path, destination: Path) -> None:
-    if destination.exists():
-        raise SystemExit(f"materialize destination already exists: {destination}")
-    shutil.copytree(source, destination, symlinks=False)
-    try:
-        _verify_materialized(destination)
-    except Exception:
-        shutil.rmtree(destination, ignore_errors=True)
-        raise
-    print(f"materialized {source} -> {destination}")
+def pull(relative: str, *, replace: bool = False, dry_run: bool = False) -> None:
+    """Download one completed S3 payload into its canonical local path."""
+    relative_path = _relative_path(relative)
+    source = _destination(relative)
+    destination = storage_root() / relative_path
+    if dry_run:
+        print(f"pull {source} -> {destination}")
+        return
+    destination_exists = destination.exists() or destination.is_symlink()
+    if destination_exists and not replace:
+        raise SystemExit(f"local destination already exists: {destination}")
 
+    bucket, key = _s3_location(source)
+    completed = _aws(
+        "s3api",
+        "head-object",
+        "--bucket",
+        bucket,
+        "--key",
+        f"{key}/_COMPLETE.json",
+        check=False,
+    ).returncode == 0
+    if not completed:
+        raise SystemExit(f"remote payload is incomplete: {source}")
 
-def link_payload(source: Path, destination: Path) -> None:
-    """Create an explicit local compatibility link to a durable read path."""
-    source = source.resolve()
-    destination = destination.expanduser().absolute()
-    if not source.is_dir():
-        raise SystemExit(f"link source is not a completed directory: {source}")
-    if destination.is_symlink():
-        if destination.resolve() == source:
-            print(f"link already configured: {destination} -> {source}")
-            return
-        raise SystemExit(f"refusing to replace existing symlink: {destination}")
-    if destination.exists():
-        raise SystemExit(f"refusing to replace existing path: {destination}")
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.symlink_to(source, target_is_directory=True)
-    print(f"linked {destination} -> {source}")
+    staging_root = storage_root() / ".staging"
+    staging_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=staging_root) as temporary:
+        temporary_path = Path(temporary)
+        payload = temporary_path / "payload"
+        payload.mkdir()
+        _aws("s3", "sync", source, str(payload), "--only-show-errors")
+        _verify_materialized(payload)
+        manifest = json.loads((payload / "_MANIFEST.json").read_text(encoding="utf-8"))
+        if manifest.get("destination") != str(relative_path):
+            raise SystemExit(
+                f"remote manifest destination mismatch: {manifest.get('destination')!r} != {str(relative_path)!r}"
+            )
+
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        backup = temporary_path / "backup"
+        if destination_exists:
+            os.replace(destination, backup)
+        try:
+            os.replace(payload, destination)
+        except Exception:
+            if (backup.exists() or backup.is_symlink()) and not (destination.exists() or destination.is_symlink()):
+                os.replace(backup, destination)
+            raise
+        if backup.is_symlink() or backup.is_file():
+            backup.unlink()
+        else:
+            shutil.rmtree(backup, ignore_errors=True)
+    print(f"pulled {source} -> {destination}")
 
 
 def doctor() -> None:
     root = storage_root()
-    if root is None:
-        raise SystemExit("ROBODOJO_STORAGE_ROOT is not configured")
-    if not root.is_dir():
-        raise SystemExit(f"durable read mount is unavailable: {root}")
-    if not os.access(root, os.R_OK | os.X_OK):
-        raise SystemExit(f"durable read mount is not readable: {root}")
-    if shutil.which("findmnt") is not None:
-        options = (
-            subprocess.run(
-                ["findmnt", "-no", "OPTIONS", "--target", str(root)],
-                check=True,
-                text=True,
-                capture_output=True,
-            )
-            .stdout.strip()
-            .split(",")
-        )
-        if "ro" not in options:
-            raise SystemExit(f"durable Mountpoint must be mounted read-only: {root}")
-    scratch = local_scratch_root()
-    scratch.mkdir(parents=True, exist_ok=True)
-    probe = scratch / ".storage-doctor"
+    root.mkdir(parents=True, exist_ok=True)
+    probe = root / ".storage-doctor"
     probe.write_text("probe\n", encoding="utf-8")
-    replacement = scratch / ".storage-doctor.replaced"
+    replacement = root / ".storage-doctor.replaced"
     os.replace(probe, replacement)
     replacement.unlink()
-    if shutil.which("aws") is None:
-        raise SystemExit("aws CLI is not installed")
-    _base_uri()
-    print(f"storage mount readable: {root}")
-    print(f"local scratch supports replace/delete: {scratch}")
+    print(f"local storage supports replace/delete: {root}")
+    if s3_uri() is not None:
+        if shutil.which("aws") is None:
+            raise SystemExit("aws CLI is not installed")
+        bucket, key = _s3_location(_base_uri())
+        _aws("s3api", "list-objects-v2", "--bucket", bucket, "--prefix", key, "--max-keys", "1")
+        print(f"S3 prefix accessible: {_base_uri()}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -316,6 +344,10 @@ def main(argv: list[str] | None = None) -> int:
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("doctor")
     subparsers.add_parser("status")
+    pull_parser = subparsers.add_parser("pull")
+    pull_parser.add_argument("relative")
+    pull_parser.add_argument("--replace", action="store_true")
+    pull_parser.add_argument("--dry-run", action="store_true")
 
     def add_publish(name: str, positional: tuple[str, ...]) -> argparse.ArgumentParser:
         child = subparsers.add_parser(name)
@@ -335,43 +367,12 @@ def main(argv: list[str] | None = None) -> int:
     add_publish("publish-run", ("kind", "run_id", "source"))
     add_publish("publish", ("source", "relative"))
 
-    for name in ("materialize-model", "materialize-checkpoint"):
-        child = subparsers.add_parser(name)
-        child.add_argument("policy")
-        child.add_argument("name")
-        child.add_argument("destination")
-    hydrate_parser = subparsers.add_parser("hydrate")
-    hydrate_parser.add_argument("source")
-    hydrate_parser.add_argument("destination")
-    link_parser = subparsers.add_parser("link")
-    link_parser.add_argument("kind", choices=("assets", "datasets", "checkpoint"))
-    link_parser.add_argument("destination")
-    link_parser.add_argument("--policy")
-    link_parser.add_argument("--checkpoint")
-
     args = parser.parse_args(argv)
     if args.command in {"doctor", "status"}:
         doctor()
         return 0
-    if args.command == "hydrate":
-        materialize(Path(args.source), Path(args.destination))
-        return 0
-    if args.command == "link":
-        if args.kind == "assets":
-            source = assets_root()
-        elif args.kind == "datasets":
-            source = data_root()
-        else:
-            if not args.policy or not args.checkpoint:
-                parser.error("link checkpoint requires --policy and --checkpoint")
-            source = checkpoint_root() / args.policy / args.checkpoint
-        link_payload(source, Path(args.destination))
-        return 0
-    if args.command == "materialize-model":
-        materialize(model_root() / args.policy / args.name, Path(args.destination))
-        return 0
-    if args.command == "materialize-checkpoint":
-        materialize(checkpoint_root() / args.policy / args.name, Path(args.destination))
+    if args.command == "pull":
+        pull(args.relative, replace=args.replace, dry_run=args.dry_run)
         return 0
 
     source = Path(args.source)

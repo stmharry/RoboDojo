@@ -33,13 +33,8 @@ POLICY_HOST ?= 127.0.0.1
 POLICY_PORT ?=
 BIND_HOST ?= 0.0.0.0
 DATA_TYPE ?=
-EVAL_ROOT ?= eval_result/RoboDojo
 STORAGE_SOURCE ?=
-STORAGE_DESTINATION ?=
 STORAGE_RELATIVE ?=
-STORAGE_KIND ?=
-STORAGE_POLICY ?=
-STORAGE_CHECKPOINT ?=
 IMAGE ?= robodojo:cuda12.8
 ONLY ?=
 ARGS ?=
@@ -58,7 +53,7 @@ EVAL_FLAGS = $(POLICY_FLAGS) --dataset "$(DATASET)" --expert-num "$(EXPERT_NUM)"
 .PHONY: help tasks tasks-check install sync assets data-list data lint lint-fix format format-check test \
 	pre-commit check doctor eval eval-dry-run server server-dry-run client client-dry-run smoke \
 	smoke-dry-run benchmark benchmark-dry-run summarize storage-status storage-doctor storage-publish \
-	storage-publish-dry-run storage-hydrate storage-link docker-install docker-build docker-smoke \
+	storage-publish-dry-run storage-pull storage-pull-dry-run docker-install docker-build docker-smoke \
 	docker-monitor docker-clean
 
 help: ## Show targets and common configuration variables
@@ -137,7 +132,7 @@ benchmark: ## Run a benchmark sweep
 benchmark-dry-run: ## Dry-run a benchmark sweep
 	$(MAKE) benchmark ARGS="--dry-run $(ARGS)"
 summarize: ## Aggregate results into Markdown
-	ROBODOJO_EVAL_ROOT="$(EVAL_ROOT)" $(ROBODOJO_BASE) summarize $(ARGS)
+	$(ROBODOJO_BASE) summarize $(ARGS)
 
 storage-status: ## Check storage configuration
 	$(ROBODOJO_BASE) storage status $(ARGS)
@@ -148,14 +143,11 @@ storage-publish: ## Publish STORAGE_SOURCE to STORAGE_RELATIVE
 	$(ROBODOJO_BASE) storage publish "$(STORAGE_SOURCE)" "$(STORAGE_RELATIVE)" $(ARGS)
 storage-publish-dry-run: ## Preview storage publication
 	$(MAKE) storage-publish ARGS="--dry-run $(ARGS)"
-storage-hydrate: ## Hydrate and verify a payload
-	$(call require,STORAGE_SOURCE)$(call require,STORAGE_DESTINATION)
-	$(ROBODOJO_BASE) storage hydrate "$(STORAGE_SOURCE)" "$(STORAGE_DESTINATION)" $(ARGS)
-storage-link: ## Link a durable payload locally
-	$(call require,STORAGE_KIND)$(call require,STORAGE_DESTINATION)
-	$(ROBODOJO_BASE) storage link "$(STORAGE_KIND)" "$(STORAGE_DESTINATION)" \
-		$(if $(strip $(STORAGE_POLICY)),--policy "$(STORAGE_POLICY)") \
-		$(if $(strip $(STORAGE_CHECKPOINT)),--checkpoint "$(STORAGE_CHECKPOINT)") $(ARGS)
+storage-pull: ## Pull and verify STORAGE_RELATIVE into local storage
+	$(call require,STORAGE_RELATIVE)
+	$(ROBODOJO_BASE) storage pull "$(STORAGE_RELATIVE)" $(ARGS)
+storage-pull-dry-run: ## Preview storage pull
+	$(MAKE) storage-pull ARGS="--dry-run $(ARGS)"
 
 docker-install: ## Install Docker and NVIDIA runtime
 	$(ROBODOJO_BASE) docker install $(ARGS)

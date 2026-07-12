@@ -8,7 +8,7 @@ import time
 
 from robodojo.core.models import EvaluationRequest, SmokeRecord, SmokeSummary, SweepRequest
 from robodojo.core.paths import RepositoryPaths
-from robodojo.core.storage import run_work_root, storage_mode
+from robodojo.core.storage import run_work_root
 from robodojo.orchestration.evaluation import run_evaluation
 from robodojo.workflows.task_inventory import build_inventory
 
@@ -61,7 +61,7 @@ def _write_summary(summary: SmokeSummary, json_path: Path, markdown_path: Path) 
 
 def run_sweep(paths: RepositoryPaths, request: SweepRequest) -> int:
     run_id = request.run_id or datetime.now().strftime("%Y-%m-%d_%H-%M-%S_sweep")
-    run_dir = run_work_root() / "smoke" / run_id if storage_mode() else paths.root / "smoke_results" / run_id
+    run_dir = run_work_root() / "smoke" / run_id
     summary_path = run_dir / "summary.json"
     markdown_path = run_dir / "summary.md"
     results: list[SmokeRecord] = []

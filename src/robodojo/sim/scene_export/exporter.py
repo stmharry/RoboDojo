@@ -17,6 +17,7 @@ from typing import Any
 import numpy as np
 from pxr import Ar, Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdLux, UsdPhysics, UsdUtils, Vt
 
+from robodojo.core.storage import assets_root
 from robodojo.sim.environment.global_configs import ROOT_DIR
 from robodojo.sim.scene_export.contracts import ExportIdentity, calculate_fov_degrees, completed_export_matches
 
@@ -430,7 +431,7 @@ def _source_revisions(repo_root: Path) -> dict[str, Any]:
     result = {}
     for name, path in {
         "tracked_openarm_sources": repo_root / "configs/tooling/openarm/sources.json",
-        "generated_openarm_manifest": repo_root / "Assets/Robots/openarm/manifest.json",
+        "generated_openarm_manifest": assets_root() / "Robots/openarm/manifest.json",
     }.items():
         try:
             result[name] = json.loads(path.read_text(encoding="utf-8"))

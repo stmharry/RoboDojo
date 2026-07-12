@@ -1,8 +1,4 @@
-"""Storage path contract for local work and durable RoboDojo artifacts.
-
-Mountpoint for S3 is treated as a read-only consumption layer. Mutable work is
-kept on a local POSIX filesystem and published separately with the AWS CLI.
-"""
+"""Canonical local storage paths and optional S3 publication settings."""
 
 from __future__ import annotations
 
@@ -27,91 +23,54 @@ def _env_path(name: str) -> Path | None:
     return Path(os.path.expanduser(value)).resolve() if value else None
 
 
-def storage_root() -> Path | None:
-    return _env_path("ROBODOJO_STORAGE_ROOT")
-
-
-def local_scratch_root() -> Path:
-    return _env_path("ROBODOJO_LOCAL_SCRATCH_ROOT") or _repo_root() / ".cache" / "robodojo-runtime"
+def storage_root() -> Path:
+    return _env_path("ROBODOJO_STORAGE_ROOT") or _repo_root() / ".robodojo"
 
 
 def assets_root() -> Path:
-    root = storage_root()
-    return _env_path("ROBODOJO_ASSETS_ROOT") or (root / "assets" if root else _repo_root() / "Assets")
+    return storage_root() / "assets"
 
 
 def data_root() -> Path:
-    root = storage_root()
-    return (
-        _env_path("ROBODOJO_DATA_ROOT")
-        or _env_path("ROBO_DOJO_DATA_ROOT")
-        or (root / "datasets" if root else _repo_root() / "data")
-    )
+    return storage_root() / "datasets"
 
 
 def model_root() -> Path:
-    root = storage_root()
-    return _env_path("ROBODOJO_MODEL_ROOT") or (root / "model_weights" if root else _repo_root() / "model_weights")
+    return storage_root() / "model_weights"
 
 
 def checkpoint_root() -> Path:
-    root = storage_root()
-    return _env_path("ROBODOJO_CHECKPOINT_ROOT") or (root / "model_weights" if root else _repo_root() / "checkpoints")
+    return model_root()
 
 
 def eval_root() -> Path:
-    """Durable/read root whose children are benchmark task names."""
-    root = storage_root()
-    return _env_path("ROBODOJO_EVAL_ROOT") or (
-        root / "runs" / "eval_result" / "RoboDojo" if root else _repo_root() / "eval_result" / "RoboDojo"
-    )
+    """Local result root whose children are benchmark task names."""
+    return storage_root() / "runs" / "eval_result" / "RoboDojo"
 
 
 def eval_work_root() -> Path:
-    """POSIX working root for active evaluations and resume manifests."""
-    explicit = _env_path("ROBODOJO_EVAL_WORK_ROOT")
-    if explicit:
-        return explicit
-    if storage_root():
-        return local_scratch_root() / "eval_result" / "RoboDojo"
-    # ROBODOJO_EVAL_ROOT historically selected the result tree. When no
-    # durable storage root is configured it remains a directly writable root.
+    """Writable root for active evaluations and resume manifests."""
     return eval_root()
 
 
 def run_root() -> Path:
-    root = storage_root()
-    return _env_path("ROBODOJO_RUN_ROOT") or (root / "runs" if root else _repo_root() / "smoke_results")
+    return storage_root() / "runs"
 
 
 def run_work_root() -> Path:
-    explicit = _env_path("ROBODOJO_RUN_WORK_ROOT")
-    if explicit:
-        return explicit
-    if storage_root():
-        return local_scratch_root() / "runs"
     return run_root()
 
 
 def summary_path(override: os.PathLike[str] | str | None = None) -> Path:
-    """Writable Markdown summary path, separate from durable inputs."""
+    """Writable Markdown summary path."""
     if override is not None:
         return Path(os.path.expanduser(os.fspath(override))).resolve()
-    configured = _env_path("ROBODOJO_SUMMARY_PATH")
-    if configured:
-        return configured
-    if storage_mode():
-        return run_work_root() / "reports" / "_summary.md"
-    return eval_root() / "_summary.md"
+    return run_root() / "reports" / "_summary.md"
 
 
 def s3_uri() -> str | None:
     value = os.environ.get("ROBODOJO_S3_URI", "").strip().rstrip("/")
     return value or None
-
-
-def storage_mode() -> bool:
-    return storage_root() is not None
 
 
 def checkpoint_label(value: str, explicit: str | None = None) -> str:

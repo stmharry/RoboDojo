@@ -29,7 +29,7 @@ import os
 import re
 import sys
 
-from robodojo.core.storage import eval_root, storage_mode
+from robodojo.core.storage import eval_root
 
 DEFAULT_ROOT = str(eval_root())
 
@@ -53,12 +53,19 @@ def list_subdirs(path: str) -> list[str]:
     return sorted(name for name in os.listdir(path) if os.path.isdir(os.path.join(path, name)))
 
 
+def completed_result(path: str) -> bool:
+    try:
+        with open(path) as stream:
+            return int(json.load(stream).get("eval_time", 0)) >= 1
+    except (json.JSONDecodeError, OSError, TypeError, ValueError):
+        return False
+
+
 def latest_timestamp_dir(run_dir: str) -> str | None:
     candidates = []
     for name in list_subdirs(run_dir):
         result_file = os.path.join(run_dir, name, "_result.json")
-        complete_file = os.path.join(run_dir, name, "_COMPLETE.json")
-        if os.path.isfile(result_file) and (not storage_mode() or os.path.isfile(complete_file)):
+        if os.path.isfile(result_file) and completed_result(result_file):
             candidates.append(name)
     if not candidates:
         return None
@@ -273,8 +280,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Count how many episodes received each score for selected policies.")
     parser.add_argument(
         "--root",
-        default=os.environ.get("ROBODOJO_EVAL_ROOT", DEFAULT_ROOT),
-        help="Path to eval_result/RoboDojo (default: %(default)s)",
+        default=DEFAULT_ROOT,
+        help="Path to the canonical local evaluation results (default: %(default)s)",
     )
     parser.add_argument(
         "--policies",
