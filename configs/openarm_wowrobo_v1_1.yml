@@ -2,9 +2,6 @@ config_name: openarm_wowrobo_v1_1
 layout_config_name: arx_x5
 hardware_calibration: openarm_wowrobo_v1_1
 
-xpolicylab:
-  env_cfg_type: openarm_cloth_folding
-
 config:
   sim: openarm_wowrobo_v1_1
   scene: default

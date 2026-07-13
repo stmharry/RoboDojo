@@ -31,13 +31,6 @@ class EnvironmentProfile:
             raise ValueError(f"environment profile {self.name} must configure at least one environment")
         return value
 
-    @property
-    def xpolicylab_env_cfg_type(self) -> str:
-        if self.document.xpolicylab is None:
-            return self.name
-        return self.document.xpolicylab.env_cfg_type
-
-
 def _profile_path(config_root: Path, relative: str, *, field: str) -> Path:
     root = config_root.resolve()
     path = (root / relative).resolve()

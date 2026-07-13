@@ -34,12 +34,6 @@ over replacements or local reinterpretations. In particular:
 - Treat the ability to rebase, cherry-pick, or port future upstream changes
   without broad rewrites as an architectural acceptance criterion.
 
-Run `make upstream-check` to compare the reviewed revisions in
-`upstream_sync.yml` with the official repositories. Adopting or intentionally
-declining a reported change requires updating its mapping or disposition and
-the reviewed commit. Unmapped shared-boundary changes must be classified before
-the reviewed revision advances.
-
 The configured `XPolicyLab` submodule may point to a working fork. The official
 XPolicyLab repository remains the contract reference. Update the gitlink pin
 intentionally, and do not edit submodule contents as part of RoboDojo-owned
@@ -88,8 +82,6 @@ their own dependency tooling.
 Run native commands as `uv run --extra sim --locked robodojo <command>` when
 simulator dependencies are required. The main commands are `doctor`, `eval`,
 `server`, `client`, `smoke`, `benchmark`, `summarize`, and `tasks`.
-`upstream check` is the lightweight maintenance command for reviewing official
-repository changes.
 
 Single-machine evaluation follows this boundary:
 

@@ -55,7 +55,6 @@ configs/   simulator, scene, robot, and camera YAML
 task/RoboDojo/config/  task YAML configurations
 XPolicyLab/             policy implementations and server adapters (submodule)
 scripts/eval_policy.sh  private compatibility shim for XPolicyLab
-upstream_sync.yml       reviewed upstream revisions and local path mappings
 ```
 
 ## 🚀 Local Setup
@@ -115,11 +114,6 @@ XPolicyLab/policy/<POLICY_NAME>/deploy.yml
 `robodojo eval` starts the server adapter and simulator as managed process groups.
 The remaining `scripts/eval_policy.sh` only supports unchanged XPolicyLab legacy
 callbacks and immediately delegates to the Python CLI.
-
-Maintainers can run `make upstream-check` to compare the last reviewed official
-RoboDojo and XPolicyLab revisions with their current branches. The machine-readable
-`upstream_sync.yml` routes changed upstream paths to their reshaped local owners
-and records intentional replacements rather than treating the fork as a direct merge.
 
 ## 🏆 Leaderboard
 

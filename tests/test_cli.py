@@ -22,8 +22,9 @@ runner = CliRunner()
 def test_cli_exposes_the_unified_command_surface():
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    for command in ("eval", "server", "client", "smoke", "storage", "assets", "data", "docker", "upstream"):
+    for command in ("eval", "server", "client", "smoke", "storage", "assets", "data", "docker"):
         assert command in result.stdout
+    assert "upstream" not in result.stdout
 
 
 def test_task_inventory_reads_the_simulator_task_package():
@@ -80,13 +81,13 @@ def test_server_dry_run_validates_and_builds_adapter_argv(tmp_path):
         policy_env="policy-env",
         port=19000,
     )
-    command = policy_server_command(RepositoryPaths.resolve(ROOT), request, 19000)
+    command = policy_server_command(request, 19000)
     assert command[:2] == ["bash", str(adapter)]
     assert command[-2:] == ["19000", "0.0.0.0"]
 
 
 @pytest.mark.parametrize("profile", ["openarm_lerobot", "openarm_wowrobo_v1_1", "openarm_anvil_v2"])
-def test_openarm_policy_keeps_its_internal_xpolicylab_environment_name(tmp_path, profile):
+def test_openarm_policy_uses_current_environment_profile_name(tmp_path, profile):
     policy = tmp_path / "LeRobot_Pi05_OpenArm"
     policy.mkdir()
     (policy / "setup_eval_policy_server.sh").write_text("#!/usr/bin/env bash\n", encoding="utf-8")
@@ -99,8 +100,8 @@ def test_openarm_policy_keeps_its_internal_xpolicylab_environment_name(tmp_path,
         action_type="joint",
         port=19000,
     )
-    command = policy_server_command(RepositoryPaths.resolve(ROOT), request, 19000)
-    assert command[5] == "openarm_cloth_folding"
+    command = policy_server_command(request, 19000)
+    assert command[5] == profile
 
 
 def test_server_cli_rejects_invalid_port(tmp_path):
@@ -170,7 +171,7 @@ def test_cli_log_level_is_propagated_for_child_processes(monkeypatch, tmp_path):
     monkeypatch.setattr(
         policy_adapter,
         "run_policy_server",
-        lambda paths, request: seen.append(os.environ.get("ROBODOJO_LOG_LEVEL")) or 0,
+        lambda request: seen.append(os.environ.get("ROBODOJO_LOG_LEVEL")) or 0,
     )
     result = runner.invoke(
         app,

@@ -24,17 +24,6 @@ class DataFormat(StrEnum):
     REAL = "real"
 
 
-class UpstreamProject(StrEnum):
-    ALL = "all"
-    ROBODOJO = "robodojo"
-    XPOLICYLAB = "xpolicylab"
-
-
-class UpstreamOutputFormat(StrEnum):
-    PLAIN = "plain"
-    JSON = "json"
-
-
 class EvaluationRequest(StrictModel):
     policy_dir: Path
     task: str
@@ -117,10 +106,6 @@ class EnvironmentConfigReferences(StrictModel):
     camera: str
 
 
-class XPolicyLabEnvironmentProfile(StrictModel):
-    env_cfg_type: str
-
-
 class EnvironmentDiagnostics(StrictModel):
     matched_replay_manifest: str | None = None
 
@@ -133,7 +118,6 @@ class EnvironmentConfigDocument(BaseModel):
     config_name: str
     layout_config_name: str | None = None
     hardware_calibration: str | None = None
-    xpolicylab: XPolicyLabEnvironmentProfile | None = None
     diagnostics: EnvironmentDiagnostics | None = None
     config: EnvironmentConfigReferences
     observation: dict[str, Any] = Field(default_factory=dict)
