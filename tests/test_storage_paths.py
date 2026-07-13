@@ -1,3 +1,5 @@
+import os
+
 import pytest
 
 from robodojo.core import storage
@@ -11,8 +13,8 @@ def clear_storage_environment(monkeypatch):
         monkeypatch.delenv(name, raising=False)
 
 
-def test_unset_storage_uses_repository_local_root():
-    root = storage.REPO_ROOT / ".robodojo"
+def test_unset_storage_uses_default_checkout_root():
+    root = storage._default_storage_checkout(storage.REPO_ROOT) / ".robodojo"
     assert storage.storage_root() == root
     assert storage.assets_root() == root / "assets"
     assert storage.data_root() == root / "datasets"
@@ -25,9 +27,44 @@ def test_unset_storage_uses_repository_local_root():
     assert storage.summary_path() == root / "runs/reports/_summary.md"
 
 
+def test_normal_checkout_keeps_repository_local_storage(tmp_path):
+    checkout = tmp_path / "checkout"
+    (checkout / ".git").mkdir(parents=True)
+    (checkout / "pyproject.toml").write_text('[project]\nname = "robodojo"\n', encoding="utf-8")
+
+    assert storage._default_storage_checkout(checkout) == checkout
+
+
+def test_linked_worktree_uses_primary_checkout_storage(tmp_path):
+    primary = tmp_path / "primary"
+    common_gitdir = primary / ".git"
+    worktree_gitdir = common_gitdir / "worktrees" / "feature"
+    worktree_gitdir.mkdir(parents=True)
+    (primary / "pyproject.toml").write_text('[project]\nname = "robodojo"\n', encoding="utf-8")
+
+    linked = tmp_path / "linked"
+    linked.mkdir()
+    relative_gitdir = os.path.relpath(worktree_gitdir, start=linked)
+    (linked / ".git").write_text(f"gitdir: {relative_gitdir}\n", encoding="utf-8")
+    (worktree_gitdir / "commondir").write_text("../..\n", encoding="utf-8")
+
+    assert storage._linked_worktree_primary(linked) == primary
+    assert storage._default_storage_checkout(linked) == primary
+
+
+@pytest.mark.parametrize("marker", ["not a gitdir", "gitdir: ", "gitdir: missing"])
+def test_invalid_linked_worktree_metadata_stays_local(tmp_path, marker):
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    (checkout / ".git").write_text(marker, encoding="utf-8")
+
+    assert storage._default_storage_checkout(checkout) == checkout
+
+
 def test_explicit_storage_root_controls_every_payload(monkeypatch, tmp_path):
     root = tmp_path / "local"
     monkeypatch.setenv("ROBODOJO_STORAGE_ROOT", str(root))
+    assert storage.storage_root() == root
     assert storage.assets_root() == root / "assets"
     assert storage.data_root() == root / "datasets"
     assert storage.eval_root() == root / "runs/eval_result/RoboDojo"

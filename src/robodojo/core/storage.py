@@ -23,8 +23,58 @@ def _env_path(name: str) -> Path | None:
     return Path(os.path.expanduser(value)).resolve() if value else None
 
 
+def _linked_worktree_primary(checkout: Path) -> Path | None:
+    """Return the primary checkout for a Git linked worktree, if present."""
+    git_file = checkout / ".git"
+    if not git_file.is_file():
+        return None
+
+    try:
+        marker = git_file.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    prefix = "gitdir:"
+    if not marker.lower().startswith(prefix):
+        return None
+
+    gitdir_value = marker[len(prefix) :].strip()
+    if not gitdir_value:
+        return None
+    gitdir = Path(gitdir_value).expanduser()
+    if not gitdir.is_absolute():
+        gitdir = git_file.parent / gitdir
+    gitdir = gitdir.resolve()
+
+    commondir_file = gitdir / "commondir"
+    try:
+        commondir_value = commondir_file.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    if not commondir_value:
+        return None
+    commondir = Path(commondir_value).expanduser()
+    if not commondir.is_absolute():
+        commondir = gitdir / commondir
+    commondir = commondir.resolve()
+
+    # In a regular primary checkout, Git's common metadata directory is
+    # <checkout>/.git. Validate that shape before redirecting runtime data.
+    if commondir.name != ".git" or not commondir.is_dir():
+        return None
+    primary = commondir.parent
+    if not (primary / "pyproject.toml").is_file():
+        return None
+    return primary
+
+
+def _default_storage_checkout(checkout: Path) -> Path:
+    return _linked_worktree_primary(checkout) or checkout
+
+
 def storage_root() -> Path:
-    return _env_path("ROBODOJO_STORAGE_ROOT") or _repo_root() / ".robodojo"
+    if explicit := _env_path("ROBODOJO_STORAGE_ROOT"):
+        return explicit
+    return _default_storage_checkout(_repo_root()) / ".robodojo"
 
 
 def assets_root() -> Path:
