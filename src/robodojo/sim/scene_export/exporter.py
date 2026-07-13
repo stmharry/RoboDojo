@@ -26,6 +26,7 @@ from robodojo.sim.scene_export.contracts import (
     calculate_fisheye_fov_degrees,
     calculate_fov_degrees,
     completed_export_matches,
+    scene_config_paths,
 )
 
 logger = logging.getLogger(__name__)
@@ -484,15 +485,7 @@ def _source_revisions(repo_root: Path) -> dict[str, Any]:
 
 
 def _config_hashes(repo_root: Path, env) -> dict[str, str]:
-    eval_cfg = env.eval_cfg
-    paths = [
-        repo_root / "configs" / f"{env.config_name}.yml",
-        repo_root / "configs/camera" / f"{eval_cfg['config']['camera']}.yml",
-        repo_root / "configs/scene" / f"{eval_cfg['config']['scene']}.yml",
-        repo_root / "configs/robot" / f"{eval_cfg['config']['robot']}.yml",
-        repo_root / "configs/sim" / f"{eval_cfg['config']['sim']}.yml",
-        repo_root / "task/RoboDojo/config" / f"{env.task_name}.yml",
-    ]
+    paths = scene_config_paths(repo_root, env.config_name, env.task_name, env.eval_cfg["config"])
     return {str(path.relative_to(repo_root)): _sha256_file(path) for path in paths if path.is_file()}
 
 

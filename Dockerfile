@@ -135,7 +135,6 @@ RUN uv python install 3.11 && uv sync --extra sim --locked --no-dev --no-cache
 # already built under third_party/. Heavy policy source, weights, checkpoints,
 # assets, and runtime outputs are excluded via .dockerignore.
 COPY configs/ /workspace/RoboDojo/configs/
-COPY task/ /workspace/RoboDojo/task/
 COPY scripts/eval_policy.sh /workspace/RoboDojo/scripts/eval_policy.sh
 COPY XPolicyLab/ /workspace/RoboDojo/XPolicyLab/
 

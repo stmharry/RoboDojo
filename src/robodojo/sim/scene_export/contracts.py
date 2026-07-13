@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 import json
 import math
 from pathlib import Path
+
+from robodojo.core.paths import RepositoryPaths
 
 
 @dataclass(frozen=True)
@@ -18,6 +21,25 @@ class ExportIdentity:
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
+
+
+def scene_config_paths(
+    repo_root: Path,
+    profile: str,
+    task: str,
+    components: Mapping[str, str],
+) -> list[Path]:
+    """Return the canonical configuration inputs for a scene export."""
+    repository_paths = RepositoryPaths.resolve(repo_root)
+    config_root = repository_paths.environment_configs
+    return [
+        repository_paths.environment_profiles / f"{profile}.yml",
+        config_root / "camera" / f"{components['camera']}.yml",
+        config_root / "scene" / f"{components['scene']}.yml",
+        config_root / "robot" / f"{components['robot']}.yml",
+        config_root / "sim" / f"{components['sim']}.yml",
+        repository_paths.task_configs / f"{task}.yml",
+    ]
 
 
 def calculate_fov_degrees(width: int, height: int, fx: float, fy: float) -> dict[str, float]:

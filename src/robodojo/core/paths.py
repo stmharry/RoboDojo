@@ -53,8 +53,12 @@ class RepositoryPaths(BaseModel):
         return self.root / "configs"
 
     @property
+    def environment_profiles(self) -> Path:
+        return self.environment_configs / "environment"
+
+    @property
     def task_configs(self) -> Path:
-        return self.root / "task" / "RoboDojo" / "config"
+        return self.environment_configs / "task"
 
     @property
     def xpolicy_root(self) -> Path:

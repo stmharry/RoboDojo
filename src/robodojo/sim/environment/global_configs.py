@@ -10,6 +10,7 @@ ASSETS_PATH = str(assets_root())
 OBJECTS_PATH = os.path.join(ASSETS_PATH, "Object", BENCHMARK)
 ROBOTS_PATH = os.path.join(ASSETS_PATH, "Robots")
 ENV_CONFIG_PATH = os.path.join(ROOT_DIR, "configs")
+TASK_CONFIG_PATH = os.path.join(ENV_CONFIG_PATH, "task")
 
 ENV_REGEX_NAMESPACE = "{ENV_REGEX_NS}"
 

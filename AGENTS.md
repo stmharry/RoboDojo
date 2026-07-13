@@ -47,8 +47,7 @@ src/robodojo/policy/         policy adapter validation and launching
 src/robodojo/sim/            simulator managers, tasks, evaluation, scene export
 src/robodojo/orchestration/  coordinated policy/simulator process lifecycle
 src/robodojo/workflows/      install, download, storage, result, Docker workflows
-configs/                     robot, scene, simulator, and camera YAML
-task/RoboDojo/config/        task scene/object YAML
+configs/                     environment, task, robot, scene, simulator, and camera YAML
 scripts/eval_policy.sh       private XPolicyLab compatibility shim
 docker/                      container evaluation support
 XPolicyLab/                  policy servers and adapters (submodule)
@@ -61,6 +60,12 @@ RoboDojo owns `src/robodojo/`, root configuration, task definitions, the Typer
 CLI, and root install/assets/storage workflows. XPolicyLab owns policy code,
 policy-specific dependencies and training, checkpoints, `deploy.yml`, policy
 servers, and `XPolicyLab/policy/<POLICY>/setup_eval_*` scripts.
+
+The official upstream paths `env_cfg/<profile>.yml` and
+`task/RoboDojo/config/<task>.yml` map to the fork-owned canonical paths
+`configs/environment/<profile>.yml` and `configs/task/<task>.yml`. This is a
+layout-only adapter divergence: configuration names, schemas, and launcher
+arguments stay upstream-compatible.
 
 New code imports through the `robodojo.*` namespace. Core and policy code must
 not import `robodojo.sim` or simulator dependencies. Orchestration may import

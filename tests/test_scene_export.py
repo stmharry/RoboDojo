@@ -9,6 +9,7 @@ from robodojo.sim.scene_export.contracts import (
     calculate_fisheye_fov_degrees,
     calculate_fov_degrees,
     completed_export_matches,
+    scene_config_paths,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -41,6 +42,29 @@ def test_completed_export_requires_exact_identity(tmp_path):
         tmp_path,
         ExportIdentity("fold_clothes", "openarm_wowrobo_v1_1", 0, 1, "abc123"),
     )
+
+
+def test_scene_export_inputs_follow_canonical_config_domains():
+    paths = scene_config_paths(
+        ROOT,
+        "arx_x5",
+        "stack_bowls",
+        {
+            "sim": "sim_config",
+            "scene": "default",
+            "robot": "dual_x5",
+            "camera": "camera_config",
+        },
+    )
+
+    assert {str(path.relative_to(ROOT)) for path in paths} == {
+        "configs/environment/arx_x5.yml",
+        "configs/camera/camera_config.yml",
+        "configs/scene/default.yml",
+        "configs/robot/dual_x5.yml",
+        "configs/sim/sim_config.yml",
+        "configs/task/stack_bowls.yml",
+    }
 
 
 def test_scene_only_eval_dry_run_bypasses_policy_orchestrator(tmp_path):

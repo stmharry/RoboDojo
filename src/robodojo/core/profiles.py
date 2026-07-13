@@ -49,7 +49,7 @@ def load_environment_profile(
 ) -> EnvironmentProfile:
     """Load and validate an additive RoboDojo environment profile."""
     config_root = paths.environment_configs
-    path = config_root / f"{name}.yml"
+    path = paths.environment_profiles / f"{name}.yml"
     if not path.is_file():
         raise ValueError(f"environment config not found: {path}")
     payload: dict[str, Any] = yaml.safe_load(path.read_text(encoding="utf-8")) or {}

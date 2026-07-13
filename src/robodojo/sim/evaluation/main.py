@@ -84,7 +84,7 @@ SCENE_EXPORT_LAYOUT_ID = int(os.environ.get("ROBODOJO_EXPORT_LAYOUT_ID", "0"))
 # Safe to import before AppLauncher: env is a namespace package (no __init__)
 # and GLOBAL_CONFIGS only imports os, so this pulls in no app-dependent code.
 from robodojo.sim import tasks_registry
-from robodojo.sim.environment.global_configs import BENCHMARK, ROOT_DIR
+from robodojo.sim.environment.global_configs import ROOT_DIR
 
 task_registry = tasks_registry
 
@@ -105,10 +105,8 @@ def get_monitor():
     return None
 
 
-ENVIRONMENT_PROFILE = load_environment_profile(
-    RepositoryPaths.resolve(ROOT_DIR),
-    args_cli.env_cfg_type,
-)
+REPOSITORY_PATHS = RepositoryPaths.resolve(ROOT_DIR)
+ENVIRONMENT_PROFILE = load_environment_profile(REPOSITORY_PATHS, args_cli.env_cfg_type)
 
 
 def _physx_monitor_needed(task_name) -> bool:
@@ -118,7 +116,7 @@ def _physx_monitor_needed(task_name) -> bool:
     lightweight yaml load before AppLauncher; any failure falls back to
     enabled (fail-safe).
     """
-    cfg_path = task_registry.task_config_path(os.path.join(ROOT_DIR, "task", BENCHMARK, "config"), task_name)
+    cfg_path = task_registry.task_config_path(REPOSITORY_PATHS.task_configs, task_name)
     try:
         import yaml
 
@@ -160,9 +158,11 @@ from robodojo.sim.environment.global_configs import ENV_CONFIG_PATH
 from robodojo.sim.evaluation.eval_env import create_eval_env
 from robodojo.sim.utils.cluttered_generator import UnStableError
 from robodojo.sim.utils.load_file import load_yaml
-from robodojo.sim.utils.pipeline_utils import process_config, process_randomization, resolve_random_task_num_envs
-
-BENCHMARK_PATH = os.path.join(ROOT_DIR, "task", BENCHMARK)
+from robodojo.sim.utils.pipeline_utils import (
+    process_config,
+    process_randomization,
+    resolve_random_task_num_envs,
+)
 
 
 def _eval_batch_from_deploy(policy_name):
@@ -287,8 +287,7 @@ def main():
     """
     task_name = args_cli.task_name
     num_envs = 1 if SCENE_EXPORT_ONLY else args_cli.num_envs
-    eval_cfg_name = args_cli.env_cfg_type
-    eval_cfg = load_yaml(os.path.join(ENV_CONFIG_PATH, eval_cfg_name + ".yml"))
+    eval_cfg = load_yaml(ENVIRONMENT_PROFILE.path)
     eval_cfg["task_name"] = task_name
     eval_cfg["num_envs"] = num_envs
     eval_cfg["device_id"] = args_cli.device_id
@@ -333,7 +332,7 @@ def main():
                     eval_cfg["config"]["robot"] + ".yml",
                 )
             ),
-            "task_env": load_yaml(task_registry.task_config_path(os.path.join(BENCHMARK_PATH, "config"), task_name)),
+            "task_env": load_yaml(task_registry.task_config_path(REPOSITORY_PATHS.task_configs, task_name)),
             "eval_cfg": eval_cfg,
             "deploy_cfg": deploy_cfg,
         }

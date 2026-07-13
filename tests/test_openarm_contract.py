@@ -14,7 +14,7 @@ PROFILES = ("openarm_wowrobo_v1_1", "openarm_anvil_v2")
 
 @pytest.mark.parametrize("profile", PROFILES)
 def test_hardware_profiles_share_only_upstream_contracts(profile):
-    env_cfg = yaml.safe_load((ROOT / "configs" / f"{profile}.yml").read_text())
+    env_cfg = yaml.safe_load((ROOT / "configs/environment" / f"{profile}.yml").read_text())
     sim_cfg = yaml.safe_load((ROOT / "configs/sim" / f"{profile}.yml").read_text())
     robot_info = json.loads((ROOT / "configs/robot/_robot_info.json").read_text())[f"dual_{profile}"]
 
@@ -32,7 +32,7 @@ def test_hardware_profiles_share_only_upstream_contracts(profile):
 
 
 def test_lerobot_profile_is_runnable_and_uses_standard_scene_contracts():
-    env_cfg = yaml.safe_load((ROOT / "configs/openarm_lerobot.yml").read_text())
+    env_cfg = yaml.safe_load((ROOT / "configs/environment/openarm_lerobot.yml").read_text())
     robot_info = json.loads((ROOT / "configs/robot/_robot_info.json").read_text())["dual_openarm_lerobot"]
     assert env_cfg["config"] == {
         "sim": "real_time_30hz",

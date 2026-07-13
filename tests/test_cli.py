@@ -28,7 +28,9 @@ def test_cli_exposes_the_unified_command_surface():
 
 
 def test_task_inventory_reads_the_simulator_task_package():
-    tasks = {item["name"]: item for item in build_inventory()["tasks"]}
+    inventory = build_inventory()
+    tasks = {item["name"]: item for item in inventory["tasks"]}
+    assert inventory["config_dir"] == "configs/task"
     assert tasks["stack_bowls"]["runnable"] is True
 
 

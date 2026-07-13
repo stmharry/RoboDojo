@@ -13,9 +13,22 @@ def test_environment_profiles_resolve_policy_and_diagnostic_metadata():
     openarm = load_environment_profile(paths, "openarm_lerobot")
     arx = load_environment_profile(paths, "arx_x5")
 
+    assert openarm.path == ROOT / "configs/environment/openarm_lerobot.yml"
+    assert openarm.component_paths["robot"] == ROOT / "configs/robot/dual_openarm_lerobot.yml"
     assert openarm.document.layout_config_name == "arx_x5"
     assert openarm.matched_replay_manifest == ROOT / "configs/reference/openarm_lerobot_wrist_calibration.yml"
     assert arx.matched_replay_manifest is None
+
+
+def test_runtime_yaml_domains_use_the_canonical_config_root():
+    paths = RepositoryPaths.resolve(ROOT)
+
+    assert paths.environment_configs == ROOT / "configs"
+    assert paths.environment_profiles == ROOT / "configs/environment"
+    assert paths.task_configs == ROOT / "configs/task"
+    assert (paths.task_configs / "_task.yml").is_file()
+    assert not (ROOT / "configs/arx_x5.yml").exists()
+    assert not (ROOT / "task/RoboDojo/config").exists()
 
 
 @pytest.mark.parametrize("name", ["openarm_wowrobo_v1_1", "openarm_anvil_v2"])

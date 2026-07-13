@@ -51,11 +51,15 @@ src/robodojo/policy/        XPolicyLab adapter validation and launching
 src/robodojo/sim/           simulator runtime, tasks, evaluation, and scene export
 src/robodojo/orchestration/ coordinated policy/simulator evaluation lifecycle
 src/robodojo/workflows/     install, download, storage, result, and Docker workflows
-configs/   simulator, scene, robot, and camera YAML
-task/RoboDojo/config/  task YAML configurations
-XPolicyLab/             policy implementations and server adapters (submodule)
-scripts/eval_policy.sh  private compatibility shim for XPolicyLab
+configs/                    environment, task, simulator, scene, robot, and camera YAML
+XPolicyLab/                 policy implementations and server adapters (submodule)
+scripts/eval_policy.sh      private compatibility shim for XPolicyLab
 ```
+
+The official RoboDojo paths `env_cfg/<profile>.yml` and
+`task/RoboDojo/config/<task>.yml` map to this fork's canonical
+`configs/environment/<profile>.yml` and `configs/task/<task>.yml`. Profile and
+task names, schemas, and XPolicyLab's `env_cfg_type` values remain unchanged.
 
 ## 🚀 Local Setup
 
