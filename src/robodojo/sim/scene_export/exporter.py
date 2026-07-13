@@ -227,6 +227,11 @@ def _physics_inventory(stage: Usd.Stage) -> dict[str, list[str]]:
         "cameras": [],
     }
     for prim in stage.TraverseAll():
+        # TraverseAll includes inactive opinions, but flattened USD omits them.
+        # Inventory only live scene physics so reopened-stage validation uses
+        # the same composition semantics as the exported artifact.
+        if not prim.IsActive():
+            continue
         path = str(prim.GetPath())
         if prim.HasAPI(UsdPhysics.ArticulationRootAPI):
             inventory["articulation_roots"].append(path)
