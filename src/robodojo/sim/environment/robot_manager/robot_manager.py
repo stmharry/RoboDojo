@@ -103,13 +103,10 @@ class RobotManager:
             if robot.robot_type == "arm":
                 joint_list = self.get_joint(robot=robot)
                 if robot.ee_type == "gripper":
-                    if getattr(robot, "physical_gripper_interface", False):
-                        gripper_list = self.get_end_effector_real_val(robot=robot)
-                    else:
-                        gripper_scale = robot.gripper_scale
-                        val = gripper_scale[1] if robot.gripper_move["sign"] == 1 else gripper_scale[0]
-                        mimic = robot.gripper_move["mimic"]
-                        gripper_list = [[val, val * mimic[1] + mimic[2]] for _ in range(len(joint_list))]
+                    # Seed omitted controls from the articulation's configured
+                    # physical pose. This matters when a normalized gripper
+                    # starts partially open (YAM starts at -0.02 m).
+                    gripper_list = self.get_end_effector_real_val(robot=robot)
                 elif robot.ee_type == "hand":
                     gripper_list = self.get_end_effector_real_val(robot=robot)
                 for env_idx in env_idx_list:
@@ -718,6 +715,10 @@ ROBOT_CLASS_REGISTRY = {
         "module": "x5",
         "classes": ("X5",),
     },
+    "yam": {
+        "module": "yam",
+        "classes": ("YAM",),
+    },
     "openarm": {
         "module": "openarm",
         "classes": ("LeftOpenArm", "RightOpenArm"),
@@ -728,5 +729,6 @@ ROBOT_CLASS_REGISTRY = {
 ROBOT_CONFIG_REGISTRY = {
     "franka": "franka",
     "x5": "x5",
+    "yam": "yam",
     "openarm": "openarm",
 }

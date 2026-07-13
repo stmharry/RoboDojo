@@ -431,6 +431,13 @@ def assets_build_openarm(root: Path | None = typer.Option(None, "--root")) -> No
     raise typer.Exit(build_openarm(_paths(root)))
 
 
+@assets_app.command("build-yam")
+def assets_build_yam(root: Path | None = typer.Option(None, "--root")) -> None:
+    from robodojo.workflows.assets import build_yam
+
+    raise typer.Exit(build_yam(_paths(root)))
+
+
 @data_app.command("list")
 def data_list() -> None:
     from robodojo.workflows.downloads import list_data

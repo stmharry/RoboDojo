@@ -108,6 +108,13 @@ assets: ## Download benchmark assets
 		download \
 		$(ARGS)
 
+.PHONY: assets-yam
+assets-yam: ## Build the pinned I2RT YAM articulation asset
+	$(ROBODOJO_SIM) \
+		assets \
+		build-yam \
+		$(ARGS)
+
 .PHONY: data-list
 data-list: ## List dataset formats
 	$(ROBODOJO_BASE) \

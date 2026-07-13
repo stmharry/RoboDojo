@@ -24,6 +24,8 @@ from robodojo.sim.camera_template import (
     OPENARM_WRIST,
     PINHOLE,
     THIRD_VIEW,
+    YAM_TOP,
+    YAM_WRIST,
 )
 from robodojo.sim.environment.camera_manager.mount_registry import (
     align_hardware_frame_pose,
@@ -45,6 +47,8 @@ REAL_MAP = {
     "large_d435": LARGE_D435,
     "openarm_base": OPENARM_BASE,
     "openarm_wrist": OPENARM_WRIST,
+    "yam_top": YAM_TOP,
+    "yam_wrist": YAM_WRIST,
 }
 
 VISUAL_MAP = {

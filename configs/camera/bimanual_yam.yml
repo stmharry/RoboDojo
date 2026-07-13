@@ -1,0 +1,72 @@
+default_frequency: 30
+annotator:
+  common:
+    enabled: true
+    rgb_capture: {type: rgb, device: cpu}
+
+camera_rig:
+  profile_id: bimanual_yam
+  cameras:
+    cam_head:
+      role: top
+      type: yam_top
+      mesh: pinhole
+      sensor:
+        vendor: Intel
+        model: RealSense_D435i
+        native_resolution: [640, 360]
+        stream_resolution: [640, 360]
+        fps: 30
+        diagonal_fov_deg: 76.9315478867301
+      mount:
+        kind: world
+        position: [0.0, -0.30, 1.565]
+        orientation: [0.54167522, -0.45451948, 0.45451948, 0.54167522]
+        optical_roll_deg: 0.0
+        basis: molmoact2_yam_sim_contract
+      projection:
+        model: pinhole
+        backend: native
+        cx: 320.0
+        cy: 180.0
+        fx: 462.1386898729645
+        fy: 462.1386898729645
+        horizontal_fov_deg: 69.4
+    cam_left_wrist: &wrist
+      role: left_wrist
+      type: yam_wrist
+      mesh: pinhole
+      sensor: &wrist_sensor
+        vendor: Intel
+        model: RealSense_D405
+        native_resolution: [640, 360]
+        stream_resolution: [640, 360]
+        fps: 30
+        diagonal_fov_deg: 94.86822220812002
+      mount:
+        kind: robot_link
+        target: robot0/link6
+        position: [0.0, 0.09, 0.06]
+        orientation: [0.61237243, -0.35355339, -0.35355340, -0.61237244]
+        optical_roll_deg: 0.0
+        basis: molmoact2_yam_sim_contract
+      projection: &wrist_projection
+        model: pinhole
+        backend: native
+        cx: 320.0
+        cy: 180.0
+        fx: 337.20964008990796
+        fy: 337.20964008990796
+        horizontal_fov_deg: 87.0
+    cam_right_wrist:
+      <<: *wrist
+      role: right_wrist
+      sensor: *wrist_sensor
+      mount:
+        kind: robot_link
+        target: robot1/link6
+        position: [0.0, 0.09, 0.06]
+        orientation: [0.61237243, -0.35355339, -0.35355340, -0.61237244]
+        optical_roll_deg: 0.0
+        basis: molmoact2_yam_sim_contract
+      projection: *wrist_projection

@@ -1,0 +1,76 @@
+format: 1
+profile_id: bimanual_yam
+purpose: Zero-shot cloth-folding simulation baseline for MolmoAct2
+
+sources:
+  embodiment:
+    repository: https://github.com/i2rt-robotics/i2rt.git
+    revision: ac096928d6899ddf852a71c5e8fbaa6055cd9745
+    license: MIT
+  simulator_contract:
+    repository: https://github.com/allenai/molmoact2.git
+    revision: c2282820f9b188b60e66ea1636b3efd81c45cbb4
+    paths:
+      - sim_eval/robots/bimanual_yam.py
+      - sim_eval/inference/common.py
+  policy_checkpoint:
+    repository: allenai/MolmoAct2-BimanualYAM
+    revision: 8dcbed66f2380e4393189c303ea72488eb9e63c2
+    redistribution: prohibited_without_an_explicit_upstream_license
+
+state_action_contract:
+  frequency_hz: 30
+  dimension: 14
+  order:
+    - left_arm_joint_1
+    - left_arm_joint_2
+    - left_arm_joint_3
+    - left_arm_joint_4
+    - left_arm_joint_5
+    - left_arm_joint_6
+    - left_gripper_open_fraction
+    - right_arm_joint_1
+    - right_arm_joint_2
+    - right_arm_joint_3
+    - right_arm_joint_4
+    - right_arm_joint_5
+    - right_arm_joint_6
+    - right_gripper_open_fraction
+  joint_action_type: absolute
+  gripper:
+    physical_range_m: [-0.0475, 0.0]
+    policy_range: [0.0, 1.0]
+    formula: g=-q/0.0475
+    open: 1.0
+    closed: 0.0
+  predicted_horizon: 30
+  executed_horizon: 25
+
+initial_state:
+  per_arm_joint_position: [0.0, 0.7853981633974483, 1.5707963267948966, 0.0, 0.0, 0.0]
+  per_finger_position_m: -0.02
+
+camera_contract:
+  dtype: uint8
+  shape_hwc: [360, 640, 3]
+  observation_order: [cam_head, cam_left_wrist, cam_right_wrist]
+  policy_mapping:
+    cam_head: observation.images.top
+    cam_left_wrist: observation.images.left
+    cam_right_wrist: observation.images.right
+  horizontal_fov_deg:
+    cam_head: 69.4
+    cam_left_wrist: 87.0
+    cam_right_wrist: 87.0
+
+controller_contract:
+  arm:
+    stiffness: [40.0, 40.0, 40.0, 20.0, 10.0, 10.0]
+    damping: [2.5, 2.5, 2.5, 0.5, 1.0, 1.0]
+    effort_limit: [28.0, 28.0, 28.0, 10.0, 10.0, 10.0]
+  gripper:
+    stiffness: 2000.0
+    damping: 40.0
+    effort_limit: 40.0
+    static_friction: 3.0
+    dynamic_friction: 2.5

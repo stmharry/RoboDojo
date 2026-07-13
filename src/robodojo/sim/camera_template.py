@@ -44,6 +44,22 @@ OPENARM_WRIST = {
     "vertical_aperture": 12.375,
     "clipping_range": (0.005, 10.0),
 }
+YAM_TOP = {
+    "resolution": (640, 360),
+    # 69.4 degree horizontal FOV at 640 px (fx = 462.1386898729645).
+    "focal_length": 10.0,
+    "horizontal_aperture": 13.848656561863,
+    "vertical_aperture": 7.7898693160479375,
+    "clipping_range": (0.01, 100.0),
+}
+YAM_WRIST = {
+    "resolution": (640, 360),
+    # 87 degree horizontal FOV at 640 px (fx = 337.20964008990796).
+    "focal_length": 10.0,
+    "horizontal_aperture": 18.979291334297592,
+    "vertical_aperture": 10.675851375542395,
+    "clipping_range": (0.01, 100.0),
+}
 CAMERA_TYPE_RESOLUTIONS = {
     "Gemini_345Lg": GEMINI_345LG["resolution"],
     "third_view": THIRD_VIEW["resolution"],
@@ -51,5 +67,7 @@ CAMERA_TYPE_RESOLUTIONS = {
     "large_d435": LARGE_D435["resolution"],
     "openarm_base": OPENARM_BASE["resolution"],
     "openarm_wrist": OPENARM_WRIST["resolution"],
+    "yam_top": YAM_TOP["resolution"],
+    "yam_wrist": YAM_WRIST["resolution"],
 }
 PINHOLE = {"position": (0.0, 0.0, 0.0), "orientation": (1.0, 0.0, 0.0, 0.0)}

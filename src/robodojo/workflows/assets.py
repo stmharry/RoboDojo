@@ -1,4 +1,4 @@
-"""OpenARM build preparation."""
+"""Source-pinned robot asset build preparation."""
 
 from __future__ import annotations
 
@@ -61,4 +61,37 @@ def build_openarm(paths: RepositoryPaths) -> int:
     code = subprocess.run(command, cwd=paths.root, env=env).returncode
     if code == 0 and not (output / "manifest.json").is_file():
         raise RuntimeError("OpenARM build completed without manifest.json")
+    return code
+
+
+def build_yam(paths: RepositoryPaths) -> int:
+    manifest = yaml.safe_load(paths.yam_manifest.read_text(encoding="utf-8"))
+    source_spec = manifest["sources"]["i2rt"]
+    cache = storage_root() / ".cache" / "yam"
+    source = cache / "i2rt"
+    output = assets_root() / "Robots" / "yam"
+    output.mkdir(parents=True, exist_ok=True)
+
+    if not (source / ".git").is_dir():
+        subprocess.run(["git", "clone", source_spec["repository"], str(source)], check=True)
+    revision = source_spec["revision"]
+    subprocess.run(["git", "-C", str(source), "fetch", "--depth", "1", "origin", revision], check=True)
+    subprocess.run(["git", "-C", str(source), "checkout", "--detach", revision], check=True)
+
+    (output / "manifest.json").unlink(missing_ok=True)
+    env = {**os.environ, "OMNI_KIT_ACCEPT_EULA": "YES"}
+    command = [
+        sys.executable,
+        "-m",
+        "robodojo.workflows.assets_yam",
+        "--source-root",
+        str(source),
+        "--output-root",
+        str(output),
+        "--manifest",
+        str(paths.yam_manifest),
+    ]
+    code = subprocess.run(command, cwd=paths.root, env=env).returncode
+    if code == 0 and not (output / "manifest.json").is_file():
+        raise RuntimeError("YAM build completed without manifest.json")
     return code

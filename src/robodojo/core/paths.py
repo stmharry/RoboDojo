@@ -67,3 +67,7 @@ class RepositoryPaths(BaseModel):
     @property
     def openarm_manifest(self) -> Path:
         return self.root / "configs" / "tooling" / "openarm.yml"
+
+    @property
+    def yam_manifest(self) -> Path:
+        return self.root / "configs" / "tooling" / "yam.yml"
