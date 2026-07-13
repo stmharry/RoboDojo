@@ -35,6 +35,16 @@ OpenCV fisheye parameters fitted from pinned training-video jaw landmarks.
 uv run --extra sim --locked robodojo assets build-openarm
 ```
 
+The asset manifest at `configs/tooling/openarm.yml` accepts `jaw: stock|enlarged`.
+`enlarged` is the default and replaces each stock finger's visual and collision
+geometry with the pinned LeRobot jaw; it does not layer a second jaw onto the
+stock mesh. The registration preserves the STL origin, applies a proper CAD-axis
+rotation, and aligns the replacement base plane and cross-section to the composed
+stock finger. `stock` leaves the upstream OpenArm finger geometry untouched.
+Both modes retain the same finger links, prismatic joints, limits, mimic relation,
+and 44 mm physical gripper interface. Re-run the build command after changing the
+selection.
+
 Generated assets are written under `.robodojo/assets/Robots/openarm/` by
 default and remain untracked. Authoritative source revisions, checksums, build
 parameters, and the generated robot configuration live in

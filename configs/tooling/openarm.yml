@@ -16,6 +16,7 @@ sources:
 asset:
   output: openarm_bimanual.usd
   upper_arm_extension_m: 0.05
+  jaw: enlarged
   jaw_mesh: jaw_normal.stl
 
 robot_config:

@@ -157,6 +157,20 @@ def test_openarm_asset_inputs_remain_pinned_and_shared():
     assert sources["hardware_modifications"]["revision"] == "ffe34b93c070343042eb9412fbfeffce16139947"
     assert hashes["jaw_normal.stl"] == "6ae41c9fbba411333954b8f4d1c6867b61fad1be7d7b936899c27d43410a2137"
     assert manifest["asset"]["upper_arm_extension_m"] == 0.05
+    assert manifest["asset"]["jaw"] == "enlarged"
+    for side in ("left", "right"):
+        robot = manifest["robot_config"][side]
+        assert robot["gripper_joints_name"] == [
+            f"openarm_{side}_finger_joint1",
+            f"openarm_{side}_finger_joint2",
+        ]
+        assert robot["gripper_move"] == {
+            "base": f"openarm_{side}_finger_joint1",
+            "sign": 1.0,
+            "mimic": [f"openarm_{side}_finger_joint2", 1.0, 0.0],
+        }
+        assert robot["gripper_scale"] == [0.0, 0.044]
+        assert robot["physical_gripper_interface"] is True
 
 
 def test_policy_reference_is_right_first_30hz_for_both_profiles():

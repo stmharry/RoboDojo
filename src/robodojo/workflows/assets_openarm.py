@@ -16,6 +16,8 @@ from scipy.spatial.transform import Rotation  # noqa: E402
 import trimesh  # noqa: E402
 import yaml  # noqa: E402
 
+from robodojo.workflows.openarm_jaw import register_enlarged_jaw, validate_jaw_mode  # noqa: E402
+
 
 @dataclass(frozen=True)
 class HolderFrame:
@@ -148,6 +150,111 @@ def add_mesh(stage: Usd.Stage, parent_path: str, name: str, stl_path: Path, coll
     return path
 
 
+def load_stl_mesh_m(stl_path: Path) -> trimesh.Trimesh:
+    loaded = trimesh.load_mesh(stl_path, force="mesh")
+    if not isinstance(loaded, trimesh.Trimesh):
+        raise RuntimeError(f"expected one mesh in {stl_path}")
+    loaded = loaded.copy()
+    if max(loaded.extents) > 1.0:
+        loaded.vertices *= 0.001
+    return loaded
+
+
+def stock_jaw_vertices(stage: Usd.Stage, finger_path: str) -> np.ndarray:
+    """Return composed stock visual vertices expressed in the finger frame."""
+    finger = stage.GetPrimAtPath(finger_path)
+    if not finger.IsValid():
+        raise RuntimeError(f"missing finger prim {finger_path}")
+    cache = UsdGeom.XformCache()
+    finger_from_world = cache.GetLocalToWorldTransform(finger).GetInverse()
+    points = []
+    prefix = f"{finger_path}/visuals/"
+    for prim in Usd.PrimRange.Stage(stage, Usd.TraverseInstanceProxies()):
+        if not prim.IsA(UsdGeom.Mesh) or not str(prim.GetPath()).startswith(prefix):
+            continue
+        mesh_to_world = cache.GetLocalToWorldTransform(prim)
+        for point in UsdGeom.Mesh(prim).GetPointsAttr().Get() or []:
+            world = mesh_to_world.Transform(Gf.Vec3d(point))
+            local = finger_from_world.Transform(world)
+            points.append(tuple(local))
+    if not points:
+        raise RuntimeError(f"no composed stock visual mesh found below {finger_path}/visuals")
+    return np.asarray(points, dtype=np.float64)
+
+
+def author_mesh(stage: Usd.Stage, path: str, vertices: np.ndarray, faces: np.ndarray, collision: bool) -> str:
+    mesh = UsdGeom.Mesh.Define(stage, path)
+    mesh.CreatePointsAttr([Gf.Vec3f(*point) for point in vertices])
+    mesh.CreateFaceVertexCountsAttr([3] * len(faces))
+    mesh.CreateFaceVertexIndicesAttr(faces.reshape(-1).tolist())
+    mesh.CreateSubdivisionSchemeAttr("none")
+    if collision:
+        UsdPhysics.CollisionAPI.Apply(mesh.GetPrim())
+        UsdPhysics.MeshCollisionAPI.Apply(mesh.GetPrim()).CreateApproximationAttr("convexHull")
+    return path
+
+
+def replace_stock_jaw(
+    stage: Usd.Stage,
+    finger_path: str,
+    enlarged_mesh: trimesh.Trimesh,
+) -> dict:
+    registration = register_enlarged_jaw(enlarged_mesh.vertices, stock_jaw_vertices(stage, finger_path))
+    stock_visual = stage.GetPrimAtPath(f"{finger_path}/visuals")
+    stock_collision = stage.GetPrimAtPath(f"{finger_path}/collisions")
+    if not stock_visual.IsValid() or not stock_collision.IsValid():
+        raise RuntimeError(f"stock jaw geometry is incomplete below {finger_path}")
+    stock_visual.SetActive(False)
+    stock_collision.SetActive(False)
+
+    root_path = f"{finger_path}/replacement_jaw"
+    UsdGeom.Xform.Define(stage, root_path)
+    visual_path = author_mesh(
+        stage,
+        f"{root_path}/visual",
+        registration.vertices,
+        enlarged_mesh.faces,
+        collision=False,
+    )
+    collision_path = author_mesh(
+        stage,
+        f"{root_path}/collision",
+        registration.vertices,
+        enlarged_mesh.faces,
+        collision=True,
+    )
+    return {
+        "finger_path": finger_path,
+        "stock_visual_path": str(stock_visual.GetPath()),
+        "stock_collision_path": str(stock_collision.GetPath()),
+        "replacement_root": root_path,
+        "visual_path": visual_path,
+        "collision_path": collision_path,
+        "registration": registration.as_dict(),
+    }
+
+
+def finger_joint_contract(stage: Usd.Stage) -> list[dict]:
+    contract = []
+    for prim in stage.Traverse():
+        if not prim.IsA(UsdPhysics.PrismaticJoint) or "finger_joint" not in prim.GetName():
+            continue
+        joint = UsdPhysics.PrismaticJoint(prim)
+        contract.append(
+            {
+                "path": str(prim.GetPath()),
+                "axis": str(joint.GetAxisAttr().Get()),
+                "lower_limit": float(joint.GetLowerLimitAttr().Get()),
+                "upper_limit": float(joint.GetUpperLimitAttr().Get()),
+                "body0": [str(path) for path in joint.GetBody0Rel().GetTargets()],
+                "body1": [str(path) for path in joint.GetBody1Rel().GetTargets()],
+            }
+        )
+    if len(contract) != 4:
+        raise RuntimeError(f"expected four OpenArm finger joints, found {contract}")
+    return sorted(contract, key=lambda item: item["path"])
+
+
 def build_holder_asset(stl_path: Path, output: Path, transform_points, prim_name: str, side: str) -> dict:
     """Author a holder in its CAD-derived attachment frame."""
     loaded = trimesh.load_mesh(stl_path, force="mesh")
@@ -197,6 +304,7 @@ def main() -> None:
     args = parser.parse_args()
     build_manifest = yaml.safe_load(args.manifest.read_text(encoding="utf-8"))
     asset_config = build_manifest["asset"]
+    jaw_mode = validate_jaw_mode(asset_config.get("jaw", "enlarged"))
 
     source_dir = args.source_root / (
         "source/openarm/openarm/tasks/manager_based/openarm_manipulation/usds/openarm_bimanual"
@@ -226,6 +334,7 @@ def main() -> None:
         raise RuntimeError(f"could not open {base}")
     extension = float(asset_config["upper_arm_extension_m"])
     joint_paths = [shift_joint_anchor(stage, side, extension) for side in ("left", "right")]
+    original_finger_joint_contract = finger_joint_contract(stage)
 
     prims = list(stage.Traverse())
     prim_paths = {str(prim.GetPath()) for prim in prims}
@@ -233,7 +342,11 @@ def main() -> None:
     rigid_body_paths = [str(prim.GetPath()) for prim in prims if prim.HasAPI(UsdPhysics.RigidBodyAPI)]
     revolute_joint_paths = [str(prim.GetPath()) for prim in prims if prim.IsA(UsdPhysics.RevoluteJoint)]
     jaw_paths = []
+    jaw_replacements = []
     cover_paths = []
+    enlarged_mesh = None
+    if jaw_mode == "enlarged":
+        enlarged_mesh = load_stl_mesh_m(args.hardware_root / asset_config["jaw_mesh"])
     for side in ("left", "right"):
         finger_candidates = sorted(
             path
@@ -243,10 +356,11 @@ def main() -> None:
         if not finger_candidates:
             fingers = sorted(path for path in prim_paths if "finger" in path)
             raise RuntimeError(f"no {side} finger link found; finger paths={fingers}")
-        for finger_path in finger_candidates:
-            jaw_paths.append(
-                add_mesh(stage, finger_path, "extended_jaw", args.hardware_root / asset_config["jaw_mesh"], True)
-            )
+        if enlarged_mesh is not None:
+            for finger_path in finger_candidates:
+                replacement = replace_stock_jaw(stage, finger_path, enlarged_mesh)
+                jaw_replacements.append(replacement)
+                jaw_paths.append(replacement["replacement_root"])
         upper_arm_candidates = sorted(
             path for path in prim_paths if f"openarm_{side}_link3" in path and "/joints/" not in path
         )
@@ -257,6 +371,9 @@ def main() -> None:
             ("extended_cover_back", "J3-J4_Cover back extended.stl"),
         ):
             cover_paths.append(add_mesh(stage, upper_arm_candidates[0], label, args.hardware_root / filename, True))
+    final_finger_joint_contract = finger_joint_contract(stage)
+    if final_finger_joint_contract != original_finger_joint_contract:
+        raise RuntimeError("jaw replacement changed the finger joint contract")
     stage.GetRootLayer().Export(str(output))
 
     holder_assets = {
@@ -305,7 +422,10 @@ def main() -> None:
         "rigid_body_paths": rigid_body_paths,
         "revolute_joint_paths": revolute_joint_paths,
         "joint_paths": joint_paths,
+        "finger_joint_contract": final_finger_joint_contract,
+        "jaw": jaw_mode,
         "jaw_paths": jaw_paths,
+        "jaw_replacements": jaw_replacements,
         "cover_paths": cover_paths,
         "camera_holders": holder_assets,
         "output": output.name,
