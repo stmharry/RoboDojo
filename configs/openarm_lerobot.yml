@@ -1,6 +1,12 @@
 config_name: openarm_lerobot
 layout_config_name: arx_x5
 
+xpolicylab:
+  env_cfg_type: openarm_cloth_folding
+
+diagnostics:
+  matched_replay_manifest: reference/openarm_lerobot_wrist_calibration.yml
+
 config:
   sim: real_time_30hz
   scene: default

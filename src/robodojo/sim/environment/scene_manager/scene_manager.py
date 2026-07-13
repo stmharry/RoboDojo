@@ -23,6 +23,7 @@ from robodojo.sim.environment.scene_manager.objects.primitives import PRIMITIVE_
 from robodojo.sim.environment.scene_manager.objects.rigid import RigidObject
 from robodojo.sim.environment.scene_manager.objects.room import Room
 from robodojo.sim.environment.scene_manager.objects.table import Table
+from robodojo.sim.environment.scene_manager.pose_restore import restore_saved_poses
 from robodojo.sim.environment.seeding import seed_everywhere
 from robodojo.sim.utils.path import deep_resolve_paths
 
@@ -193,28 +194,23 @@ class SceneManager:
             if self._tables[env_idx] is not None:
                 self._tables[env_idx].relocate_offscreen()
 
-    def apply_saved_poses(self, env_id: int):
-        """Apply saved poses for a specific environment.
+    def apply_saved_poses(self, env_idx_list: Sequence[int]):
+        """Restore selected environments to their saved evaluation poses.
 
-        Args:
-            env_id: Environment ID to initialize pose for
+        Tables settle first so support surfaces are in place before the
+        remaining scene objects are restored as one batch.
         """
-        for env_idx in range(self.num_envs):
-            if self._tables[env_idx] is not None:
-                self._tables[env_idx].apply_saved_pose()
-
-        for _ in range(20):  # waiting for tables to settle down
-            self.sim.sim_step(render=False)
-
-        for obj_dict in [
-            self._rigid_and_dynamic_objects[env_id],
-            self._articulation_objects[env_id],
-            self._garment_objects[env_id],
-            self._geometry_objects[env_id],
-            self._fluid_objects[env_id],
-        ]:
-            for obj in obj_dict.values():
-                obj.apply_saved_pose()
+        object_groups = [
+            [
+                self._rigid_and_dynamic_objects[env_idx],
+                self._articulation_objects[env_idx],
+                self._garment_objects[env_idx],
+                self._geometry_objects[env_idx],
+                self._fluid_objects[env_idx],
+            ]
+            for env_idx in range(self.num_envs)
+        ]
+        restore_saved_poses(env_idx_list, self._tables, object_groups, self.sim)
 
     def reload_env_scene(self, env_id: int, object_types: List[str] = None):
         """Reload scene objects for the specified environment.

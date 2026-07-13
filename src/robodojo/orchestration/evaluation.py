@@ -94,7 +94,7 @@ def run_evaluation(paths: RepositoryPaths, request: EvaluationRequest) -> int:
         port=port,
         dry_run=request.dry_run,
     )
-    policy_argv = policy_server_command(policy_request, port)
+    policy_argv = policy_server_command(paths, policy_request, port)
     policy_env = {"ROBODOJO_CKPT_LABEL": label}
     if request.dry_run:
         print(format_command(policy_argv, policy_env))

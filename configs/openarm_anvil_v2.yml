@@ -2,6 +2,9 @@ config_name: openarm_anvil_v2
 layout_config_name: arx_x5
 hardware_calibration: openarm_anvil_v2
 
+xpolicylab:
+  env_cfg_type: openarm_cloth_folding
+
 config:
   sim: openarm_anvil_v2
   scene: default

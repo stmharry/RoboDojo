@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -22,6 +22,17 @@ class DataFormat(StrEnum):
     HDF5 = "hdf5"
     DEMO = "demo"
     REAL = "real"
+
+
+class UpstreamProject(StrEnum):
+    ALL = "all"
+    ROBODOJO = "robodojo"
+    XPOLICYLAB = "xpolicylab"
+
+
+class UpstreamOutputFormat(StrEnum):
+    PLAIN = "plain"
+    JSON = "json"
 
 
 class EvaluationRequest(StrictModel):
@@ -106,8 +117,26 @@ class EnvironmentConfigReferences(StrictModel):
     camera: str
 
 
-class EnvironmentConfigDocument(StrictModel):
+class XPolicyLabEnvironmentProfile(StrictModel):
+    env_cfg_type: str
+
+
+class EnvironmentDiagnostics(StrictModel):
+    matched_replay_manifest: str | None = None
+
+
+class EnvironmentConfigDocument(BaseModel):
+    """Typed profile metadata with forward-compatible upstream payload fields."""
+
+    model_config = ConfigDict(extra="allow")
+
+    config_name: str
+    layout_config_name: str | None = None
+    hardware_calibration: str | None = None
+    xpolicylab: XPolicyLabEnvironmentProfile | None = None
+    diagnostics: EnvironmentDiagnostics | None = None
     config: EnvironmentConfigReferences
+    observation: dict[str, Any] = Field(default_factory=dict)
 
 
 class SmokeRecord(StrictModel):

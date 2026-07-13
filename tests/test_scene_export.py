@@ -116,6 +116,6 @@ def test_export_hook_precedes_rollout():
 
 def test_direct_simulator_entrypoint_validates_calibration_before_kit_startup():
     source = (ROOT / "src/robodojo/sim/evaluation/main.py").read_text(encoding="utf-8")
-    validation = source.index("_validate_hardware_calibration(args_cli.env_cfg_type)")
+    validation = source.index("ENVIRONMENT_PROFILE = load_environment_profile(")
     app_launch = source.index("app_launcher = AppLauncher(args_cli)")
     assert validation < app_launch

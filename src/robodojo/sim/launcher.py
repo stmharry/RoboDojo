@@ -7,36 +7,21 @@ import logging
 import os
 import sys
 import time
-from typing import Any
 
 import yaml
 
-from robodojo.core.calibration import calibration_name, load_hardware_calibration
-from robodojo.core.models import EnvironmentConfigDocument, SimulatorLaunchRequest
+from robodojo.core.models import SimulatorLaunchRequest
 from robodojo.core.paths import RepositoryPaths
 from robodojo.core.processes import format_command, run
+from robodojo.core.profiles import load_environment_profile
 
 logger = logging.getLogger(__name__)
 
 
 def load_simulator_config(paths: RepositoryPaths, request: SimulatorLaunchRequest) -> tuple[int, str]:
     """Validate the selected config graph and resolve launch-time values."""
-    config_path = paths.environment_configs / f"{request.env_config}.yml"
-    if not config_path.is_file():
-        raise ValueError(f"environment config not found: {config_path}")
-    payload: dict[str, Any] = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
-    calibration = calibration_name(payload)
-    if calibration:
-        load_hardware_calibration(paths.environment_configs, calibration)
-    document = EnvironmentConfigDocument.model_validate({"config": payload.get("config", {})})
-    for section, name in document.config.model_dump().items():
-        suffix = ".json" if section == "robot" and name == "_robot_info" else ".yml"
-        referenced = paths.environment_configs / section / f"{name}{suffix}"
-        if not referenced.is_file():
-            raise ValueError(f"referenced {section} config not found: {referenced}")
-    sim_path = paths.environment_configs / "sim" / f"{document.config.sim}.yml"
-    sim: dict[str, Any] = yaml.safe_load(sim_path.read_text(encoding="utf-8")) or {}
-    num_envs = int(sim.get("scene", {}).get("num_envs", 1))
+    profile = load_environment_profile(paths, request.env_config)
+    num_envs = profile.num_envs
 
     deploy = paths.xpolicy_root / "policy" / request.policy_name / "deploy.yml"
     protocol = request.protocol

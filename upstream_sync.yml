@@ -1,0 +1,46 @@
+schema_version: 1
+projects:
+  robodojo:
+    repository: https://github.com/RoboDojo-Benchmark/RoboDojo.git
+    ref: main
+    reviewed_commit: 9b4cc885e8f530ed3ab14a30a312ae70242771c4
+    mappings:
+      - {kind: exact, upstream: README.md, local: README.md, disposition: mapped}
+      - {kind: exact, upstream: LICENSE, local: LICENSE, disposition: mapped}
+      - {kind: exact, upstream: pyproject.toml, local: pyproject.toml, disposition: mapped}
+      - {kind: exact, upstream: Dockerfile, local: Dockerfile, disposition: mapped}
+      - {kind: exact, upstream: .dockerignore, local: .dockerignore, disposition: mapped}
+      - {kind: exact, upstream: .gitignore, local: .gitignore, disposition: mapped}
+      - {kind: exact, upstream: .gitmodules, local: .gitmodules, disposition: mapped}
+      - {kind: exact, upstream: XPolicyLab, local: XPolicyLab, disposition: submodule-owned}
+      - {kind: prefix, upstream: env/, local: src/robodojo/sim/environment/, disposition: mapped}
+      - {kind: prefix, upstream: env_cfg/, local: configs/, disposition: mapped}
+      - {kind: prefix, upstream: task/RoboDojo/config/, local: task/RoboDojo/config/, disposition: mapped}
+      - {kind: prefix, upstream: task/RoboDojo/tasks/, local: src/robodojo/sim/tasks/, disposition: mapped}
+      - {kind: exact, upstream: task/RoboDojo/task_registry.py, local: src/robodojo/sim/tasks_registry.py, disposition: mapped}
+      - {kind: prefix, upstream: src/eval_client/, local: src/robodojo/sim/evaluation/, disposition: mapped}
+      - {kind: prefix, upstream: utils/, local: src/robodojo/sim/utils/, disposition: mapped}
+      - {kind: prefix, upstream: docker/, local: docker/, disposition: mapped}
+      - {kind: prefix, upstream: scripts/internal/, local: src/robodojo/workflows/, disposition: replaced}
+      - {kind: prefix, upstream: scripts/RoboDojo/, local: src/robodojo/workflows/, disposition: replaced}
+      - {kind: exact, upstream: scripts/install.sh, local: src/robodojo/workflows/install.py, disposition: replaced}
+      - {kind: exact, upstream: scripts/init_assets.sh, local: src/robodojo/workflows/assets.py, disposition: replaced}
+      - {kind: exact, upstream: scripts/robodojo.sh, local: src/robodojo/cli.py, disposition: replaced}
+  xpolicylab:
+    repository: https://github.com/XPolicyLab/XPolicyLab.git
+    ref: main
+    reviewed_commit: fe71eb54675cef495fea817a637386a4f4529153
+    mappings:
+      - {kind: prefix, upstream: policy/, local: XPolicyLab/policy/, disposition: submodule-owned}
+      - {kind: prefix, upstream: client_server/, local: XPolicyLab/client_server/, disposition: submodule-owned}
+      - {kind: prefix, upstream: utils/, local: XPolicyLab/utils/, disposition: submodule-owned}
+      - {kind: exact, upstream: XPolicyLab.py, local: XPolicyLab/XPolicyLab.py, disposition: submodule-owned}
+      - {kind: exact, upstream: model_template.py, local: XPolicyLab/model_template.py, disposition: submodule-owned}
+      - {kind: exact, upstream: setup_policy_server.py, local: XPolicyLab/setup_policy_server.py, disposition: submodule-owned}
+      - {kind: exact, upstream: pyproject.toml, local: XPolicyLab/pyproject.toml, disposition: submodule-owned}
+      - {kind: exact, upstream: README.md, local: XPolicyLab/README.md, disposition: submodule-owned}
+      - {kind: exact, upstream: LICENSE, local: XPolicyLab/LICENSE, disposition: submodule-owned}
+intentional_divergences:
+  - The root package, typed CLI, and uv workflows replace upstream shell orchestration.
+  - Storage, scene export, normalized camera rigs, calibration profiles, and OpenArm are additive local concepts.
+  - The XPolicyLab gitlink c643d36480cd2be94f391198f0f29888cc606cce extends the reviewed official commit with the OpenArm policy adapter.

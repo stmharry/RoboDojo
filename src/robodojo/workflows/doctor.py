@@ -7,11 +7,9 @@ from pathlib import Path
 import shutil
 import subprocess
 
-import yaml
-
-from robodojo.core.calibration import calibration_name, load_hardware_calibration
-from robodojo.core.models import EnvironmentConfigDocument
+from robodojo.core.calibration import load_hardware_calibration
 from robodojo.core.paths import RepositoryPaths
+from robodojo.core.profiles import load_environment_profile
 from robodojo.core.storage import assets_root
 from robodojo.workflows.task_inventory import build_inventory
 
@@ -27,20 +25,17 @@ def run_doctor(paths: RepositoryPaths, task: str, env_config: str, policy_dir: P
     record("git", shutil.which("git") is not None, shutil.which("git") or "not installed")
     record("git-lfs", subprocess.run(["git", "lfs", "version"], capture_output=True).returncode == 0, "git lfs")
 
-    config_path = paths.environment_configs / f"{env_config}.yml"
     try:
-        payload = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
-        document = EnvironmentConfigDocument.model_validate({"config": payload.get("config", {})})
-        record("environment config", True, str(config_path))
-        calibration = calibration_name(payload)
+        profile = load_environment_profile(paths, env_config, validate_calibration=False)
+        record("environment config", True, str(profile.path))
+        calibration = profile.document.hardware_calibration
         if calibration:
             try:
                 load_hardware_calibration(paths.environment_configs, calibration)
                 record("hardware calibration", True, calibration)
             except ValueError as exc:
                 record("hardware calibration", False, str(exc))
-        for kind, name in document.config.model_dump().items():
-            referenced = paths.environment_configs / kind / f"{name}.yml"
+        for kind, referenced in profile.component_paths.items():
             record(f"{kind} config", referenced.is_file(), str(referenced))
     except Exception as exc:
         record("environment config", False, str(exc))

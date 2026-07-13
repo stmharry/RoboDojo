@@ -6,16 +6,12 @@ import logging
 from pathlib import Path
 
 from robodojo.core.models import PolicyServerLaunchRequest
+from robodojo.core.paths import RepositoryPaths
 from robodojo.core.processes import format_command, free_port, run
+from robodojo.core.profiles import load_environment_profile
 from robodojo.core.storage import checkpoint_label
 
 logger = logging.getLogger(__name__)
-
-POLICY_ENVIRONMENT_NAMES = {
-    ("LeRobot_Pi05_OpenArm", "openarm_lerobot"): "openarm_cloth_folding",
-    ("LeRobot_Pi05_OpenArm", "openarm_wowrobo_v1_1"): "openarm_cloth_folding",
-    ("LeRobot_Pi05_OpenArm", "openarm_anvil_v2"): "openarm_cloth_folding",
-}
 
 
 def require_policy_adapter(policy_dir: Path) -> Path:
@@ -26,19 +22,19 @@ def require_policy_adapter(policy_dir: Path) -> Path:
     return script
 
 
-def policy_server_command(request: PolicyServerLaunchRequest, port: int) -> list[str]:
+def policy_server_command(paths: RepositoryPaths, request: PolicyServerLaunchRequest, port: int) -> list[str]:
     """Build the official XPolicyLab setup adapter argument vector."""
     script = require_policy_adapter(request.policy_dir)
-    policy_environment = POLICY_ENVIRONMENT_NAMES.get(
-        (request.policy_dir.expanduser().resolve().name, request.env_config), request.env_config
-    )
+    # Policy-server argument construction stays lightweight; the simulator
+    # launcher is the release gate for hardware calibration readiness.
+    profile = load_environment_profile(paths, request.env_config, validate_calibration=False)
     return [
         "bash",
         str(script),
         request.dataset,
         request.task,
         request.checkpoint,
-        policy_environment,
+        profile.xpolicylab_env_cfg_type,
         request.action_type,
         str(request.seed),
         str(request.policy_gpu),
@@ -48,10 +44,10 @@ def policy_server_command(request: PolicyServerLaunchRequest, port: int) -> list
     ]
 
 
-def run_policy_server(request: PolicyServerLaunchRequest) -> int:
+def run_policy_server(paths: RepositoryPaths, request: PolicyServerLaunchRequest) -> int:
     """Launch one policy-owned adapter from its policy directory."""
     port = request.port or free_port()
-    argv = policy_server_command(request, port)
+    argv = policy_server_command(paths, request, port)
     env = {"ROBODOJO_CKPT_LABEL": checkpoint_label(request.checkpoint)}
     logger.info("policy server: %s:%s", request.host, port)
     if request.dry_run:

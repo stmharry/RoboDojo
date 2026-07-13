@@ -87,6 +87,13 @@ tasks-check: ## Validate task code/config pairs
 		--check \
 		$(ARGS)
 
+.PHONY: upstream-check
+upstream-check: ## Compare reviewed revisions with official upstreams
+	$(ROBODOJO_BASE) \
+		upstream \
+		check \
+		$(ARGS)
+
 .PHONY: install
 install: ## Install system dependencies, submodules, and simulator environment
 	$(ROBODOJO_BASE) \

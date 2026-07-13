@@ -3,22 +3,25 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from fnmatch import fnmatchcase
 import os
 import signal
 import socket
 import subprocess
 import time
 
-_INHERITED_ENV_DENYLIST = frozenset(
-    {
-        "ROBODOJO_OPENARM_ZERO_ACTION",
-        "ROBODOJO_OPENARM_SMOKE_STEPS",
-    }
+_TRANSIENT_ENV_PATTERNS = (
+    "ROBODOJO_*_SMOKE_*",
+    "ROBODOJO_*_ZERO_ACTION",
 )
 
 
+def _is_transient_environment(name: str) -> bool:
+    return any(fnmatchcase(name, pattern) for pattern in _TRANSIENT_ENV_PATTERNS)
+
+
 def _subprocess_environment(env: Mapping[str, str] | None = None) -> dict[str, str]:
-    merged = {key: value for key, value in os.environ.items() if key not in _INHERITED_ENV_DENYLIST}
+    merged = {key: value for key, value in os.environ.items() if not _is_transient_environment(key)}
     if env:
         merged.update(env)
     return merged

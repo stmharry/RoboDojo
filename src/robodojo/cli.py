@@ -17,6 +17,8 @@ from robodojo.core.models import (
     PolicyServerLaunchRequest,
     SimulatorLaunchRequest,
     SweepRequest,
+    UpstreamOutputFormat,
+    UpstreamProject,
 )
 from robodojo.core.paths import RepositoryPaths
 
@@ -26,11 +28,13 @@ data_app = typer.Typer(no_args_is_help=True, help="Download benchmark datasets."
 storage_app = typer.Typer(no_args_is_help=True, help="Manage durable RoboDojo storage.")
 results_app = typer.Typer(no_args_is_help=True, help="Analyze evaluation results.")
 docker_app = typer.Typer(no_args_is_help=True, help="Build and validate RoboDojo containers.")
+upstream_app = typer.Typer(no_args_is_help=True, help="Review official upstream changes.")
 app.add_typer(assets_app, name="assets")
 app.add_typer(data_app, name="data")
 app.add_typer(storage_app, name="storage")
 app.add_typer(results_app, name="results")
 app.add_typer(docker_app, name="docker")
+app.add_typer(upstream_app, name="upstream")
 
 
 @app.callback()
@@ -123,6 +127,22 @@ def tasks(
         raise typer.BadParameter("expected plain, json, or markdown", param_hint="--format")
     if check and any(not record["runnable"] for record in inventory["tasks"]):
         raise typer.Exit(1)
+
+
+@upstream_app.command("check")
+def upstream_check(
+    project: UpstreamProject = typer.Option(UpstreamProject.ALL, "--project"),
+    ref: str | None = typer.Option(None, "--ref"),
+    source: Path | None = typer.Option(None, "--source"),
+    format: UpstreamOutputFormat = typer.Option(UpstreamOutputFormat.PLAIN, "--format"),
+    root: Path | None = typer.Option(None, "--root"),
+) -> None:
+    """Detect new official changes and map them to local ownership."""
+    from robodojo.workflows.upstream import check_upstreams, format_upstream_report, json_upstream_report
+
+    report, code = check_upstreams(_paths(root), project=project, ref=ref, source=source)
+    typer.echo(json_upstream_report(report) if format == UpstreamOutputFormat.JSON else format_upstream_report(report))
+    raise typer.Exit(code)
 
 
 def _evaluation_request(
@@ -218,6 +238,7 @@ def server(
     policy_port: int | None = typer.Option(None, "--policy-port"),
     bind_host: str = typer.Option("0.0.0.0", "--bind-host"),
     dry_run: bool = typer.Option(False, "--dry-run"),
+    root: Path | None = typer.Option(None, "--root"),
 ) -> None:
     """Start an XPolicyLab policy server adapter without simulator dependencies."""
     from robodojo.policy.adapter import run_policy_server
@@ -237,7 +258,7 @@ def server(
         host=bind_host,
         dry_run=dry_run,
     )
-    raise typer.Exit(run_policy_server(request))
+    raise typer.Exit(run_policy_server(_paths(root), request))
 
 
 def _client(

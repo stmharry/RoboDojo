@@ -8,8 +8,9 @@ import sys
 
 from isaaclab.app import AppLauncher
 
-from robodojo.core.calibration import calibration_name, load_hardware_calibration
 from robodojo.core.logging import configure_logging
+from robodojo.core.paths import RepositoryPaths
+from robodojo.core.profiles import load_environment_profile
 
 logger = logging.getLogger(__name__)
 
@@ -88,18 +89,6 @@ from robodojo.sim.environment.global_configs import BENCHMARK, ROOT_DIR
 task_registry = tasks_registry
 
 
-def _validate_hardware_calibration(env_config: str) -> None:
-    import yaml
-
-    config_root = os.path.join(ROOT_DIR, "configs")
-    config_path = os.path.join(config_root, f"{env_config}.yml")
-    with open(config_path, encoding="utf-8") as stream:
-        payload = yaml.safe_load(stream) or {}
-    calibration = calibration_name(payload)
-    if calibration:
-        load_hardware_calibration(Path(config_root), calibration)
-
-
 class PhysXBrokenError(Exception):
     pass
 
@@ -116,7 +105,10 @@ def get_monitor():
     return None
 
 
-_validate_hardware_calibration(args_cli.env_cfg_type)
+ENVIRONMENT_PROFILE = load_environment_profile(
+    RepositoryPaths.resolve(ROOT_DIR),
+    args_cli.env_cfg_type,
+)
 
 
 def _physx_monitor_needed(task_name) -> bool:
@@ -413,12 +405,16 @@ def main():
             env.reset(seed=env.env_seeds)
             matched_replay_dir = os.environ.get("ROBODOJO_MATCHED_REPLAY_DIR")
             if matched_replay_dir:
-                from robodojo.core.paths import discover_repository_root
                 from robodojo.sim.calibration.matched_replay import run_matched_state_replay
 
+                manifest = ENVIRONMENT_PROFILE.matched_replay_manifest
+                if manifest is None:
+                    raise ValueError(
+                        f"environment profile {ENVIRONMENT_PROFILE.name} does not declare a matched replay manifest"
+                    )
                 report = run_matched_state_replay(
                     env,
-                    discover_repository_root() / "configs/reference/openarm_lerobot_wrist_calibration.yml",
+                    manifest,
                     Path(matched_replay_dir),
                 )
                 logger.info("[matched-replay] wrote %s", report)
