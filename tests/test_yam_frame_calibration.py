@@ -25,6 +25,24 @@ ROOT = Path(__file__).resolve().parents[1]
 CALIBRATION_SOURCE = "yam_hardware_calibration_v1"
 
 
+def test_mast_pose_records_max_open_alignment():
+    config = yaml.safe_load((ROOT / "configs/camera/bimanual_yam.yml").read_text())
+    mast = config["camera_rig"]["cameras"]["cam_head"]["mount"]
+    assert mast["position"] == [-0.037, -0.30, 1.635]
+
+    reference = yaml.safe_load((ROOT / "configs/reference/bimanual_yam.yml").read_text())
+    source = reference["sources"]["max_open_endpoint_calibration"]
+    alignment = reference["camera_contract"]["max_open_alignment"]
+    assert source["method"] == "exact_state_render_alignment"
+    assert source["simulator_endpoint_m"] == -0.0475
+    assert alignment["mast_world_pose"] == {
+        "position_m": mast["position"],
+        "orientation_wxyz": mast["orientation"],
+    }
+    assert alignment["wrist_camera_parameters_changed"] is False
+    assert alignment["jaw_visual_parameters_changed"] is False
+
+
 def test_cloth_workspace_scene_is_independent_of_the_yam_profile():
     profile = load_environment_profile(RepositoryPaths.resolve(ROOT), "bimanual_yam")
     assert profile.document.config.scene == "default"

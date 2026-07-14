@@ -28,8 +28,8 @@ def get_robot_config():
                 "dof_joint4": 0.0,
                 "dof_joint5": 0.0,
                 "dof_joint6": 0.0,
-                "dof_joint7": -0.02,
-                "dof_joint8": -0.02,
+                "dof_joint7": -0.0475,
+                "dof_joint8": -0.0475,
             },
         ),
         actuators={

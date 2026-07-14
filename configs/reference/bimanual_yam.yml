@@ -42,6 +42,16 @@ sources:
         revision: a57ba8d100cbf4d085e2f84da937f5eba4ecd7f4
         split: held_out
         license: apache-2.0
+  max_open_endpoint_calibration:
+    usage: final_values_retained
+    method: exact_state_render_alignment
+    reference_dataset: allenai/18122025-foldclo-01
+    reference_revision: 605ebe5de5fffa11ade4ed17f3ad66cd2cf6dac9
+    reference_sample: episode_000000/frame_000000
+    reference_open_fraction:
+      left: 0.9986299872398376
+      right: 0.9997832775115967
+    simulator_endpoint_m: -0.0475
 
 state_action_contract:
   frequency_hz: 30
@@ -70,9 +80,9 @@ state_action_contract:
     closed: 0.0
 
 initial_state:
-  name: home
+  name: home_max_open
   per_arm_joint_position: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-  per_finger_position_m: -0.02
+  per_finger_position_m: -0.0475
 
 embodiment_frame_contract:
   root_positions_m:
@@ -97,6 +107,21 @@ camera_contract:
     cam_head: 69.4
     cam_left_wrist: 87.0
     cam_right_wrist: 87.0
+  max_open_alignment:
+    source: max_open_endpoint_calibration
+    simulator_endpoint_m: -0.0475
+    realized_finger_positions_m:
+      left: [-0.04749999940395355, -0.04749983921647072]
+      right: [-0.04749999940395355, -0.047499772161245346]
+    mast_world_pose:
+      position_m: [-0.037, -0.30, 1.635]
+      orientation_wxyz: [0.54167522, -0.45451948, 0.45451948, 0.54167522]
+    image_residuals_px:
+      wrist_inner_tip_gap_max: 5.0
+      mast_gripper_center_max: 3.0
+      mast_inter_gripper_span: 5.0
+    wrist_camera_parameters_changed: false
+    jaw_visual_parameters_changed: false
   hardware_calibration:
     source: yam_hardware_calibration_v1
     wrist_extrinsic_corrections:

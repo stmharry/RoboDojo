@@ -90,7 +90,7 @@ def test_yam_camera_rig_matches_embodiment_contract_and_runtime_templates():
     ]
     top, left, right = rig.cameras
     assert top.sensor["stream_resolution"] == [640, 360]
-    assert top.mount["position"] == [0.0, -0.30, 1.565]
+    assert top.mount["position"] == [-0.037, -0.30, 1.635]
     assert top.mount["orientation"] == pytest.approx([0.54167522, -0.45451948, 0.45451948, 0.54167522])
     assert top.mount["pose_convention"] == "sapien_robotics"
     assert top.projection["fx"] == pytest.approx(462.1386898729645)
@@ -319,7 +319,7 @@ def test_derived_yam_urdf_is_normalized_and_collision_complete(tmp_path):
     assert contract["visual_proxies"]["d405"]["output"] == "D405_proxy.usd"
 
 
-def test_yam_initial_state_and_control_seed_preserve_partial_opening():
+def test_yam_initial_state_and_control_seed_use_maximum_opening():
     config_source = ast.parse((ROOT / "src/robodojo/sim/environment/robot_manager/robot_config/yam.py").read_text())
     values = {}
     for node in ast.walk(config_source):
@@ -339,8 +339,15 @@ def test_yam_initial_state_and_control_seed_preserve_partial_opening():
         "dof_joint4": 0.0,
         "dof_joint5": 0.0,
         "dof_joint6": 0.0,
-        "dof_joint7": -0.02,
-        "dof_joint8": -0.02,
+        "dof_joint7": -0.0475,
+        "dof_joint8": -0.0475,
+    }
+
+    reference = yaml.safe_load((ROOT / "configs/reference/bimanual_yam.yml").read_text())
+    assert reference["initial_state"] == {
+        "name": "home_max_open",
+        "per_arm_joint_position": [0.0] * 6,
+        "per_finger_position_m": -0.0475,
     }
 
     manager_source = ast.parse((ROOT / "src/robodojo/sim/environment/robot_manager/robot_manager.py").read_text())
