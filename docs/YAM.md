@@ -17,6 +17,12 @@ a normalized URDF with convex collisions, converts it to `YAM.usd`, and writes
 a checksummed manifest below `.robodojo/assets/Robots/yam/`. Generated assets
 remain untracked.
 
+Rebuild with `make assets-yam` after updating RoboDojo. Existing generated YAM
+assets are not migrated in place. The canonical build removes an empty
+`/yam/root/visuals` prim left by the Isaac URDF importer for the geometry-free
+root link; it does not replace that prim with the visible base or duplicate any
+robot geometry.
+
 The policy-facing contract is 30 Hz RGB plus 14 absolute joint values ordered
 as left six joints, left normalized gripper, right six joints, right normalized
 gripper. Camera order is `cam_head`, `cam_left_wrist`, then

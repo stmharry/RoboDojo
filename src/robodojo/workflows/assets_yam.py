@@ -93,6 +93,123 @@ def _fixed_camera_frame_contract(build_manifest: dict) -> list[dict]:
     return frames
 
 
+def _visual_link_contract(robot: ET.Element) -> tuple[list[str], list[str]]:
+    """Return deterministic URDF link sets with and without visual geometry."""
+    link_names = []
+    visual_links = []
+    for link in robot.findall("link"):
+        name = link.get("name")
+        if not name:
+            raise RuntimeError("URDF link is missing its name")
+        if name in link_names:
+            raise RuntimeError(f"duplicate URDF link name: {name}")
+        link_names.append(name)
+        if link.findall("visual"):
+            visual_links.append(name)
+    links_without_visuals = sorted(set(link_names) - set(visual_links))
+    return sorted(visual_links), links_without_visuals
+
+
+def _generated_usd_layers(output_root: Path):
+    """Open every generated USD layer without composing their scene arcs."""
+    from pxr import Sdf
+
+    output_root = output_root.resolve()
+    layers = []
+    for path in sorted(output_root.rglob("*")):
+        if not path.is_file() or path.suffix.lower() not in {".usd", ".usda", ".usdc"}:
+            continue
+        layer = Sdf.Layer.FindOrOpen(str(path))
+        if layer is None:
+            raise RuntimeError(f"could not open generated USD layer {path}")
+        real_path = Path(layer.realPath).resolve() if layer.realPath else None
+        if real_path is None or not real_path.is_relative_to(output_root):
+            raise RuntimeError(f"generated USD layer resolves outside the asset directory: {layer.identifier}")
+        layers.append(layer)
+    if not layers:
+        raise RuntimeError(f"no generated USD layers found below {output_root}")
+    return layers
+
+
+def _remove_empty_generated_visual_prims(
+    output: Path,
+    output_root: Path,
+    links_without_visuals: list[str],
+) -> list[str]:
+    """Remove importer residue for URDF links that intentionally have no visuals."""
+    from pxr import Sdf
+
+    output_root = output_root.resolve()
+    root_layer = Sdf.Layer.FindOrOpen(str(output))
+    if root_layer is None or not root_layer.defaultPrim:
+        raise RuntimeError(f"generated YAM root layer has no default prim: {output}")
+    layers = _generated_usd_layers(output_root)
+    removed_paths = []
+    changed_layers = set()
+    for link_name in links_without_visuals:
+        visual_path = Sdf.Path(f"/{root_layer.defaultPrim}/{link_name}/visuals")
+        specs = [layer.GetPrimAtPath(visual_path) for layer in layers]
+        specs = [spec for spec in specs if spec is not None]
+        if not specs:
+            continue
+        for spec in specs:
+            layer_path = Path(spec.layer.realPath).resolve() if spec.layer.realPath else None
+            if layer_path is None or not layer_path.is_relative_to(output_root):
+                raise RuntimeError(f"refusing to edit visual prim outside the generated asset: {spec.path}")
+            if spec.typeName not in {"", "Xform"} or spec.nameChildren or spec.properties:
+                raise RuntimeError(f"refusing to remove non-empty visual prim for {link_name}: {spec.path}")
+            if (
+                spec.payloadList.GetAppliedItems()
+                or spec.inheritPathList.GetAppliedItems()
+                or spec.specializesList.GetAppliedItems()
+            ):
+                raise RuntimeError(f"refusing to remove composed visual prim for {link_name}: {spec.path}")
+            if dict(spec.variantSelections) or spec.variantSetNameList.GetAppliedItems():
+                raise RuntimeError(f"refusing to remove variant-bearing visual prim for {link_name}: {spec.path}")
+            for reference in spec.referenceList.GetAppliedItems():
+                if not reference.primPath:
+                    raise RuntimeError(f"visual reference for {link_name} has no explicit target: {reference}")
+                if reference.assetPath:
+                    resolved = Path(Sdf.ComputeAssetPathRelativeToLayer(spec.layer, reference.assetPath)).resolve()
+                    if not resolved.is_relative_to(output_root):
+                        raise RuntimeError(f"visual reference for {link_name} resolves outside the asset: {resolved}")
+                    target_layer = Sdf.Layer.FindOrOpen(str(resolved))
+                    if target_layer is not None and target_layer.GetPrimAtPath(reference.primPath) is not None:
+                        raise RuntimeError(f"refusing to remove resolved visual reference for {link_name}: {reference}")
+                elif any(layer.GetPrimAtPath(reference.primPath) is not None for layer in layers):
+                    raise RuntimeError(f"refusing to remove resolved visual reference for {link_name}: {reference}")
+            parent = spec.nameParent
+            if parent is None or parent.nameChildren.get(spec.name) is None:
+                raise RuntimeError(f"could not locate authored visual prim for removal: {spec.path}")
+            authored_layer = spec.layer
+            del parent.nameChildren[spec.name]
+            changed_layers.add(authored_layer)
+        removed_paths.append(str(visual_path))
+    for layer in changed_layers:
+        layer.Save()
+    return sorted(removed_paths)
+
+
+def _validate_generated_visuals(stage, visual_links: list[str], links_without_visuals: list[str]) -> list[str]:
+    """Validate that generated visuals match the source URDF visual contract."""
+    from pxr import Sdf, Usd, UsdGeom
+
+    default_path = stage.GetDefaultPrim().GetPath()
+    gprims = [prim for prim in Usd.PrimRange.Stage(stage, Usd.TraverseInstanceProxies()) if prim.IsA(UsdGeom.Gprim)]
+    validated_paths = []
+    for link_name in visual_links:
+        visual_path = default_path.AppendChild(link_name).AppendChild("visuals")
+        link_gprims = [prim for prim in gprims if prim.GetPath().HasPrefix(visual_path)]
+        if not link_gprims:
+            raise RuntimeError(f"generated visual contract is missing renderable geometry below {visual_path}")
+        validated_paths.extend(str(prim.GetPath()) for prim in link_gprims)
+    for link_name in links_without_visuals:
+        visual_path = default_path.AppendChild(link_name).AppendChild("visuals")
+        if stage.GetPrimAtPath(Sdf.Path(visual_path)).IsValid():
+            raise RuntimeError(f"generated nonvisual link still has a visual prim: {visual_path}")
+    return sorted(validated_paths)
+
+
 def derive_yam_urdf(source_root: Path, output_root: Path, build_manifest: dict) -> dict:
     """Create the normalized runtime URDF and source snapshot without importing Isaac."""
     asset = build_manifest["asset"]
@@ -144,6 +261,7 @@ def derive_yam_urdf(source_root: Path, output_root: Path, build_manifest: dict) 
         referenced_meshes.append(source_name)
     if sorted(referenced_meshes) != sorted(mesh_sources):
         raise RuntimeError(f"URDF mesh set differs from expected I2RT contract: {referenced_meshes}")
+    visual_links, links_without_visuals = _visual_link_contract(robot)
 
     base_joint = _joint_by_name(robot, "dof_joint0")
     limit = base_joint.find("limit")
@@ -180,13 +298,21 @@ def derive_yam_urdf(source_root: Path, output_root: Path, build_manifest: dict) 
         "gripper_joints": list(GRIPPER_JOINT_NAMES),
         "finger_limits_m": finger_limits,
         "collision_geometry_count": collision_count,
+        "visual_links": visual_links,
+        "links_without_visuals": links_without_visuals,
         "mesh_sources": {name: sha256(path) for name, path in sorted(mesh_sources.items())},
         "source_urdf_sha256": sha256(arm_urdf),
         "license_sha256": sha256(license_path),
     }
 
 
-def _convert_to_usd(derived_urdf: Path, output_root: Path, build_manifest: dict) -> dict:
+def _convert_to_usd(
+    derived_urdf: Path,
+    output_root: Path,
+    build_manifest: dict,
+    visual_links: list[str],
+    links_without_visuals: list[str],
+) -> dict:
     from isaacsim import SimulationApp
 
     simulation_app = SimulationApp({"headless": True})
@@ -253,9 +379,15 @@ def _convert_to_usd(derived_urdf: Path, output_root: Path, build_manifest: dict)
         if output.resolve() != (output_root / build_manifest["asset"]["output"]).resolve():
             raise RuntimeError(f"converter wrote unexpected output {output}")
 
+        removed_empty_visual_prims = _remove_empty_generated_visual_prims(
+            output,
+            output_root,
+            links_without_visuals,
+        )
         stage = Usd.Stage.Open(str(output), load=Usd.Stage.LoadAll)
         if stage is None or not stage.GetDefaultPrim().IsValid():
             raise RuntimeError(f"could not open generated YAM stage {output}")
+        validated_visual_paths = _validate_generated_visuals(stage, visual_links, links_without_visuals)
         default_path = str(stage.GetDefaultPrim().GetPath())
         fixed_camera_frames = []
         for frame in _fixed_camera_frame_contract(build_manifest):
@@ -329,6 +461,14 @@ def _convert_to_usd(derived_urdf: Path, output_root: Path, build_manifest: dict)
         if not required_links.issubset(link_names):
             raise RuntimeError(f"generated link contract is missing {sorted(required_links - link_names)}")
         stage.GetRootLayer().Save()
+        completed_stage = Usd.Stage.Open(str(output), load=Usd.Stage.LoadAll)
+        if completed_stage is None or not completed_stage.GetDefaultPrim().IsValid():
+            raise RuntimeError(f"could not reopen completed YAM stage {output}")
+        validated_visual_paths = _validate_generated_visuals(
+            completed_stage,
+            visual_links,
+            links_without_visuals,
+        )
         generated_contract = {
             "output": output.name,
             "default_prim": default_path,
@@ -339,6 +479,8 @@ def _convert_to_usd(derived_urdf: Path, output_root: Path, build_manifest: dict)
             "finger_collision_paths": sorted(finger_collision_paths),
             "finger_physics_material": {"static_friction": 3.0, "dynamic_friction": 2.5},
             "fixed_camera_frames": fixed_camera_frames,
+            "validated_visual_paths": validated_visual_paths,
+            "removed_empty_visual_prims": removed_empty_visual_prims,
         }
         # IsaacLab's cache/config files are build-time implementation details;
         # the manifest below records the stable converter contract instead.
@@ -362,7 +504,13 @@ def _output_checksums(output_root: Path) -> dict[str, str]:
 def build(source_root: Path, output_root: Path, manifest_path: Path) -> dict:
     build_manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
     derived = derive_yam_urdf(source_root, output_root, build_manifest)
-    generated, simulation_app = _convert_to_usd(derived["derived_urdf"], output_root, build_manifest)
+    generated, simulation_app = _convert_to_usd(
+        derived["derived_urdf"],
+        output_root,
+        build_manifest,
+        derived["visual_links"],
+        derived["links_without_visuals"],
+    )
     source = build_manifest["sources"]["i2rt"]
     reference_sources = {key: value for key, value in build_manifest["sources"].items() if key != "i2rt"}
     result = {

@@ -204,6 +204,18 @@ def test_derived_yam_urdf_is_normalized_and_collision_complete(tmp_path):
     assert base_joint.find("origin").get("rpy") == "0 1.5708 1.5708"
     assert base_joint.find("axis") is None and base_joint.find("limit") is None
     assert contract["collision_geometry_count"] == 9
+    assert contract["visual_links"] == [
+        "base",
+        "gripper",
+        "link1",
+        "link2",
+        "link3",
+        "link4",
+        "link5",
+        "tip_left",
+        "tip_right",
+    ]
+    assert contract["links_without_visuals"] == ["root"]
     assert len(robot.findall(".//collision")) == 9
     assert {mesh.get("filename") for mesh in robot.findall(".//mesh")} == {
         f"meshes/{name}"
