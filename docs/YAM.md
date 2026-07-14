@@ -32,11 +32,11 @@ in `configs/reference/bimanual_yam.yml`.
 The profile uses the isolated `molmo_yam` scene. Its geometry, fixture
 transforms, physics materials, camera stand, HDR, and intensity are identical
 to `default`; only visible appearance differs. The referenced room receives a
-stronger off-white PreviewSurface and the material-0122 Mahogany table
-receives a deterministic solid-brown fallback because its MDL currently
-renders near-white on the generated cube. The fallback matches color, not
-wood-grain detail. Runtime visual audit must verify the table is no longer
-near-white and the room's cabinet materials do not show through.
+stronger off-white PreviewSurface. Replayed layouts retain their geometry and
+physics but replace the legacy white tabletop material with the packaged
+material-0122 Mahogany MDL, preserving its brown color and wood grain. Runtime
+visual audit must verify the mahogany texture is visible and the room's cabinet
+materials do not show through.
 
 Both wrist mounts render the generated `D405_proxy.usd` housing with collision
 and physics disabled. The `D405` default prim publishes an identity
