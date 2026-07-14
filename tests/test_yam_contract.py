@@ -54,6 +54,7 @@ def test_fold_clothes_does_not_replace_yam_profile_components():
             "scene": yaml.safe_load(profile.component_paths["scene"].read_text()),
             "robot": yaml.safe_load(profile.component_paths["robot"].read_text()),
             "camera": yaml.safe_load(profile.component_paths["camera"].read_text()),
+            "task_env": yaml.safe_load((ROOT / "configs/task/fold_clothes.yml").read_text()),
             "eval_cfg": payload,
         }
     )
@@ -61,6 +62,9 @@ def test_fold_clothes_does_not_replace_yam_profile_components():
     assert [robot.robot_name for robot in processed.robot.robots] == ["yam", "yam"]
     assert processed.camera.camera_rig.profile_id == "bimanual_yam"
     assert processed.sim.render_interval == 8
+    assert processed.sim.frequency_settings["/app/runLoops/main/rateLimitFrequency"] == 150
+    assert processed.sim.device == "cpu"
+    assert processed.sim.use_fabric is False
     assert eval_num == 25
 
 

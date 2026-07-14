@@ -5,6 +5,17 @@ import yaml
 from robodojo.sim.environment.global_configs import ENV_CONFIG_PATH, ROBOTS_PATH, TASK_CONFIG_PATH
 from robodojo.sim.utils.load_file import load_json, load_yaml
 
+CPU_ONLY_TASK_SECTIONS = ("Garment", "Fluid")
+
+
+def configure_task_physics_device(env_cfg):
+    """Keep upstream CPU physics for task objects unsupported on CUDA."""
+    task_env = env_cfg.get("task_env", {})
+    if any(task_env.get(section) for section in CPU_ONLY_TASK_SECTIONS):
+        env_cfg["sim"]["device"] = "cpu"
+        env_cfg["sim"]["use_fabric"] = False
+    return env_cfg
+
 
 def get_embodiment_config(robot_name, key=None):
     if key is not None:
@@ -74,6 +85,7 @@ def _enable_teleop_physx_stabilization(sim_cfg):
 
 
 def process_config(env_cfg, task_name, resolved_scene_config=None):
+    env_cfg = configure_task_physics_device(env_cfg)
     task_index_path = os.path.join(TASK_CONFIG_PATH, "_task.yml")
     info = load_yaml(task_index_path)
     task_info = info["tasks"].get(task_name, {})

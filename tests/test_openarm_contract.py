@@ -28,11 +28,13 @@ def test_hardware_profiles_share_only_upstream_contracts(profile):
     assert env_cfg["hardware_calibration"] == profile
     assert env_cfg["observation"]["collect_freq"] == 30
     assert 1.0 / (sim_cfg["dt"] * 30) == 8.0
+    assert sim_cfg["frequency_settings"]["/app/runLoops/main/rateLimitFrequency"] == 150
     assert sum(robot_info["arm_dim"]) + sum(robot_info["ee_dim"]) == 16
 
 
 def test_lerobot_profile_is_runnable_and_uses_standard_scene_contracts():
     env_cfg = yaml.safe_load((ROOT / "configs/environment/openarm_lerobot.yml").read_text())
+    sim_cfg = yaml.safe_load((ROOT / "configs/sim/real_time_30hz.yml").read_text())
     robot_info = json.loads((ROOT / "configs/robot/_robot_info.json").read_text())["dual_openarm_lerobot"]
     assert env_cfg["config"] == {
         "sim": "real_time_30hz",
@@ -43,6 +45,7 @@ def test_lerobot_profile_is_runnable_and_uses_standard_scene_contracts():
     assert env_cfg["layout_config_name"] == "arx_x5"
     assert "hardware_calibration" not in env_cfg
     assert env_cfg["observation"]["collect_freq"] == 30
+    assert sim_cfg["frequency_settings"]["/app/runLoops/main/rateLimitFrequency"] == 150
     assert sum(robot_info["arm_dim"]) + sum(robot_info["ee_dim"]) == 16
 
 
