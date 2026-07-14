@@ -13,6 +13,18 @@ sources:
     paths:
       - sim_eval/robots/bimanual_yam.py
       - sim_eval/inference/common.py
+  simulator_assets_reference:
+    repository: https://huggingface.co/datasets/TreeePlanter/molmoact2-sim-eval-assets
+    revision: 9332a64224ff0a813d9f77bd377b845270232513
+    license: undeclared
+    usage: reference_only_no_redistribution
+    files:
+      bimanual_model:
+        path: assets/yam/yam_mujoco/bimanual_yam_linear_flattened.xml
+        sha256: 459f1801fae5618e7caf3c44f257a53d61974e7708a14d83c7b60a60b65e374a
+      gripper_mesh:
+        path: assets/yam/yam_mujoco/assets/gripper_linear.obj
+        sha256: 31d70e2129a3ab8e85f391785cae5bba4163e1e16fb02a3988c5ac1c549c9d78
   policy_checkpoint:
     repository: allenai/MolmoAct2-BimanualYAM
     revision: 8dcbed66f2380e4393189c303ea72488eb9e63c2
@@ -45,15 +57,37 @@ state_action_contract:
     closed: 0.0
   predicted_horizon: 30
   executed_horizon: 25
+  joint_convention_bridge:
+    scope: molmoact2_bimanual_yam_original_hf_only
+    simulator_to_checkpoint_signs: [1.0, 1.0, 1.0, 1.0, -1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, -1.0, 1.0, 1.0]
+    checkpoint_to_simulator_signs: [1.0, 1.0, 1.0, 1.0, -1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, -1.0, 1.0, 1.0]
+    negated_indices_zero_based: [4, 11]
 
 initial_state:
-  per_arm_joint_position: [0.0, 0.7853981633974483, 1.5707963267948966, 0.0, 0.0, 0.0]
+  name: home
+  per_arm_joint_position: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   per_finger_position_m: -0.02
+
+embodiment_frame_contract:
+  root_positions_m:
+    left: [-0.24, -0.45, 0.765]
+    right: [0.24, -0.45, 0.765]
+  root_orientation_wxyz: [0.0, 0.0, 0.0, 1.0]
+  camera_mount_aliases:
+    link6: gripper/molmo_link6
+  molmo_link6:
+    parent: gripper
+    position_m: [0.0, 0.0, 0.0005]
+    orientation_wxyz: [0.0, 0.7071067811865476, -0.7071067811865476, 0.0]
+    physical: false
 
 camera_contract:
   dtype: uint8
   shape_hwc: [360, 640, 3]
   observation_order: [cam_head, cam_left_wrist, cam_right_wrist]
+  configured_pose_convention: sapien_robotics
+  runtime_pose_convention: isaac_usd
+  sapien_to_usd_orientation_wxyz: [0.5, 0.5, -0.5, -0.5]
   policy_mapping:
     cam_head: observation.images.top
     cam_left_wrist: observation.images.left

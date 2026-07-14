@@ -4,6 +4,19 @@ sources:
     revision: ac096928d6899ddf852a71c5e8fbaa6055cd9745
     license: MIT
     license_path: LICENSE
+  molmoact2_sim_assets:
+    repository: https://huggingface.co/datasets/TreeePlanter/molmoact2-sim-eval-assets
+    revision: 9332a64224ff0a813d9f77bd377b845270232513
+    license: undeclared
+    usage: reference_only
+    derivation: register the shared gripper mesh to recover the pose-invariant link_6 frame
+    files:
+      bimanual_model:
+        path: assets/yam/yam_mujoco/bimanual_yam_linear_flattened.xml
+        sha256: 459f1801fae5618e7caf3c44f257a53d61974e7708a14d83c7b60a60b65e374a
+      gripper_mesh:
+        path: assets/yam/yam_mujoco/assets/gripper_linear.obj
+        sha256: 31d70e2129a3ab8e85f391785cae5bba4163e1e16fb02a3988c5ac1c549c9d78
 
 asset:
   arm_urdf: i2rt/robot_models/arm/yam/yam.urdf
@@ -17,6 +30,14 @@ asset:
     - convert_zero_range_dof_joint0_to_fixed
     - set_finger_limits_to_negative_47_5_mm
     - add_convex_hull_collisions_from_visuals
+    - add_reference_only_molmo_link6_frame
+  fixed_frames:
+    - name: molmo_link6
+      parent: gripper
+      position: [0.0, 0.0, 0.0005]
+      orientation: [0.0, 0.7071067811865476, -0.7071067811865476, 0.0]
+      derivation_source: molmoact2_sim_assets
+      physical: false
   converter:
     fix_base: true
     merge_fixed_joints: false
@@ -45,7 +66,7 @@ robot_config:
   global_trans_matrix: [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
   grasp_camera_reference_axis: [1, 0, 0]
   camera_mount_links:
-    link6: gripper
+    link6: gripper/molmo_link6
 
 physics_contract:
   arm:

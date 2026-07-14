@@ -23,8 +23,8 @@ def get_robot_config():
         init_state=ArticulationCfg.InitialStateCfg(
             joint_pos={
                 "dof_joint1": 0.0,
-                "dof_joint2": 0.7853981633974483,
-                "dof_joint3": 1.5707963267948966,
+                "dof_joint2": 0.0,
+                "dof_joint3": 0.0,
                 "dof_joint4": 0.0,
                 "dof_joint5": 0.0,
                 "dof_joint6": 0.0,

@@ -10,6 +10,7 @@ from omegaconf import DictConfig
 import torch
 import transforms3d as t3d
 
+from robodojo.sim.environment.camera_manager.mount_registry import robot_link_prim_path
 from robodojo.sim.environment.environment.isaac.isaac_rl_env import IsaacRLEnv
 from robodojo.sim.environment.global_configs import ENV_REGEX_NAMESPACE
 from robodojo.sim.environment.planner_manager.curobo_planner import CuroboPlanner
@@ -441,9 +442,9 @@ class RobotManager:
                 links.add(camera["link"])
             for link in links:
                 target = f"{robot_mount_name}/{link}"
-                result[target] = f"/World/envs/env_{env_id}/{target}"
+                result[target] = robot_link_prim_path(env_id, robot_mount_name, link)
             for alias, link in getattr(robot, "camera_mount_links", {}).items():
-                result[f"{robot_mount_name}/{alias}"] = f"/World/envs/env_{env_id}/{robot_mount_name}/{link}"
+                result[f"{robot_mount_name}/{alias}"] = robot_link_prim_path(env_id, robot_mount_name, link)
         return result
 
     def resolve_camera_link_mount(self, env_id: int, link_target: str) -> str:
@@ -487,6 +488,7 @@ class RobotManager:
                 "fy",
                 "sensor_model",
                 "mount_basis",
+                "mount_pose_convention",
                 "published_diagonal_fov_deg",
                 "optical_roll_deg",
                 "native_resolution",

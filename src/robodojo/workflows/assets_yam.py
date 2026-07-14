@@ -64,6 +64,35 @@ def _add_collisions_from_visuals(robot: ET.Element) -> int:
     return count
 
 
+def _fixed_camera_frame_contract(build_manifest: dict) -> list[dict]:
+    """Validate and normalize non-physical camera frames authored into USD."""
+    frames = []
+    seen_paths = set()
+    for source in build_manifest["asset"].get("fixed_frames", []):
+        frame = deepcopy(source)
+        name = frame.get("name")
+        parent = frame.get("parent")
+        if not isinstance(name, str) or not name or "/" in name or name in {".", ".."}:
+            raise ValueError(f"invalid fixed camera frame name: {name!r}")
+        if not isinstance(parent, str) or not parent or parent.startswith("/") or ".." in parent.split("/"):
+            raise ValueError(f"invalid fixed camera frame parent: {parent!r}")
+        if len(frame.get("position", [])) != 3 or len(frame.get("orientation", [])) != 4:
+            raise ValueError(f"fixed camera frame {name!r} must declare a 3D position and scalar-first quaternion")
+        if frame.get("physical") is not False:
+            raise ValueError(f"fixed camera frame {name!r} must be explicitly non-physical")
+        derivation_source = frame.get("derivation_source")
+        reference = build_manifest["sources"].get(derivation_source)
+        if not isinstance(reference, dict) or reference.get("usage") != "reference_only":
+            raise ValueError(f"fixed camera frame {name!r} must cite a reference-only derivation source")
+        relative_path = f"{parent.rstrip('/')}/{name}"
+        if relative_path in seen_paths:
+            raise ValueError(f"duplicate fixed camera frame path: {relative_path}")
+        seen_paths.add(relative_path)
+        frame["path"] = relative_path
+        frames.append(frame)
+    return frames
+
+
 def derive_yam_urdf(source_root: Path, output_root: Path, build_manifest: dict) -> dict:
     """Create the normalized runtime URDF and source snapshot without importing Isaac."""
     asset = build_manifest["asset"]
@@ -164,7 +193,7 @@ def _convert_to_usd(derived_urdf: Path, output_root: Path, build_manifest: dict)
     try:
         from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
         from isaaclab.sim.converters.asset_converter_base import AssetConverterBase
-        from pxr import Usd, UsdPhysics, UsdShade
+        from pxr import Gf, Usd, UsdGeom, UsdPhysics, UsdShade
 
         class _NoVersionSwitchUrdfConverter(UrdfConverter):
             """Use Isaac Sim's installed importer when merge_fixed_joints is disabled.
@@ -228,6 +257,35 @@ def _convert_to_usd(derived_urdf: Path, output_root: Path, build_manifest: dict)
         if stage is None or not stage.GetDefaultPrim().IsValid():
             raise RuntimeError(f"could not open generated YAM stage {output}")
         default_path = str(stage.GetDefaultPrim().GetPath())
+        fixed_camera_frames = []
+        for frame in _fixed_camera_frame_contract(build_manifest):
+            parent_path = f"{default_path}/{frame['parent'].strip('/')}"
+            if not stage.GetPrimAtPath(parent_path).IsValid():
+                raise RuntimeError(f"fixed camera frame parent does not exist: {parent_path}")
+            frame_path = f"{default_path}/{frame['path']}"
+            frame_xform = UsdGeom.Xform.Define(stage, frame_path)
+            xformable = UsdGeom.Xformable(frame_xform.GetPrim())
+            xformable.ClearXformOpOrder()
+            xformable.AddTranslateOp(UsdGeom.XformOp.PrecisionDouble).Set(
+                Gf.Vec3d(*[float(value) for value in frame["position"]])
+            )
+            orientation = frame["orientation"]
+            xformable.AddOrientOp(UsdGeom.XformOp.PrecisionDouble).Set(
+                Gf.Quatd(float(orientation[0]), *[float(value) for value in orientation[1:]])
+            )
+            prim = frame_xform.GetPrim()
+            if prim.HasAPI(UsdPhysics.RigidBodyAPI) or prim.HasAPI(UsdPhysics.CollisionAPI):
+                raise RuntimeError(f"fixed camera frame unexpectedly has physics APIs: {frame_path}")
+            fixed_camera_frames.append(
+                {
+                    "path": frame_path,
+                    "parent": parent_path,
+                    "position": list(frame["position"]),
+                    "orientation": list(frame["orientation"]),
+                    "derivation_source": frame["derivation_source"],
+                    "physical": False,
+                }
+            )
         material = UsdShade.Material.Define(stage, f"{default_path}/fingerPhysicsMaterial")
         physics_material = UsdPhysics.MaterialAPI.Apply(material.GetPrim())
         physics_material.CreateStaticFrictionAttr(3.0)
@@ -280,6 +338,7 @@ def _convert_to_usd(derived_urdf: Path, output_root: Path, build_manifest: dict)
             "collision_paths": sorted(collision_paths),
             "finger_collision_paths": sorted(finger_collision_paths),
             "finger_physics_material": {"static_friction": 3.0, "dynamic_friction": 2.5},
+            "fixed_camera_frames": fixed_camera_frames,
         }
         # IsaacLab's cache/config files are build-time implementation details;
         # the manifest below records the stable converter contract instead.
@@ -305,6 +364,7 @@ def build(source_root: Path, output_root: Path, manifest_path: Path) -> dict:
     derived = derive_yam_urdf(source_root, output_root, build_manifest)
     generated, simulation_app = _convert_to_usd(derived["derived_urdf"], output_root, build_manifest)
     source = build_manifest["sources"]["i2rt"]
+    reference_sources = {key: value for key, value in build_manifest["sources"].items() if key != "i2rt"}
     result = {
         "format": 1,
         "asset": "yam",
@@ -315,7 +375,9 @@ def build(source_root: Path, output_root: Path, manifest_path: Path) -> dict:
             "source_urdf_sha256": derived["source_urdf_sha256"],
             "source_mesh_sha256": derived["mesh_sources"],
             "license_sha256": derived["license_sha256"],
+            "build_manifest_sha256": sha256(manifest_path),
         },
+        "reference_provenance": reference_sources,
         "transformations": list(build_manifest["asset"]["transformations"]),
         "derived_contract": {key: value for key, value in derived.items() if key != "derived_urdf"},
         "converter": dict(build_manifest["asset"]["converter"]),

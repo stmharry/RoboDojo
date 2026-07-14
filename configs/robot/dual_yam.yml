@@ -5,7 +5,7 @@ robots:
     need_planner: false
     enabled_self_collisions: false
     default_root_pos: [-0.24, -0.45, 0.765]
-    default_root_rot: [0.70710678, 0.0, 0.0, 0.70710678]
+    default_root_rot: [0.0, 0.0, 0.0, 1.0]
     grasp_perfect_direction: top_down_little_right
   - robot_type: arm
     robot_name: yam
@@ -13,5 +13,5 @@ robots:
     need_planner: false
     enabled_self_collisions: false
     default_root_pos: [0.24, -0.45, 0.765]
-    default_root_rot: [0.70710678, 0.0, 0.0, 0.70710678]
+    default_root_rot: [0.0, 0.0, 0.0, 1.0]
     grasp_perfect_direction: top_down_little_left

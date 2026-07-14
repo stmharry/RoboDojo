@@ -22,6 +22,7 @@ camera_rig:
         kind: world
         position: [0.0, -0.30, 1.565]
         orientation: [0.54167522, -0.45451948, 0.45451948, 0.54167522]
+        pose_convention: sapien_robotics
         optical_roll_deg: 0.0
         basis: molmoact2_yam_sim_contract
       projection:
@@ -48,6 +49,7 @@ camera_rig:
         target: robot0/link6
         position: [0.0, 0.09, 0.06]
         orientation: [0.61237243, -0.35355339, -0.35355340, -0.61237244]
+        pose_convention: sapien_robotics
         optical_roll_deg: 0.0
         basis: molmoact2_yam_sim_contract
       projection: &wrist_projection
@@ -67,6 +69,7 @@ camera_rig:
         target: robot1/link6
         position: [0.0, 0.09, 0.06]
         orientation: [0.61237243, -0.35355339, -0.35355340, -0.61237244]
+        pose_convention: sapien_robotics
         optical_roll_deg: 0.0
         basis: molmoact2_yam_sim_contract
       projection: *wrist_projection

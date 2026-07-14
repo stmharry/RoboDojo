@@ -8,6 +8,25 @@ from typing import Any, Mapping
 import numpy as np
 from scipy.spatial.transform import Rotation
 
+VALID_MOUNT_POSE_CONVENTIONS = frozenset({"isaac_usd", "sapien_robotics"})
+SAPIEN_ROBOTICS_TO_ISAAC_USD = np.asarray([0.5, 0.5, -0.5, -0.5], dtype=np.float64)
+
+
+def robot_link_prim_path(env_id: int, robot_mount_name: str, link: str) -> str:
+    """Build an environment prim path while allowing a nested logical link."""
+    if not link or link.startswith("/") or ".." in link.split("/"):
+        raise ValueError(f"invalid robot camera mount link: {link!r}")
+    return f"/World/envs/env_{int(env_id)}/{robot_mount_name}/{link.strip('/')}"
+
+
+def require_camera_mount_prim(parent_path: str, is_valid) -> None:
+    """Fail early when a logical mount resolves to an absent asset prim."""
+    if not is_valid(parent_path):
+        raise ValueError(
+            f"resolved camera mount prim {parent_path} does not exist; "
+            "rebuild the embodiment asset if it publishes a generated camera frame"
+        )
+
 
 def orientation_quaternion(value) -> np.ndarray:
     """Return a scalar-first quaternion from XYZ degrees or scalar-first input."""
@@ -27,6 +46,30 @@ def apply_optical_roll(orientation, roll_deg: float) -> np.ndarray:
     local_roll = Rotation.from_euler("Z", float(roll_deg), degrees=True)
     xyzw = (base_rotation * local_roll).as_quat()
     return xyzw[[3, 0, 1, 2]]
+
+
+def convert_mount_orientation(orientation, pose_convention: str = "isaac_usd") -> np.ndarray:
+    """Convert a scalar-first mount quaternion to Isaac/USD camera axes.
+
+    SAPIEN robotics cameras use +X forward, +Y left, and +Z up. Isaac/USD
+    cameras use -Z forward and +Y up. The fixed local rotation is composed on
+    the right so the configured pose remains the upstream mount pose.
+    """
+    if pose_convention not in VALID_MOUNT_POSE_CONVENTIONS:
+        raise ValueError(f"unsupported camera mount pose convention: {pose_convention!r}")
+    base = orientation_quaternion(orientation)
+    if pose_convention == "isaac_usd":
+        return base
+    base_rotation = Rotation.from_quat(base[[1, 2, 3, 0]])
+    axes_rotation = Rotation.from_quat(SAPIEN_ROBOTICS_TO_ISAAC_USD[[1, 2, 3, 0]])
+    xyzw = (base_rotation * axes_rotation).as_quat()
+    return xyzw[[3, 0, 1, 2]]
+
+
+def mount_orientation(orientation, pose_convention: str = "isaac_usd", optical_roll_deg: float = 0.0) -> np.ndarray:
+    """Convert camera axes, then apply the configured local optical roll."""
+    converted = convert_mount_orientation(orientation, pose_convention)
+    return apply_optical_roll(converted, optical_roll_deg)
 
 
 def compose_pose(parent_position, parent_orientation, local_position, local_orientation):

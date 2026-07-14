@@ -9,6 +9,7 @@ from typing import Any, Mapping
 from omegaconf import DictConfig, OmegaConf
 
 VALID_MOUNT_KINDS = frozenset({"world", "robot_link", "scene_fixture"})
+VALID_MOUNT_POSE_CONVENTIONS = frozenset({"isaac_usd", "sapien_robotics"})
 VALID_PROJECTION_MODELS = frozenset({"pinhole", "opencvFisheye"})
 
 
@@ -41,6 +42,11 @@ class CameraSpec:
         orientation = self.mount.get("orientation", [1.0, 0.0, 0.0, 0.0])
         if len(position) != 3 or len(orientation) not in (3, 4):
             raise ValueError(f"{self.observation_key}: invalid mount pose")
+        pose_convention = self.mount.get("pose_convention", "isaac_usd")
+        if pose_convention not in VALID_MOUNT_POSE_CONVENTIONS:
+            raise ValueError(f"{self.observation_key}: invalid mount pose convention {pose_convention!r}")
+        if pose_convention == "sapien_robotics" and len(orientation) != 4:
+            raise ValueError(f"{self.observation_key}: sapien_robotics mounts require a scalar-first quaternion")
         roll = float(self.mount.get("optical_roll_deg", 0.0))
         if roll not in (-180.0, -90.0, 0.0, 90.0, 180.0):
             raise ValueError(f"{self.observation_key}: optical roll must be a right-angle rotation")
@@ -91,6 +97,7 @@ class CameraSpec:
             "mount_target": self.mount.get("target"),
             "pos": list(self.mount.get("position", [0.0, 0.0, 0.0])),
             "ori": list(self.mount.get("orientation", [1.0, 0.0, 0.0, 0.0])),
+            "mount_pose_convention": self.mount.get("pose_convention", "isaac_usd"),
             "optical_roll_deg": float(self.mount.get("optical_roll_deg", 0.0)),
             "mount_basis": self.mount.get("basis"),
             "lens_distortion_model": self.projection.get("model", "pinhole"),
@@ -163,6 +170,7 @@ def _legacy_camera_spec(name: str, section: Mapping[str, Any], frequency: float)
         "target": camera.get("mount_target", mount_link),
         "position": list(camera.get("pos", [0.0, 0.0, 0.0])),
         "orientation": list(camera.get("ori", [1.0, 0.0, 0.0, 0.0])),
+        "pose_convention": camera.get("mount_pose_convention", "isaac_usd"),
         "optical_roll_deg": float(camera.get("optical_roll_deg", 0.0)),
         "basis": camera.get("mount_basis", "legacy"),
     }

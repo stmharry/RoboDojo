@@ -29,8 +29,9 @@ from robodojo.sim.camera_template import (
 )
 from robodojo.sim.environment.camera_manager.mount_registry import (
     align_hardware_frame_pose,
-    apply_optical_roll,
+    mount_orientation,
     orientation_quaternion,
+    require_camera_mount_prim,
 )
 from robodojo.sim.environment.camera_manager.rig_spec import hardware_camera_parent
 from robodojo.sim.environment.environment.isaac.isaac_rl_env import IsaacRLEnv
@@ -236,6 +237,8 @@ class CameraManager:
                     if self.mount_registry is not None
                     else env_name
                 )
+                if camera_config.camera.get("mount_kind", "world") != "world":
+                    require_camera_mount_prim(parent_path, is_prim_path_valid)
                 hardware_enabled = camera_config.camera.get("mount_hardware_enabled", True)
                 hardware_asset = camera_config.camera.get("mount_hardware_asset") if hardware_enabled else None
                 camera_parent_path = parent_path
@@ -265,9 +268,14 @@ class CameraManager:
                                 get_current_stage().GetPrimAtPath(camera_parent_path)
                             ).GetLocalTransformation()
                         ).T
+                        target_orientation = mount_orientation(
+                            camera_config.camera.ori,
+                            str(camera_config.camera.get("mount_pose_convention", "isaac_usd")),
+                            float(camera_config.camera.get("optical_roll_deg", 0.0)),
+                        )
                         position, orientation = align_hardware_frame_pose(
                             camera_config.camera.pos,
-                            camera_config.camera.ori,
+                            target_orientation,
                             frame_matrix,
                         )
                     else:
@@ -530,8 +538,9 @@ class CameraManager:
                 else:
                     orientation = euler_angles_to_quat(torch.tensor([0, 0, 0]))
                 orientation = torch.as_tensor(
-                    apply_optical_roll(
+                    mount_orientation(
                         orientation.detach().cpu().numpy(),
+                        str(camera_config.camera.get("mount_pose_convention", "isaac_usd")),
                         float(camera_config.camera.get("optical_roll_deg", 0.0)),
                     ),
                     dtype=torch.float32,

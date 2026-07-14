@@ -9,9 +9,17 @@ import yaml
 from robodojo.core.paths import RepositoryPaths
 from robodojo.core.profiles import load_environment_profile
 from robodojo.sim.camera_template import YAM_TOP, YAM_WRIST
+from robodojo.sim.environment.camera_manager.mount_registry import (
+    apply_optical_roll,
+    convert_mount_orientation,
+    mount_orientation,
+    orientation_quaternion,
+    require_camera_mount_prim,
+    robot_link_prim_path,
+)
 from robodojo.sim.environment.camera_manager.rig_spec import normalize_camera_rig
 from robodojo.sim.utils.pipeline_utils import process_config
-from robodojo.workflows.assets_yam import derive_yam_urdf
+from robodojo.workflows.assets_yam import _fixed_camera_frame_contract, derive_yam_urdf
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -57,7 +65,7 @@ def test_dual_yam_order_pose_and_no_planner_are_explicit():
         [-0.24, -0.45, 0.765],
         [0.24, -0.45, 0.765],
     ]
-    assert all(robot["default_root_rot"] == pytest.approx([0.70710678, 0.0, 0.0, 0.70710678]) for robot in robots)
+    assert all(robot["default_root_rot"] == pytest.approx([0.0, 0.0, 0.0, 1.0]) for robot in robots)
     assert all(robot["robot_name"] == "yam" for robot in robots)
     assert all(robot["coupled"] is False and robot["need_planner"] is False for robot in robots)
 
@@ -75,12 +83,14 @@ def test_yam_camera_rig_matches_molmo_contract_and_runtime_templates():
     assert top.sensor["stream_resolution"] == [640, 360]
     assert top.mount["position"] == [0.0, -0.30, 1.565]
     assert top.mount["orientation"] == pytest.approx([0.54167522, -0.45451948, 0.45451948, 0.54167522])
+    assert top.mount["pose_convention"] == "sapien_robotics"
     assert top.projection["fx"] == pytest.approx(462.1386898729645)
     assert top.projection["horizontal_fov_deg"] == 69.4
     assert [left.mount["target"], right.mount["target"]] == ["robot0/link6", "robot1/link6"]
     for wrist in (left, right):
         assert wrist.mount["position"] == [0.0, 0.09, 0.06]
         assert wrist.mount["orientation"] == pytest.approx([0.61237243, -0.35355339, -0.35355340, -0.61237244])
+        assert wrist.mount["pose_convention"] == "sapien_robotics"
         assert wrist.projection["fx"] == pytest.approx(337.20964008990796)
         assert wrist.projection["horizontal_fov_deg"] == 87.0
 
@@ -98,13 +108,46 @@ def test_yam_tooling_and_policy_reference_are_revision_pinned():
     assert reference["state_action_contract"]["gripper"]["formula"] == "g=-q/0.0475"
     assert reference["state_action_contract"]["predicted_horizon"] == 30
     assert reference["state_action_contract"]["executed_horizon"] == 25
+    bridge = reference["state_action_contract"]["joint_convention_bridge"]
+    assert bridge["scope"] == "molmoact2_bimanual_yam_original_hf_only"
+    assert bridge["negated_indices_zero_based"] == [4, 11]
+    assert bridge["simulator_to_checkpoint_signs"] == bridge["checkpoint_to_simulator_signs"]
 
     robot = tooling["robot_config"]
     assert robot["arm_joints_name"] == [f"dof_joint{i}" for i in range(1, 7)]
     assert robot["gripper_joints_name"] == ["dof_joint7", "dof_joint8"]
     assert robot["gripper_move"] == {"base": "dof_joint7", "sign": -1.0, "mimic": ["dof_joint8", 1.0, 0.0]}
     assert robot["gripper_scale"] == [-0.0475, 0.0]
-    assert robot["camera_mount_links"] == {"link6": "gripper"}
+    assert robot["camera_mount_links"] == {"link6": "gripper/molmo_link6"}
+
+    reference_source = tooling["sources"]["molmoact2_sim_assets"]
+    assert reference_source["repository"] == (
+        "https://huggingface.co/datasets/TreeePlanter/molmoact2-sim-eval-assets"
+    )
+    assert reference_source["revision"] == "9332a64224ff0a813d9f77bd377b845270232513"
+    assert reference_source["license"] == "undeclared"
+    assert reference_source["usage"] == "reference_only"
+    assert reference_source["files"] == {
+        "bimanual_model": {
+            "path": "assets/yam/yam_mujoco/bimanual_yam_linear_flattened.xml",
+            "sha256": "459f1801fae5618e7caf3c44f257a53d61974e7708a14d83c7b60a60b65e374a",
+        },
+        "gripper_mesh": {
+            "path": "assets/yam/yam_mujoco/assets/gripper_linear.obj",
+            "sha256": "31d70e2129a3ab8e85f391785cae5bba4163e1e16fb02a3988c5ac1c549c9d78",
+        },
+    }
+    assert _fixed_camera_frame_contract(tooling) == [
+        {
+            "name": "molmo_link6",
+            "parent": "gripper",
+            "position": [0.0, 0.0, 0.0005],
+            "orientation": [0.0, 0.7071067811865476, -0.7071067811865476, 0.0],
+            "derivation_source": "molmoact2_sim_assets",
+            "physical": False,
+            "path": "gripper/molmo_link6",
+        }
+    ]
 
 
 def _fake_i2rt_checkout(root: Path) -> None:
@@ -194,10 +237,19 @@ def test_yam_initial_state_and_control_seed_preserve_partial_opening():
             candidate = ast.literal_eval(node)
         except (TypeError, ValueError):
             continue
-        if isinstance(candidate, dict) and {"dof_joint7", "dof_joint8"}.issubset(candidate):
-            values = {key: candidate[key] for key in ("dof_joint7", "dof_joint8")}
+        if isinstance(candidate, dict) and {f"dof_joint{index}" for index in range(1, 9)}.issubset(candidate):
+            values = candidate
             break
-    assert values == {"dof_joint7": -0.02, "dof_joint8": -0.02}
+    assert values == {
+        "dof_joint1": 0.0,
+        "dof_joint2": 0.0,
+        "dof_joint3": 0.0,
+        "dof_joint4": 0.0,
+        "dof_joint5": 0.0,
+        "dof_joint6": 0.0,
+        "dof_joint7": -0.02,
+        "dof_joint8": -0.02,
+    }
 
     manager_source = ast.parse((ROOT / "src/robodojo/sim/environment/robot_manager/robot_manager.py").read_text())
     method = next(
@@ -221,3 +273,44 @@ def test_yam_gripper_contract_round_trip(physical):
 
     assert policy == pytest.approx(-physical / 0.0475)
     assert restored == pytest.approx(physical)
+
+
+def test_sapien_camera_axes_are_converted_before_optical_roll():
+    raw = [0.54167522, -0.45451948, 0.45451948, 0.54167522]
+    converted = convert_mount_orientation(raw, "sapien_robotics")
+    assert converted == pytest.approx([0.9961947, 0.08715574, 0.0, 0.0], abs=1e-8)
+
+    from scipy.spatial.transform import Rotation
+
+    raw_rotation = Rotation.from_quat(orientation_quaternion(raw)[[1, 2, 3, 0]])
+    converted_rotation = Rotation.from_quat(converted[[1, 2, 3, 0]])
+    assert converted_rotation.apply([0.0, 0.0, -1.0]) == pytest.approx(raw_rotation.apply([1.0, 0.0, 0.0]))
+    assert converted_rotation.apply([0.0, 1.0, 0.0]) == pytest.approx(raw_rotation.apply([0.0, 0.0, 1.0]))
+    assert mount_orientation(raw, "sapien_robotics", 90.0) == pytest.approx(
+        apply_optical_roll(converted, 90.0)
+    )
+
+
+def test_camera_pose_convention_default_and_validation_are_backward_compatible():
+    config = yaml.safe_load((ROOT / "configs/camera/bimanual_yam.yml").read_text())
+    mount = config["camera_rig"]["cameras"]["cam_head"]["mount"]
+    mount.pop("pose_convention")
+    normalized = normalize_camera_rig(config)
+    assert normalized.cameras[0].runtime_camera()["mount_pose_convention"] == "isaac_usd"
+
+    mount["pose_convention"] = "unknown_camera_axes"
+    with pytest.raises(ValueError, match="invalid mount pose convention"):
+        normalize_camera_rig(config)
+
+    mount["pose_convention"] = "sapien_robotics"
+    mount["orientation"] = [0.0, 0.0, 0.0]
+    with pytest.raises(ValueError, match="require a scalar-first quaternion"):
+        normalize_camera_rig(config)
+
+
+def test_nested_yam_camera_mount_alias_resolves_to_generated_frame():
+    tooling = yaml.safe_load((ROOT / "configs/tooling/yam.yml").read_text())
+    nested_link = tooling["robot_config"]["camera_mount_links"]["link6"]
+    assert robot_link_prim_path(3, "robot0", nested_link) == "/World/envs/env_3/robot0/gripper/molmo_link6"
+    with pytest.raises(ValueError, match="rebuild the embodiment asset"):
+        require_camera_mount_prim("/World/envs/env_3/robot0/gripper/molmo_link6", lambda _: False)
