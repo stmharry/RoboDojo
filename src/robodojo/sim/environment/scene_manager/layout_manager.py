@@ -350,7 +350,7 @@ class LayoutManager:
         if is_randomized:
             cat_name = random.choice(table_dirs)
         else:
-            cat_name = table_cfg.get("default", "material_0001")
+            cat_name = table_cfg.get("replay_material_override", table_cfg.get("default", "material_0001"))
         mdl_dir = os.path.join(ASSETS_PATH, "Material", cat_name)
         mdl_files = [f for f in os.listdir(mdl_dir) if f.endswith(".mdl")]
         table_cfg["mdl_path"] = os.path.join(mdl_dir, mdl_files[0])

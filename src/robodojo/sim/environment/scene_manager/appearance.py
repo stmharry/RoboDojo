@@ -2,7 +2,7 @@ from collections.abc import Mapping
 from copy import deepcopy
 from typing import Any
 
-FIXTURE_APPEARANCE_KEYS = ("visual_color",)
+FIXTURE_APPEARANCE_KEYS = ("visual_color", "replay_material_override")
 
 
 def merge_fixture_appearance(saved_fixture: dict[str, Any], active_fixture: Mapping[str, Any]) -> dict[str, Any]:

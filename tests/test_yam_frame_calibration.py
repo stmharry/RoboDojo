@@ -43,31 +43,35 @@ def test_molmo_scene_is_profile_isolated_and_clones_default_nonappearance_contra
     default = yaml.safe_load((ROOT / "configs/scene/default.yml").read_text())
     molmo = yaml.safe_load((ROOT / "configs/scene/molmo_yam.yml").read_text())
     comparable = deepcopy(molmo)
-    assert comparable["Table"].pop("visual_color") == [0.20, 0.085, 0.035]
+    assert comparable["Table"].pop("replay_material_override") == "material_0122"
     assert comparable["Room"].pop("visual_color") == [0.75, 0.75, 0.72]
     assert comparable == default
     assert "visual_color" not in default["Table"] and "visual_color" not in default["Room"]
     assert molmo["Table"]["default"] == "material_0122"
-    assert max(molmo["Table"]["visual_color"]) < 0.5
+    assert "visual_color" not in molmo["Table"]
     assert min(molmo["Room"]["visual_color"]) >= 0.7
     assert molmo["Background"] == {"intensity": 1000, "default": "brown_photostudio_02_4k.hdr"}
 
 
 def test_active_scene_appearance_overlays_replayed_fixture_without_changing_geometry():
     replayed = {
+        "default": "write_material",
         "default_pos": [0.0, -0.05, 0.74],
         "scale": [1.4, 1.1, 0.05],
         "collision": True,
         "visual_color": [1.0, 1.0, 1.0],
     }
-    molmo = merge_fixture_appearance(replayed, {"visual_color": [0.20, 0.085, 0.035]})
-    assert molmo["visual_color"] == [0.20, 0.085, 0.035]
-    assert {key: value for key, value in molmo.items() if key != "visual_color"} == {
+    molmo = merge_fixture_appearance(replayed, {"replay_material_override": "material_0122"})
+    assert molmo["replay_material_override"] == "material_0122"
+    assert "visual_color" not in molmo
+    assert {key: value for key, value in molmo.items() if key != "replay_material_override"} == {
         key: value for key, value in replayed.items() if key != "visual_color"
     }
 
     default = merge_fixture_appearance(replayed, {})
     assert "visual_color" not in default
+    assert "replay_material_override" not in default
+    assert default["default"] == "write_material"
     assert default["default_pos"] == replayed["default_pos"]
     assert default["scale"] == replayed["scale"]
     assert default["collision"] is True
