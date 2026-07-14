@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
+import zipfile
 
 from pxr import Gf, Sdf, Tf, Usd, UsdGeom, UsdShade, UsdUtils
 
@@ -14,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 PREVIEW_NAME = "scene_preview.usdz"
 _PREVIEW_ROOT_NAME = "scene_preview.usdc"
+_PREVIEW_SOURCE_ROOT_NAME = ".scene_preview_source.usdc"
 _PREVIEW_SCOPE = Sdf.Path("/World/RoboDojoPreviewLooks")
 _ALLOWED_SHADER_IDS = {
     "UsdPreviewSurface",
@@ -21,6 +23,7 @@ _ALLOWED_SHADER_IDS = {
     "UsdPrimvarReader_float2",
     "UsdTransform2d",
 }
+_USD_EXTENSIONS = {".usd", ".usda", ".usdc", ".usdz"}
 
 
 def _clamp(value: float) -> float:
@@ -78,6 +81,92 @@ def _asset_resolves(stage: Usd.Stage, asset: Sdf.AssetPath) -> bool:
     if not candidate.is_file():
         return False
     return not member or package_member_exists(candidate, member)
+
+
+def _all_gprims(stage: Usd.Stage, *, instance_proxies: bool = False):
+    predicate = Usd.TraverseInstanceProxies() if instance_proxies else Usd.PrimDefaultPredicate
+    for prim in Usd.PrimRange.Stage(stage, predicate):
+        if prim.IsA(UsdGeom.Gprim):
+            yield prim
+
+
+def _expand_instances(stage: Usd.Stage, preview_root: Path) -> tuple[Usd.Stage, int]:
+    """Bake instance proxies into the detached preview without prototype residue."""
+    instance_paths = [prim.GetPath() for prim in stage.Traverse() if prim.IsInstance()]
+    if not instance_paths:
+        stage.GetRootLayer().Export(str(preview_root))
+        expanded_stage = Usd.Stage.Open(str(preview_root), load=Usd.Stage.LoadAll)
+        if not expanded_stage:
+            raise RuntimeError("could not reopen detached preview stage")
+        return expanded_stage, 0
+
+    expected_transforms = {
+        str(prim.GetPath()): UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+        for prim in _all_gprims(stage, instance_proxies=True)
+    }
+    for path in instance_paths:
+        stage.GetPrimAtPath(path).SetInstanceable(False)
+
+    expanded_layer = stage.Flatten()
+    expanded_stage = Usd.Stage.Open(expanded_layer, load=Usd.Stage.LoadAll)
+    if not expanded_stage:
+        raise RuntimeError("could not open expanded preview stage")
+    for prim_spec in list(expanded_layer.rootPrims):
+        if prim_spec.name.startswith("Flattened_Prototype_"):
+            expanded_stage.RemovePrim(prim_spec.path)
+
+    output_dir = preview_root.parent.resolve()
+
+    def make_relative(path: str) -> str:
+        outer_path, package_member = split_package_asset_path(path)
+        candidate = Path(outer_path)
+        if not candidate.is_absolute():
+            return path
+        try:
+            relative = candidate.resolve().relative_to(output_dir).as_posix()
+        except ValueError:
+            return path
+        suffix = f"[{package_member}]" if package_member else ""
+        return relative + suffix
+
+    UsdUtils.ModifyAssetPaths(expanded_layer, make_relative)
+    expanded_layer.Export(str(preview_root))
+    expanded_stage = Usd.Stage.Open(str(preview_root), load=Usd.Stage.LoadAll)
+    if not expanded_stage:
+        raise RuntimeError("could not reopen expanded preview stage")
+    if expanded_stage.GetPrototypes() or any(prim.IsInstance() for prim in expanded_stage.Traverse()):
+        raise RuntimeError("portable preview retained USD instances or prototypes")
+    for path, expected in expected_transforms.items():
+        prim = expanded_stage.GetPrimAtPath(path)
+        if not prim:
+            raise RuntimeError(f"expanded preview is missing instanced geometry: {path}")
+        actual = UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+        if not Gf.IsClose(actual, expected, 1e-7):
+            raise RuntimeError(f"expanded preview geometry transform mismatch: {path}")
+    return expanded_stage, len(instance_paths)
+
+
+def _validate_package_members(package_path: Path) -> None:
+    """Reject hidden source networks and unsafe paths inside the USDZ archive."""
+    try:
+        with zipfile.ZipFile(package_path) as archive:
+            members = archive.namelist()
+    except (OSError, zipfile.BadZipFile) as error:
+        raise RuntimeError(f"could not inspect Blender preview USDZ: {error}") from error
+    errors = []
+    if _PREVIEW_ROOT_NAME not in members:
+        errors.append(f"missing-root:{_PREVIEW_ROOT_NAME}")
+    for name in members:
+        member = PurePosixPath(name)
+        if member.is_absolute() or ".." in member.parts or "://" in name:
+            errors.append(f"unsafe-path:{name}")
+        suffix = member.suffix.lower()
+        if suffix == ".mdl":
+            errors.append(f"mdl:{name}")
+        if suffix in _USD_EXTENSIONS and name != _PREVIEW_ROOT_NAME:
+            errors.append(f"external-usd:{name}")
+    if errors:
+        raise RuntimeError(f"portable preview package validation failed: {errors[:20]}")
 
 
 def _display_color(prim: Usd.Prim) -> Gf.Vec3f | None:
@@ -437,7 +526,11 @@ def _is_renderable(prim: Usd.Prim) -> bool:
 
 def _validate_preview(stage: Usd.Stage) -> None:
     errors = []
+    if stage.GetPrototypes():
+        errors.append(f"prototypes:{len(stage.GetPrototypes())}")
     for prim in stage.Traverse():
+        if prim.IsInstance():
+            errors.append(f"instance:{prim.GetPath()}")
         if prim.IsA(UsdGeom.Gprim):
             if UsdGeom.Imageable(prim).ComputePurpose() == UsdGeom.Tokens.guide:
                 errors.append(f"guide:{prim.GetPath()}")
@@ -468,22 +561,24 @@ def create_blender_preview(
     camera_paths: list[str],
 ) -> dict[str, Any]:
     """Create and validate ``scene_preview.usdz`` beside the canonical export."""
+    source_root = output_dir / _PREVIEW_SOURCE_ROOT_NAME
     preview_root = output_dir / _PREVIEW_ROOT_NAME
     preview_path = output_dir / PREVIEW_NAME
-    source_stage.GetRootLayer().Export(str(preview_root))
-    stage = Usd.Stage.Open(str(preview_root), load=Usd.Stage.LoadAll)
+    source_stage.GetRootLayer().Export(str(source_root))
+    stage = Usd.Stage.Open(str(source_root), load=Usd.Stage.LoadAll)
     if not stage:
         raise RuntimeError("could not open detached preview stage")
+    stage, expanded_instances = _expand_instances(stage, preview_root)
 
     source_camera_transforms = {}
     source_gprim_transforms = {}
-    for prim in source_stage.Traverse():
+    for prim in stage.Traverse():
         if prim.IsA(UsdGeom.Gprim) and UsdGeom.Imageable(prim).ComputePurpose() != UsdGeom.Tokens.guide:
             source_gprim_transforms[str(prim.GetPath())] = UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(
                 Usd.TimeCode.Default()
             )
     for path in camera_paths:
-        prim = source_stage.GetPrimAtPath(path)
+        prim = stage.GetPrimAtPath(path)
         if prim and prim.IsA(UsdGeom.Camera):
             source_camera_transforms[path] = UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(
                 Usd.TimeCode.Default()
@@ -497,6 +592,7 @@ def create_blender_preview(
         "fallback_materials": 0,
         "missing_textures": [],
         "unsupported_inputs": [],
+        "expanded_instances": expanded_instances,
         "excluded_guide_meshes": len(excluded),
         "excluded_guide_paths": excluded,
     }
@@ -537,6 +633,7 @@ def create_blender_preview(
     created = UsdUtils.CreateNewUsdzPackage(Sdf.AssetPath(str(preview_root)), str(preview_path))
     if not created or not preview_path.is_file():
         raise RuntimeError("failed to create Blender preview USDZ package")
+    _validate_package_members(preview_path)
     packaged = Usd.Stage.Open(str(preview_path), load=Usd.Stage.LoadAll)
     if not packaged:
         raise RuntimeError("could not reopen Blender preview USDZ package")
@@ -558,6 +655,7 @@ def create_blender_preview(
             raise RuntimeError(f"portable preview camera transform mismatch: {path}")
 
     preview_root.unlink(missing_ok=True)
+    source_root.unlink(missing_ok=True)
     diagnostics["material_count"] = (
         diagnostics["preserved_materials"] + diagnostics["translated_materials"] + diagnostics["fallback_materials"]
     )

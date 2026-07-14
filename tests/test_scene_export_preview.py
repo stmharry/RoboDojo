@@ -162,3 +162,54 @@ def test_create_blender_preview_translates_and_packages_materials(tmp_path: Path
     assert any(member.endswith("base.png") for member in members)
     assert not any(member.endswith(".mdl") for member in members)
     assert not (tmp_path / "scene_preview.usdc").exists()
+
+
+def test_create_blender_preview_expands_instances_without_prototype_mdl(tmp_path: Path):
+    (tmp_path / "OmniPBR.mdl").write_text("fixture mdl", encoding="utf-8")
+    model_path = tmp_path / "model.usdc"
+    model = Usd.Stage.CreateNew(str(model_path))
+    root = UsdGeom.Xform.Define(model, "/Robot").GetPrim()
+    model.SetDefaultPrim(root)
+    visual = _mesh(model, "/Robot/VisualMesh")
+    guide = _mesh(model, "/Robot/GuideMesh")
+    UsdGeom.Imageable(guide).CreatePurposeAttr().Set(UsdGeom.Tokens.guide)
+    material = _mdl_material(model, "/Robot/Looks/Material", sub_identifier="OmniPBR")
+    UsdShade.MaterialBindingAPI.Apply(visual).Bind(material)
+    UsdShade.MaterialBindingAPI.Apply(guide).Bind(material)
+    model.GetRootLayer().Save()
+
+    composed_path = tmp_path / "composed.usdc"
+    composed = Usd.Stage.CreateNew(str(composed_path))
+    UsdGeom.Xform.Define(composed, "/World")
+    for name, translation in (("RobotA", Gf.Vec3d(1.0, 0.0, 0.0)), ("RobotB", Gf.Vec3d(0.0, 2.0, 0.0))):
+        instance = UsdGeom.Xform.Define(composed, f"/World/{name}")
+        instance.GetPrim().GetReferences().AddReference("model.usdc")
+        instance.GetPrim().SetInstanceable(True)
+        instance.AddTranslateOp().Set(translation)
+    composed.GetRootLayer().Save()
+
+    flattened_path = tmp_path / "flattened.usdc"
+    composed.Flatten().Export(str(flattened_path))
+    flattened = Usd.Stage.Open(str(flattened_path), load=Usd.Stage.LoadAll)
+    assert flattened.GetPrototypes()
+
+    diagnostics = create_blender_preview(flattened, tmp_path, [])
+
+    assert diagnostics["expanded_instances"] == 2
+    assert diagnostics["excluded_guide_meshes"] == 2
+    packaged = Usd.Stage.Open(str(tmp_path / PREVIEW_NAME), load=Usd.Stage.LoadAll)
+    assert packaged and not packaged.GetPrototypes()
+    assert not any(prim.IsInstance() for prim in packaged.Traverse())
+    for name in ("RobotA", "RobotB"):
+        visual_path = f"/World/{name}/VisualMesh"
+        material, _ = UsdShade.MaterialBindingAPI(packaged.GetPrimAtPath(visual_path)).ComputeBoundMaterial()
+        assert material.ComputeSurfaceSource("universal")[0].GetIdAttr().Get() == "UsdPreviewSurface"
+        assert not packaged.GetPrimAtPath(f"/World/{name}/GuideMesh")
+
+    with zipfile.ZipFile(tmp_path / PREVIEW_NAME) as archive:
+        members = archive.namelist()
+    assert not any(member.lower().endswith(".mdl") for member in members)
+    assert [member for member in members if Path(member).suffix.lower() in {".usd", ".usda", ".usdc", ".usdz"}] == [
+        "scene_preview.usdc"
+    ]
+    assert not (tmp_path / ".scene_preview_source.usdc").exists()
