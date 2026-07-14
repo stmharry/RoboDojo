@@ -80,6 +80,9 @@ def _env_flag(name):
 SCENE_EXPORT_REQUESTED = _env_flag("ROBODOJO_EXPORT_SCENE") or _env_flag("ROBODOJO_EXPORT_SCENE_ONLY")
 SCENE_EXPORT_ONLY = _env_flag("ROBODOJO_EXPORT_SCENE_ONLY")
 SCENE_EXPORT_LAYOUT_ID = int(os.environ.get("ROBODOJO_EXPORT_LAYOUT_ID", "0"))
+SCENE_VISUAL_AUDIT_REQUESTED = _env_flag("ROBODOJO_SCENE_VISUAL_AUDIT")
+if SCENE_VISUAL_AUDIT_REQUESTED and not SCENE_EXPORT_ONLY:
+    raise ValueError("ROBODOJO_SCENE_VISUAL_AUDIT=1 is valid only with --export-scene-only")
 
 # Safe to import before AppLauncher: env is a namespace package (no __init__)
 # and GLOBAL_CONFIGS only imports os, so this pulls in no app-dependent code.
@@ -422,7 +425,11 @@ def main():
 
                 export_dir = os.environ.get("ROBODOJO_EXPORT_SCENE_DIR") or os.path.join(env.save_dir, "scene_snapshot")
                 try:
-                    export_scene_snapshot(env, export_dir, SCENE_EXPORT_LAYOUT_ID)
+                    exported_scene = export_scene_snapshot(env, export_dir, SCENE_EXPORT_LAYOUT_ID)
+                    if SCENE_VISUAL_AUDIT_REQUESTED:
+                        from robodojo.sim.scene_export.visual_audit import run_scene_visual_audit
+
+                        run_scene_visual_audit(env, exported_scene, SCENE_EXPORT_LAYOUT_ID)
                 except Exception as e:
                     raise SceneExportError(str(e)) from e
                 export_pending = False

@@ -13,6 +13,12 @@ from robodojo.core.storage import checkpoint_label, s3_uri
 from robodojo.policy.adapter import policy_server_command
 from robodojo.sim.launcher import run_simulator, simulator_command
 
+SCENE_VISUAL_AUDIT_ENV = "ROBODOJO_SCENE_VISUAL_AUDIT"
+
+
+def _env_flag(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
 
 def _policy_name(policy_dir: Path) -> str:
     return policy_dir.resolve().name
@@ -42,6 +48,9 @@ def run_simulator_session(
 
 def run_evaluation(paths: RepositoryPaths, request: EvaluationRequest) -> int:
     """Run the policy adapter and simulator as one deterministic lifecycle."""
+    visual_audit = _env_flag(SCENE_VISUAL_AUDIT_ENV)
+    if visual_audit and not request.export_scene_only:
+        raise ValueError(f"{SCENE_VISUAL_AUDIT_ENV}=1 is valid only with --export-scene-only")
     policy_dir = request.policy_dir.expanduser().resolve()
     policy_name = _policy_name(policy_dir)
     label = checkpoint_label(request.checkpoint, request.checkpoint_label)
@@ -71,6 +80,8 @@ def run_evaluation(paths: RepositoryPaths, request: EvaluationRequest) -> int:
             "ROBODOJO_EXPORT_LAYOUT_ID": str(request.layout_id),
         }
     )
+    if visual_audit:
+        simulator_env[SCENE_VISUAL_AUDIT_ENV] = "1"
     if request.export_scene_dir:
         simulator_env["ROBODOJO_EXPORT_SCENE_DIR"] = str(request.export_scene_dir.resolve())
 

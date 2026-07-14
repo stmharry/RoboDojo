@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 import subprocess
 
@@ -168,6 +169,56 @@ def test_scene_only_eval_dry_run_bypasses_policy_orchestrator(tmp_path):
     assert "setup_eval_policy_server.sh" not in result.stdout
 
 
+def test_scene_visual_audit_dry_run_is_propagated_only_through_scene_only_path(tmp_path):
+    policy_dir = tmp_path / "TestPolicy"
+    policy_dir.mkdir()
+    (policy_dir / "setup_eval_policy_server.sh").write_text("#!/usr/bin/env bash\n", encoding="utf-8")
+    result = subprocess.run(
+        [
+            str(ROOT / ".venv/bin/robodojo"),
+            "eval",
+            "--policy-dir",
+            str(policy_dir),
+            "--task",
+            "fold_clothes",
+            "--ckpt",
+            "folding_final",
+            "--policy-env",
+            "unused-in-scene-only",
+            "--env-cfg",
+            "arx_x5",
+            "--export-scene-only",
+            "--dry-run",
+        ],
+        cwd=ROOT,
+        env={**os.environ, "ROBODOJO_SCENE_VISUAL_AUDIT": "1"},
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert "ROBODOJO_SCENE_VISUAL_AUDIT=1" in result.stdout
+    assert "setup_eval_policy_server.sh" not in result.stdout
+
+
+def test_scene_visual_audit_rejects_non_scene_only_evaluation(monkeypatch, tmp_path):
+    from robodojo.core.models import EvaluationRequest
+    from robodojo.core.paths import RepositoryPaths
+    from robodojo.orchestration import evaluation
+
+    policy_dir = tmp_path / "TestPolicy"
+    policy_dir.mkdir()
+    monkeypatch.setenv("ROBODOJO_SCENE_VISUAL_AUDIT", "1")
+    request = EvaluationRequest(
+        policy_dir=policy_dir,
+        task="fold_clothes",
+        checkpoint="folding_final",
+        policy_env="test-policy-env",
+        export_scene=True,
+    )
+    with pytest.raises(ValueError, match="valid only with --export-scene-only"):
+        evaluation.run_evaluation(RepositoryPaths.resolve(ROOT), request)
+
+
 def test_export_and_continue_keeps_policy_orchestrator(tmp_path):
     policy_dir = tmp_path / "TestPolicy"
     policy_dir.mkdir()
@@ -207,5 +258,12 @@ def test_export_hook_precedes_rollout():
 def test_direct_simulator_entrypoint_validates_calibration_before_kit_startup():
     source = (ROOT / "src/robodojo/sim/evaluation/main.py").read_text(encoding="utf-8")
     validation = source.index("ENVIRONMENT_PROFILE = load_environment_profile(")
+    app_launch = source.index("app_launcher = AppLauncher(args_cli)")
+    assert validation < app_launch
+
+
+def test_direct_simulator_entrypoint_guards_visual_audit_before_kit_startup():
+    source = (ROOT / "src/robodojo/sim/evaluation/main.py").read_text(encoding="utf-8")
+    validation = source.index("if SCENE_VISUAL_AUDIT_REQUESTED and not SCENE_EXPORT_ONLY:")
     app_launch = source.index("app_launcher = AppLauncher(args_cli)")
     assert validation < app_launch

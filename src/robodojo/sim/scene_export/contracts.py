@@ -7,7 +7,10 @@ from dataclasses import asdict, dataclass
 import json
 import math
 from pathlib import Path
+from typing import Any
 import zipfile
+
+import numpy as np
 
 from robodojo.core.paths import RepositoryPaths
 
@@ -158,3 +161,198 @@ def package_member_exists(package_path: str | Path, member_path: str) -> bool:
             return member_path.replace("\\", "/") in package.namelist()
     except (OSError, zipfile.BadZipFile):
         return False
+
+
+def exact_simulation_steps(duration_seconds: float, step_seconds: float) -> int:
+    """Return the integral number of simulator steps for an exact duration."""
+    if duration_seconds <= 0 or step_seconds <= 0:
+        raise ValueError("duration and simulator step must be positive")
+    raw_steps = duration_seconds / step_seconds
+    steps = round(raw_steps)
+    if not math.isclose(raw_steps, steps, rel_tol=0.0, abs_tol=1e-9):
+        raise ValueError(
+            f"duration {duration_seconds:g}s is not an integral number of {step_seconds:g}s simulator steps"
+        )
+    return steps
+
+
+def camera_axes(camera_to_world: Any) -> dict[str, list[float]]:
+    """Return USD camera axes in world coordinates from a camera-to-world matrix."""
+    matrix = np.asarray(camera_to_world, dtype=np.float64)
+    if matrix.shape != (4, 4) or not np.isfinite(matrix).all():
+        raise ValueError("camera-to-world transform must be a finite 4x4 matrix")
+    rotation = matrix[:3, :3]
+
+    def unit(vector: np.ndarray) -> list[float]:
+        norm = float(np.linalg.norm(vector))
+        if norm <= 0:
+            raise ValueError("camera transform contains a zero-length axis")
+        return (vector / norm).tolist()
+
+    return {
+        "right_world": unit(rotation[:, 0]),
+        "up_world": unit(rotation[:, 1]),
+        # UsdGeom.Camera looks down its local negative Z axis.
+        "forward_world": unit(-rotation[:, 2]),
+    }
+
+
+def project_points_to_camera(
+    points_world: Any,
+    camera_to_world: Any,
+    intrinsic_matrix: Any,
+    resolution: tuple[int, int] | list[int],
+) -> dict[str, Any]:
+    """Project world points into a pinhole USD camera and summarize visibility."""
+    points = np.asarray(points_world, dtype=np.float64)
+    transform = np.asarray(camera_to_world, dtype=np.float64)
+    intrinsic = np.asarray(intrinsic_matrix, dtype=np.float64)
+    if points.ndim != 2 or points.shape[1] != 3:
+        raise ValueError("world points must have shape (N, 3)")
+    if transform.shape != (4, 4) or intrinsic.shape != (3, 3):
+        raise ValueError("camera transform and intrinsic matrix must be 4x4 and 3x3")
+    width, height = (int(resolution[0]), int(resolution[1]))
+    if width <= 0 or height <= 0:
+        raise ValueError("camera resolution must be positive")
+
+    total = int(len(points))
+    if total == 0:
+        return {
+            "particle_count": 0,
+            "in_front_count": 0,
+            "in_front_fraction": None,
+            "visible_count": 0,
+            "visible_fraction": None,
+            "visible_pixel_bounds": None,
+            "visible_normalized_bounds": None,
+        }
+
+    rotation = transform[:3, :3]
+    translation = transform[:3, 3]
+    local = (points - translation) @ rotation
+    depth = -local[:, 2]
+    finite = np.isfinite(local).all(axis=1)
+    in_front = finite & (depth > 1e-8)
+    pixels = np.full((total, 2), np.nan, dtype=np.float64)
+    pixels[in_front, 0] = intrinsic[0, 0] * local[in_front, 0] / depth[in_front] + intrinsic[0, 2]
+    pixels[in_front, 1] = intrinsic[1, 2] - intrinsic[1, 1] * local[in_front, 1] / depth[in_front]
+    visible = (
+        in_front
+        & (pixels[:, 0] >= 0.0)
+        & (pixels[:, 0] < width)
+        & (pixels[:, 1] >= 0.0)
+        & (pixels[:, 1] < height)
+    )
+    visible_pixels = pixels[visible]
+    bounds = None
+    normalized_bounds = None
+    if len(visible_pixels):
+        minimum = np.min(visible_pixels, axis=0)
+        maximum = np.max(visible_pixels, axis=0)
+        bounds = {
+            "min_xy": minimum.tolist(),
+            "max_xy": maximum.tolist(),
+        }
+        scale = np.asarray([width, height], dtype=np.float64)
+        normalized_bounds = {
+            "min_xy": (minimum / scale).tolist(),
+            "max_xy": (maximum / scale).tolist(),
+        }
+    in_front_count = int(np.count_nonzero(in_front))
+    visible_count = int(np.count_nonzero(visible))
+    return {
+        "particle_count": total,
+        "in_front_count": in_front_count,
+        "in_front_fraction": in_front_count / total,
+        "visible_count": visible_count,
+        "visible_fraction": visible_count / total,
+        "visible_pixel_bounds": bounds,
+        "visible_normalized_bounds": normalized_bounds,
+    }
+
+
+def forward_ray_plane_intersection(camera_to_world: Any, plane_z_world: float | None) -> dict[str, Any]:
+    """Intersect the USD camera forward ray with a horizontal world plane."""
+    if plane_z_world is None or not math.isfinite(plane_z_world):
+        return {
+            "plane_z_world_m": None if plane_z_world is None else float(plane_z_world),
+            "hit_in_front": None,
+            "distance_m": None,
+            "point_world_m": None,
+        }
+    matrix = np.asarray(camera_to_world, dtype=np.float64)
+    if matrix.shape != (4, 4) or not np.isfinite(matrix).all():
+        raise ValueError("camera-to-world transform must be a finite 4x4 matrix")
+    origin = matrix[:3, 3]
+    forward = -matrix[:3, 2]
+    if abs(float(forward[2])) <= 1e-12:
+        return {
+            "plane_z_world_m": float(plane_z_world),
+            "hit_in_front": False,
+            "distance_m": None,
+            "point_world_m": None,
+        }
+    distance = float((plane_z_world - origin[2]) / forward[2])
+    if distance <= 0:
+        return {
+            "plane_z_world_m": float(plane_z_world),
+            "hit_in_front": False,
+            "distance_m": distance,
+            "point_world_m": None,
+        }
+    return {
+        "plane_z_world_m": float(plane_z_world),
+        "hit_in_front": True,
+        "distance_m": distance,
+        "point_world_m": (origin + distance * forward).tolist(),
+    }
+
+
+def geometric_cloth_support(
+    points_world: Any,
+    table_height_world: float | None,
+    *,
+    near_surface_tolerance_m: float = 0.03,
+    below_surface_tolerance_m: float = 0.05,
+) -> dict[str, Any]:
+    """Summarize geometric table support without claiming contact-sensor data."""
+    points = np.asarray(points_world, dtype=np.float64)
+    if points.ndim != 2 or points.shape[1] != 3:
+        raise ValueError("cloth points must have shape (N, 3)")
+    if len(points) == 0 or table_height_world is None or not np.isfinite(table_height_world):
+        return {
+            "table_height_world_m": None if table_height_world is None else float(table_height_world),
+            "near_surface_tolerance_m": near_surface_tolerance_m,
+            "below_surface_tolerance_m": below_surface_tolerance_m,
+            "particle_fraction_near_surface": None,
+            "particle_fraction_below_surface_tolerance": None,
+            "geometrically_supported": None,
+            "contact_count": None,
+            "contact_measurement_available": False,
+        }
+    z = points[:, 2]
+    near_fraction = float(np.mean(np.abs(z - table_height_world) <= near_surface_tolerance_m))
+    below_fraction = float(np.mean(z < table_height_world - below_surface_tolerance_m))
+    return {
+        "table_height_world_m": float(table_height_world),
+        "near_surface_tolerance_m": near_surface_tolerance_m,
+        "below_surface_tolerance_m": below_surface_tolerance_m,
+        "particle_fraction_near_surface": near_fraction,
+        "particle_fraction_below_surface_tolerance": below_fraction,
+        "geometrically_supported": bool(near_fraction > 0.0 and below_fraction == 0.0),
+        "contact_count": None,
+        "contact_measurement_available": False,
+    }
+
+
+def vector_drift(before: Any, after: Any) -> dict[str, float | None]:
+    """Return maximum and RMS absolute drift for like-shaped numeric vectors."""
+    first = np.asarray(before, dtype=np.float64)
+    second = np.asarray(after, dtype=np.float64)
+    if first.shape != second.shape or first.size == 0 or not np.isfinite(first).all() or not np.isfinite(second).all():
+        return {"max_abs": None, "rms": None}
+    delta = second - first
+    return {
+        "max_abs": float(np.max(np.abs(delta))),
+        "rms": float(np.sqrt(np.mean(np.square(delta)))),
+    }
