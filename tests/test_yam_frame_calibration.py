@@ -29,6 +29,7 @@ from robodojo.sim.environment.robot_manager.visual_calibration import (
     validate_visual_calibration,
     visual_only_local_matrix,
 )
+from robodojo.sim.environment.scene_manager.appearance import merge_fixture_appearance
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "configs/reference/bimanual_yam_matched_frames.yml"
@@ -50,6 +51,26 @@ def test_molmo_scene_is_profile_isolated_and_clones_default_nonappearance_contra
     assert max(molmo["Table"]["visual_color"]) < 0.5
     assert min(molmo["Room"]["visual_color"]) >= 0.7
     assert molmo["Background"] == {"intensity": 1000, "default": "brown_photostudio_02_4k.hdr"}
+
+
+def test_active_scene_appearance_overlays_replayed_fixture_without_changing_geometry():
+    replayed = {
+        "default_pos": [0.0, -0.05, 0.74],
+        "scale": [1.4, 1.1, 0.05],
+        "collision": True,
+        "visual_color": [1.0, 1.0, 1.0],
+    }
+    molmo = merge_fixture_appearance(replayed, {"visual_color": [0.20, 0.085, 0.035]})
+    assert molmo["visual_color"] == [0.20, 0.085, 0.035]
+    assert {key: value for key, value in molmo.items() if key != "visual_color"} == {
+        key: value for key, value in replayed.items() if key != "visual_color"
+    }
+
+    default = merge_fixture_appearance(replayed, {})
+    assert "visual_color" not in default
+    assert default["default_pos"] == replayed["default_pos"]
+    assert default["scale"] == replayed["scale"]
+    assert default["collision"] is True
 
 
 def test_d405_proxy_is_wrist_only_and_preserves_normalized_optical_pose():

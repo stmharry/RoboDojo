@@ -17,6 +17,7 @@ import torch
 import transforms3d as t3d
 
 from robodojo.sim.environment.global_configs import ASSETS_PATH, OBJECTS_PATH
+from robodojo.sim.environment.scene_manager.appearance import merge_fixture_appearance
 from robodojo.sim.environment.seeding import seed_everywhere
 from robodojo.sim.utils.cluttered_generator import ClutteredGenerator
 from robodojo.sim.utils.load_file import load_desc_info, load_object_metadata
@@ -202,8 +203,10 @@ class LayoutManager:
                         self.object_records_by_type[key].add_instance(env_idx, inst, data)
                         self.instance_type_by_env[env_idx][inst_name] = key.lower()
             elif key == "Room":
+                value = merge_fixture_appearance(value, self.scene_config.Room)
                 value = self.select_room(env_idx, room_cfg=value)
             elif key == "Table":
+                value = merge_fixture_appearance(value, self.scene_config.Table)
                 value = self.select_table(env_idx, table_cfg=value)
             elif key == "Ground":
                 value = self.select_ground(env_idx, ground_cfg=value)
