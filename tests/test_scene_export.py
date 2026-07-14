@@ -5,14 +5,39 @@ import subprocess
 import pytest
 
 from robodojo.sim.scene_export.contracts import (
+    SCENE_EXPORT_FORMAT_VERSION,
     ExportIdentity,
     calculate_fisheye_fov_degrees,
     calculate_fov_degrees,
     completed_export_matches,
+    package_member_exists,
     scene_config_paths,
+    split_package_asset_path,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def _complete_manifest(identity: ExportIdentity) -> dict[str, object]:
+    return {
+        "format_version": SCENE_EXPORT_FORMAT_VERSION,
+        "complete": True,
+        "identity": identity.to_dict(),
+        "artifacts": {
+            "referenced_usda": {"path": "scene_referenced.usda", "sha256": "a" * 64},
+            "flattened_usdc": {"path": "scene_flattened.usdc", "sha256": "b" * 64},
+            "preview_usdz": {"path": "scene_preview.usdz", "sha256": "c" * 64},
+        },
+        "preview": {
+            "preserved_materials": 1,
+            "translated_materials": 1,
+            "fallback_materials": 1,
+            "missing_textures": [],
+            "unsupported_inputs": [],
+            "excluded_guide_meshes": 0,
+            "approximation": "portable approximation",
+        },
+    }
 
 
 def test_camera_fov_contract():
@@ -35,13 +60,54 @@ def test_completed_export_requires_exact_identity(tmp_path):
     identity = ExportIdentity("fold_clothes", "openarm_wowrobo_v1_1", 0, 0, "abc123")
     assert not completed_export_matches(tmp_path, identity)
     (tmp_path / "scene_manifest.json").write_text(
-        json.dumps({"complete": True, "identity": identity.to_dict()}), encoding="utf-8"
+        json.dumps(_complete_manifest(identity)),
+        encoding="utf-8",
     )
+    assert not completed_export_matches(tmp_path, identity)
+    for name in ("scene_referenced.usda", "scene_flattened.usdc", "scene_preview.usdz"):
+        (tmp_path / name).touch()
     assert completed_export_matches(tmp_path, identity)
     assert not completed_export_matches(
         tmp_path,
         ExportIdentity("fold_clothes", "openarm_wowrobo_v1_1", 0, 1, "abc123"),
     )
+
+
+def test_completed_export_rejects_incomplete_v2_manifest(tmp_path):
+    identity = ExportIdentity("fold_clothes", "arx_x5", 0, 0, "abc123")
+    for name in ("scene_referenced.usda", "scene_flattened.usdc", "scene_preview.usdz"):
+        (tmp_path / name).touch()
+    incomplete = _complete_manifest(identity)
+    del incomplete["preview"]
+    (tmp_path / "scene_manifest.json").write_text(json.dumps(incomplete), encoding="utf-8")
+    assert not completed_export_matches(tmp_path, identity)
+
+
+def test_completed_export_rejects_legacy_manifest(tmp_path):
+    identity = ExportIdentity("fold_clothes", "arx_x5", 0, 0, "abc123")
+    for name in ("scene_referenced.usda", "scene_flattened.usdc", "scene_preview.usdz"):
+        (tmp_path / name).touch()
+    (tmp_path / "scene_manifest.json").write_text(
+        json.dumps({"format_version": 1, "complete": True, "identity": identity.to_dict()}),
+        encoding="utf-8",
+    )
+    assert not completed_export_matches(tmp_path, identity)
+
+
+def test_package_asset_member_validation(tmp_path):
+    import zipfile
+
+    package = tmp_path / "asset.usdz"
+    with zipfile.ZipFile(package, "w", compression=zipfile.ZIP_STORED) as archive:
+        archive.writestr("textures/base_color.png", b"png")
+
+    assert split_package_asset_path("asset.usdz[textures/base_color.png]") == (
+        "asset.usdz",
+        "textures/base_color.png",
+    )
+    assert split_package_asset_path("texture.png") == ("texture.png", "")
+    assert package_member_exists(package, "textures/base_color.png")
+    assert not package_member_exists(package, "textures/missing.png")
 
 
 def test_scene_export_inputs_follow_canonical_config_domains():

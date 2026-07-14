@@ -7,8 +7,30 @@ from dataclasses import asdict, dataclass
 import json
 import math
 from pathlib import Path
+import zipfile
 
 from robodojo.core.paths import RepositoryPaths
+
+SCENE_EXPORT_FORMAT_VERSION = 2
+REQUIRED_EXPORT_ARTIFACTS = (
+    "scene_referenced.usda",
+    "scene_flattened.usdc",
+    "scene_preview.usdz",
+)
+REQUIRED_MANIFEST_ARTIFACTS = {
+    "referenced_usda": "scene_referenced.usda",
+    "flattened_usdc": "scene_flattened.usdc",
+    "preview_usdz": "scene_preview.usdz",
+}
+REQUIRED_PREVIEW_DIAGNOSTICS = (
+    "preserved_materials",
+    "translated_materials",
+    "fallback_materials",
+    "missing_textures",
+    "unsupported_inputs",
+    "excluded_guide_meshes",
+    "approximation",
+)
 
 
 @dataclass(frozen=True)
@@ -93,9 +115,46 @@ def calculate_fisheye_fov_degrees(
 
 def completed_export_matches(output_dir: str | Path, identity: ExportIdentity) -> bool:
     """Return whether an atomic export already completed for this exact scene."""
-    manifest_path = Path(output_dir) / "scene_manifest.json"
+    output = Path(output_dir)
+    manifest_path = output / "scene_manifest.json"
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, ValueError, TypeError):
         return False
-    return bool(manifest.get("complete")) and manifest.get("identity") == identity.to_dict()
+    artifacts = manifest.get("artifacts")
+    preview = manifest.get("preview")
+    complete_artifacts = isinstance(artifacts, dict) and all(
+        isinstance(artifacts.get(key), dict)
+        and artifacts[key].get("path") == filename
+        and isinstance(artifacts[key].get("sha256"), str)
+        and len(artifacts[key]["sha256"]) == 64
+        and (output / filename).is_file()
+        for key, filename in REQUIRED_MANIFEST_ARTIFACTS.items()
+    )
+    complete_preview = isinstance(preview, dict) and all(key in preview for key in REQUIRED_PREVIEW_DIAGNOSTICS)
+    return (
+        bool(manifest.get("complete"))
+        and manifest.get("format_version") == SCENE_EXPORT_FORMAT_VERSION
+        and manifest.get("identity") == identity.to_dict()
+        and complete_artifacts
+        and complete_preview
+    )
+
+
+def split_package_asset_path(path: str) -> tuple[str, str]:
+    """Split ``asset.usdz[member]`` into its package and member paths."""
+    marker = path.find("[")
+    if marker > 0 and path.endswith("]"):
+        return path[:marker], path[marker + 1 : -1]
+    return path, ""
+
+
+def package_member_exists(package_path: str | Path, member_path: str) -> bool:
+    """Return whether a USDZ/ZIP package contains the exact normalized member."""
+    if not member_path:
+        return True
+    try:
+        with zipfile.ZipFile(package_path) as package:
+            return member_path.replace("\\", "/") in package.namelist()
+    except (OSError, zipfile.BadZipFile):
+        return False

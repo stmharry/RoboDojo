@@ -16,18 +16,22 @@ import tempfile
 from typing import Any
 
 import numpy as np
-from pxr import Ar, Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdLux, UsdPhysics, UsdUtils, Vt
+from pxr import Ar, Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdLux, UsdPhysics, UsdShade, UsdUtils, Vt
 import yaml
 
 from robodojo.core.storage import assets_root
 from robodojo.sim.environment.global_configs import ROOT_DIR
 from robodojo.sim.scene_export.contracts import (
+    SCENE_EXPORT_FORMAT_VERSION,
     ExportIdentity,
     calculate_fisheye_fov_degrees,
     calculate_fov_degrees,
     completed_export_matches,
+    package_member_exists,
     scene_config_paths,
+    split_package_asset_path,
 )
+from robodojo.sim.scene_export.preview import PREVIEW_NAME, create_blender_preview
 
 logger = logging.getLogger(__name__)
 
@@ -119,9 +123,7 @@ def _camera_state(env, stage: Usd.Stage) -> list[dict[str, Any]]:
         else:
             effective_fov = calculate_fov_degrees(width, height, fx, fy)
         published_diagonal_fov = float(spec.sensor["diagonal_fov_deg"])
-        fitted_diagonal_fov = float(
-            spec.projection.get("fitted_diagonal_fov_deg", published_diagonal_fov)
-        )
+        fitted_diagonal_fov = float(spec.projection.get("fitted_diagonal_fov_deg", published_diagonal_fov))
         parent = stage.GetPrimAtPath(xform_path).GetParent()
         backing = {}
         if usd_camera:
@@ -156,9 +158,7 @@ def _camera_state(env, stage: Usd.Stage) -> list[dict[str, Any]]:
                 "projection_backend": spec.projection.get("backend", "native"),
                 "distortion_coefficients": coefficients,
                 "zero_distortion_postprocess": bool(
-                    spec.projection.get("backend") == "pinhole_postprocess"
-                    and coefficients
-                    and not any(coefficients)
+                    spec.projection.get("backend") == "pinhole_postprocess" and coefficients and not any(coefficients)
                 ),
                 "backing_usd_camera": backing,
                 "runtime_camera": _json_value(runtime),
@@ -196,6 +196,21 @@ def _cloth_state(env, stage: Usd.Stage) -> list[dict[str, Any]]:
         for name, garment in env_objects.items():
             prim = stage.GetPrimAtPath(garment.mesh_prim_path)
             points = prim.GetAttribute("points").Get() if prim else None
+            bound_material, _ = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial() if prim else (None, None)
+            bound_material_path = str(bound_material.GetPath()) if bound_material else None
+            configured_material = getattr(garment, "visual_usd_path", None)
+            expected_root = getattr(garment, "visual_material_path", None)
+            if configured_material:
+                surface_output = bound_material.GetSurfaceOutput() if bound_material else None
+                surface_source = surface_output.GetConnectedSource() if surface_output else None
+                matches_override = bool(
+                    bound_material and expected_root and bound_material.GetPath().HasPrefix(Sdf.Path(expected_root))
+                )
+                if not matches_override or not surface_source:
+                    raise RuntimeError(
+                        "garment visual material override did not compose and bind: "
+                        f"garment={name} configured={configured_material} bound={bound_material_path}"
+                    )
             velocities = None
             try:
                 velocities = garment._cloth_prim_view.get_velocities()
@@ -211,6 +226,11 @@ def _cloth_state(env, stage: Usd.Stage) -> list[dict[str, Any]]:
                     "points_local": _json_value(points if points is not None else []),
                     "velocities_world": _json_value(velocities),
                     "physics": _json_value(garment.physics_cfg),
+                    "visual_material": {
+                        "configured_asset": configured_material,
+                        "composition_root": expected_root,
+                        "bound_material_path": bound_material_path,
+                    },
                 }
             )
     return result
@@ -359,14 +379,6 @@ def _resolve_asset(path: str, repo_root: Path) -> Path | None:
     return None
 
 
-def _split_package_path(path: str) -> tuple[str, str]:
-    """Split `asset.usdz[member]` while leaving ordinary paths unchanged."""
-    marker = path.find("[")
-    if marker > 0 and path.endswith("]"):
-        return path[:marker], path[marker:]
-    return path, ""
-
-
 def _modify_asset_paths(layer: Sdf.Layer, callback) -> None:
     modifier = getattr(UsdUtils, "ModifyAssetPaths", None)
     if modifier is None:
@@ -405,11 +417,22 @@ def _bundle_flattened_assets(
     unresolved: dict[str, dict[str, Any]] = {}
 
     def rewrite(path: str) -> str:
-        outer_path, package_member = _split_package_path(path)
+        outer_path, package_member = split_package_asset_path(path)
         resolved = _resolve_asset(outer_path, repo_root)
         if resolved is None:
             if path:
                 unresolved.setdefault(path, {"authored_path": path, "status": "unresolved"})
+            return path
+        if package_member and not package_member_exists(resolved, package_member):
+            unresolved.setdefault(
+                path,
+                {
+                    "authored_path": path,
+                    "resolved_package": str(resolved),
+                    "missing_member": package_member,
+                    "status": "missing-package-member",
+                },
+            )
             return path
         source = str(resolved)
         if source not in bundled:
@@ -426,7 +449,8 @@ def _bundle_flattened_assets(
                 "kind": "usd" if resolved.suffix.lower() in USD_EXTENSIONS else "asset",
                 "status": "bundled",
             }
-        return bundled[source]["bundled_path"] + package_member
+        suffix = f"[{package_member}]" if package_member else ""
+        return bundled[source]["bundled_path"] + suffix
 
     _modify_asset_paths(layer, rewrite)
     return list(bundled.values()), list(unresolved.values())
@@ -472,9 +496,7 @@ def _source_revisions(repo_root: Path) -> dict[str, Any]:
     except (OSError, ValueError, yaml.YAMLError):
         pass
     try:
-        result["openarm_lerobot_reference"] = yaml.safe_load(
-            lerobot_reference.read_text(encoding="utf-8")
-        )
+        result["openarm_lerobot_reference"] = yaml.safe_load(lerobot_reference.read_text(encoding="utf-8"))
     except (OSError, ValueError, yaml.YAMLError):
         pass
     try:
@@ -577,10 +599,16 @@ def export_scene_snapshot(env, output_dir: str | os.PathLike[str], layout_id: in
         if external_arcs:
             raise RuntimeError(f"flattened export retained external USD composition arcs: {external_arcs}")
 
+        preview = create_blender_preview(
+            reopened_flattened,
+            temporary,
+            [camera["sensor_path"] for camera in state["cameras"]],
+        )
+
         layout_path = Path(env.seed_manager.seed_info[int(layout_id)]["scene_layout"]).resolve()
         root_layer = stage.GetRootLayer()
         manifest = {
-            "format_version": 1,
+            "format_version": SCENE_EXPORT_FORMAT_VERSION,
             "complete": True,
             "identity": identity.to_dict(),
             "created_at": datetime.now(UTC).isoformat(),
@@ -627,7 +655,12 @@ def export_scene_snapshot(env, output_dir: str | os.PathLike[str], layout_id: in
                     "path": FLATTENED_NAME,
                     "sha256": _sha256_file(temporary / FLATTENED_NAME),
                 },
+                "preview_usdz": {
+                    "path": PREVIEW_NAME,
+                    "sha256": _sha256_file(temporary / PREVIEW_NAME),
+                },
             },
+            "preview": preview,
             "dependencies": {
                 "referenced_external": referenced_dependencies,
                 "flattened_bundled": bundled,
@@ -640,6 +673,7 @@ def export_scene_snapshot(env, output_dir: str | os.PathLike[str], layout_id: in
                 "The manifest is authoritative for postprocessed fisheye projection; UsdGeom.Camera stores "
                 "the backing camera.",
                 "Generic USD viewers may not reproduce Isaac RTX/MDL appearance exactly.",
+                "scene_preview.usdz uses portable approximations and is not an MDL-faithful simulation artifact.",
             ],
         }
         (temporary / MANIFEST_NAME).write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
@@ -649,7 +683,10 @@ def export_scene_snapshot(env, output_dir: str | os.PathLike[str], layout_id: in
         if after != before:
             raise RuntimeError("scene export mutated the live simulator stage or runtime state")
         os.replace(temporary, output)
-        logger.info("[scene-export] wrote referenced USDA, flattened USDC, and manifest to %s", output)
+        logger.info(
+            "[scene-export] wrote referenced USDA, flattened USDC, Blender preview USDZ, and manifest to %s",
+            output,
+        )
         return output
     except Exception:
         shutil.rmtree(temporary, ignore_errors=True)

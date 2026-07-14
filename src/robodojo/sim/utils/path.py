@@ -30,6 +30,9 @@ def resolve_path(config_path: str) -> str:
     # Define placeholder mapping (placeholder -> actual directory path)
     path_mapping = {
         "$RoboDojo_ASSETS": ASSETS_PATH,
+        # Historical saved layouts use this spelling. Keep it as an explicit
+        # compatibility alias while preserving the canonical upstream token.
+        "$Robodojo_ASSETS": ASSETS_PATH,
         "$RoboDojo_CONF": ENV_CONFIG_PATH,
         "$RoboDojo_HOME": ROOT_DIR,
     }

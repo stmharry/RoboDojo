@@ -120,6 +120,22 @@ OMNI_KIT_ACCEPT_EULA=YES uv run --extra sim --locked robodojo eval \
 The default export is `scene_snapshot/` inside the evaluation run directory.
 Use `--export-scene-dir PATH` to select another ignored artifact directory.
 
+Each completed export contains three scene artifacts:
+
+- `scene_referenced.usda` preserves portable references for inspection.
+- `scene_flattened.usdc` is the exact flattened simulator snapshot, including
+  NVIDIA MDL material contexts.
+- `scene_preview.usdz` is a self-contained Blender-oriented companion with
+  portable USD Preview Surface approximations and guide-purpose collision
+  meshes removed.
+
+For Blender 4.5 LTS or newer, import `scene_preview.usdz`, enable **Import USD
+Preview**, and choose a USDZ texture import mode that copies or packs textures.
+Use Material Preview after import. The conversion preserves common color,
+roughness, metallic, normal, opacity, occlusion, and UV-transform inputs, but it
+is not an exact MDL bake; use the canonical USDA/USDC artifacts when simulator
+fidelity matters.
+
 ## Diagnose action drift
 
 Set `ROBODOJO_OPENARM_TRACE=1` to write `openarm_trace.jsonl` beside
