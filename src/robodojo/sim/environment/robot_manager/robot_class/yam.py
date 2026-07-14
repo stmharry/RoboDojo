@@ -41,3 +41,4 @@ class YAM:
         self.camera_mount_links = self.robot_args.get("camera_mount_links", {})
         self.mesh_dir = self.robot_args.get("mesh_dir", self.robot_file)
         self.save_gripper_joints_name = self.robot_args.get("save_gripper_joints_name", self.gripper_joints_name)
+        self.visual_calibration = cfg.get("visual_calibration")

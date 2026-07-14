@@ -72,6 +72,22 @@ def mount_orientation(orientation, pose_convention: str = "isaac_usd", optical_r
     return apply_optical_roll(converted, optical_roll_deg)
 
 
+def apply_mount_calibration(position, orientation, translation_m, rotation_rotvec_deg):
+    """Apply a parent-frame extrinsic correction after axis/roll conversion."""
+    position = np.asarray(position, dtype=np.float64)
+    translation = np.asarray(translation_m, dtype=np.float64)
+    rotation_vector = np.asarray(rotation_rotvec_deg, dtype=np.float64)
+    if position.shape != (3,) or translation.shape != (3,) or rotation_vector.shape != (3,):
+        raise ValueError("camera mount calibration requires three translation and rotation values")
+    if not np.all(np.isfinite(np.concatenate((position, translation, rotation_vector)))):
+        raise ValueError("camera mount calibration must be finite")
+    base = orientation_quaternion(orientation)
+    base_rotation = Rotation.from_quat(base[[1, 2, 3, 0]])
+    delta = Rotation.from_rotvec(np.deg2rad(rotation_vector))
+    xyzw = (delta * base_rotation).as_quat()
+    return position + translation, xyzw[[3, 0, 1, 2]]
+
+
 def compose_pose(parent_position, parent_orientation, local_position, local_orientation):
     """Compose parent and local poses, returning position and scalar-first quaternion."""
     parent_q = orientation_quaternion(parent_orientation)

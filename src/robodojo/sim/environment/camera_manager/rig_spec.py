@@ -47,6 +47,18 @@ class CameraSpec:
             raise ValueError(f"{self.observation_key}: invalid mount pose convention {pose_convention!r}")
         if pose_convention == "sapien_robotics" and len(orientation) != 4:
             raise ValueError(f"{self.observation_key}: sapien_robotics mounts require a scalar-first quaternion")
+        calibration = self.mount.get("calibration_correction")
+        if calibration is not None:
+            if not isinstance(calibration, Mapping):
+                raise ValueError(f"{self.observation_key}: mount calibration_correction must be a mapping")
+            translation = calibration.get("translation_m")
+            rotation = calibration.get("rotation_rotvec_deg")
+            if not isinstance(translation, (list, tuple)) or len(translation) != 3:
+                raise ValueError(f"{self.observation_key}: mount calibration translation_m must have 3 values")
+            if not isinstance(rotation, (list, tuple)) or len(rotation) != 3:
+                raise ValueError(
+                    f"{self.observation_key}: mount calibration rotation_rotvec_deg must have 3 values"
+                )
         roll = float(self.mount.get("optical_roll_deg", 0.0))
         if roll not in (-180.0, -90.0, 0.0, 90.0, 180.0):
             raise ValueError(f"{self.observation_key}: optical roll must be a right-angle rotation")
@@ -103,6 +115,13 @@ class CameraSpec:
             "lens_distortion_model": self.projection.get("model", "pinhole"),
             "projection_backend": self.projection.get("backend", "native"),
         }
+        if self.mount.get("calibration_correction"):
+            calibration = self.mount["calibration_correction"]
+            result.update(
+                mount_calibration_translation_m=list(calibration["translation_m"]),
+                mount_calibration_rotation_rotvec_deg=list(calibration["rotation_rotvec_deg"]),
+                mount_calibration_source=calibration.get("source"),
+            )
         for key in ("cx", "cy", "fx", "fy", "distortion_coefficients"):
             if key in self.projection:
                 result[key] = deepcopy(self.projection[key])
@@ -174,6 +193,12 @@ def _legacy_camera_spec(name: str, section: Mapping[str, Any], frequency: float)
         "optical_roll_deg": float(camera.get("optical_roll_deg", 0.0)),
         "basis": camera.get("mount_basis", "legacy"),
     }
+    if camera.get("mount_calibration_translation_m") is not None:
+        mount["calibration_correction"] = {
+            "translation_m": list(camera["mount_calibration_translation_m"]),
+            "rotation_rotvec_deg": list(camera["mount_calibration_rotation_rotvec_deg"]),
+            "source": camera.get("mount_calibration_source"),
+        }
     if camera.get("mount_hardware_asset"):
         hardware = {
             "enabled": bool(camera.get("mount_hardware_enabled", True)),

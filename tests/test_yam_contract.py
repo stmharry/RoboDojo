@@ -34,7 +34,7 @@ def test_bimanual_yam_profile_preserves_30hz_component_graph():
     assert profile.document.layout_config_name == "arx_x5"
     assert profile.document.config.model_dump() == {
         "sim": "real_time_30hz",
-        "scene": "default",
+        "scene": "molmo_yam",
         "robot": "dual_yam",
         "camera": "bimanual_yam",
     }
@@ -92,12 +92,19 @@ def test_yam_camera_rig_matches_molmo_contract_and_runtime_templates():
     assert top.projection["fx"] == pytest.approx(462.1386898729645)
     assert top.projection["horizontal_fov_deg"] == 69.4
     assert [left.mount["target"], right.mount["target"]] == ["robot0/link6", "robot1/link6"]
+    assert "hardware" not in top.mount
     for wrist in (left, right):
         assert wrist.mount["position"] == [0.0, 0.09, 0.06]
         assert wrist.mount["orientation"] == pytest.approx([0.61237243, -0.35355339, -0.35355340, -0.61237244])
         assert wrist.mount["pose_convention"] == "sapien_robotics"
         assert wrist.projection["fx"] == pytest.approx(337.20964008990796)
         assert wrist.projection["horizontal_fov_deg"] == 87.0
+        assert wrist.mount["hardware"] == {
+            "enabled": True,
+            "asset": "Robots/yam/D405_proxy.usd",
+            "collision": False,
+            "camera_frame": "OpticalFrame",
+        }
 
     assert 640 * YAM_TOP["focal_length"] / YAM_TOP["horizontal_aperture"] == pytest.approx(top.projection["fx"])
     assert 640 * YAM_WRIST["focal_length"] / YAM_WRIST["horizontal_aperture"] == pytest.approx(left.projection["fx"])

@@ -1,0 +1,211 @@
+schema_version: 1
+profile_id: bimanual_yam
+status: complete
+status_reason: >-
+  Twenty-four released frames and independently reviewed landmark annotations
+  are pinned. The training-only bounded fit passes both held-out acceptance
+  gates, and the separately persisted camera and visual-only jaw corrections
+  are enabled for bimanual_yam.
+
+annotation_artifact:
+  path: bimanual_yam_landmark_annotations.json
+  sha256: 29b71657dd5564d0d209ac482d383c76b1e56fa99679c07d9357d1bce35667fa
+  format_version: 1
+  sample_manifest_sha256: 0b01037c73ff0664cfeac971c9069d6dea8d1582571375abc0c54be4007285bb
+  landmark_count: 192
+  review: all_48_wrist_overlays_visually_reviewed
+
+selection_contract:
+  expected_frame_count: 24
+  frames_per_dataset: 8
+  required_camera_keys:
+    - observation.images.top
+    - observation.images.left
+    - observation.images.right
+  frames:
+    - 18122025-foldclo-01-e000-f000000
+    - 18122025-foldclo-01-e000-f000029
+    - 18122025-foldclo-01-e000-f000059
+    - 18122025-foldclo-01-e000-f000088
+    - 18122025-foldclo-01-e000-f000103
+    - 18122025-foldclo-01-e000-f000133
+    - 18122025-foldclo-01-e000-f000162
+    - 18122025-foldclo-01-e000-f000192
+    - 18122025-foldclo-13-e000-f000000
+    - 18122025-foldclo-13-e000-f000020
+    - 18122025-foldclo-13-e000-f000039
+    - 18122025-foldclo-13-e000-f000059
+    - 18122025-foldclo-13-e000-f000074
+    - 18122025-foldclo-13-e000-f000090
+    - 18122025-foldclo-13-e000-f000107
+    - 18122025-foldclo-13-e000-f000123
+    - 24122025-foldclo-05-e000-f000000
+    - 24122025-foldclo-05-e000-f000024
+    - 24122025-foldclo-05-e000-f000047
+    - 24122025-foldclo-05-e000-f000071
+    - 24122025-foldclo-05-e000-f000086
+    - 24122025-foldclo-05-e000-f000098
+    - 24122025-foldclo-05-e000-f000109
+    - 24122025-foldclo-05-e000-f000121
+
+datasets:
+  allenai/18122025-foldclo-01:
+    split: training
+    revision: 605ebe5de5fffa11ade4ed17f3ad66cd2cf6dac9
+    license: apache-2.0
+    lerobot_version: v3.0
+    robot_type: bi_yam_follower
+    fps: 30
+    total_episodes: 20
+    total_frames: 68100
+    videos:
+      top: videos/observation.images.top/chunk-000/file-000.mp4
+      left: videos/observation.images.left/chunk-000/file-000.mp4
+      right: videos/observation.images.right/chunk-000/file-000.mp4
+  allenai/18122025-foldclo-13:
+    split: training
+    revision: a84f36156e064c4ad70592743639cbfe233000ca
+    license: apache-2.0
+    lerobot_version: v3.0
+    robot_type: bi_yam_follower
+    fps: 30
+    total_episodes: 60
+    total_frames: 261235
+    videos:
+      top: videos/observation.images.top/chunk-000/file-000.mp4
+      left: videos/observation.images.left/chunk-000/file-000.mp4
+      right: videos/observation.images.right/chunk-000/file-000.mp4
+  allenai/24122025-foldclo-05:
+    split: held_out
+    revision: a57ba8d100cbf4d085e2f84da937f5eba4ecd7f4
+    license: apache-2.0
+    lerobot_version: v3.0
+    robot_type: bi_yam_follower
+    fps: 30
+    total_episodes: 70
+    total_frames: 96381
+    videos:
+      top: videos/observation.images.top/chunk-000/file-000.mp4
+      left: videos/observation.images.left/chunk-000/file-000.mp4
+      right: videos/observation.images.right/chunk-000/file-000.mp4
+
+dataset_contract:
+  image_shape_hwc: [360, 640, 3]
+  video_codec: av1
+  state_dtype: float32
+  state_dimension: 14
+  state_order:
+    - left_joint_0.pos
+    - left_joint_1.pos
+    - left_joint_2.pos
+    - left_joint_3.pos
+    - left_joint_4.pos
+    - left_joint_5.pos
+    - left_gripper.pos
+    - right_joint_0.pos
+    - right_joint_1.pos
+    - right_joint_2.pos
+    - right_joint_3.pos
+    - right_joint_4.pos
+    - right_joint_5.pos
+    - right_gripper.pos
+
+annotation_contract:
+  parent_frame: molmo_link6
+  point_source: derived_from_pinned_i2rt_mesh_and_released_gripper_state
+  per_landmark_fields:
+    - name
+    - point_link_m
+    - pixel
+  minimum_landmarks_per_wrist_per_frame: 3
+  uncertainty_field: uncertainty_px_radius
+  visibility_fields: [visible, occluded]
+  generated_images_tracked: false
+
+replay_contract:
+  state_adapter: yam_left_first_14d
+  arm_units: radians
+  simulator_arm_joint_signs_per_arm: [1.0, 1.0, 1.0, 1.0, -1.0, 1.0]
+  source_gripper_range: [0.0, 1.0]
+  simulator_gripper_formula: q=-0.0475*g
+
+fit_contract:
+  camera_config: configs/camera/bimanual_yam.yml
+  correction_parameter_order: [tx_m, ty_m, tz_m, rx_deg, ry_deg, rz_deg]
+  correction_frame: molmo_link6
+  mirror_matrix:
+    - [-1.0, 0.0, 0.0]
+    - [0.0, 1.0, 0.0]
+    - [0.0, 0.0, 1.0]
+  bounds:
+    shared_translation_m: 0.005
+    shared_rotation_deg: 2.0
+    per_arm_residual_translation_m: 0.002
+    per_arm_residual_rotation_deg: 0.5
+    visual_clamp_translation_m: 0.003
+    visual_clamp_rotation_deg: 1.0
+  visual_clamp_correction:
+    left: [0.0019784327867106355, 0.0011115488293251762, -0.0019622086811789973, -0.34407168350068973, 0.14363804761651136, 0.9278915819695309]
+    right: [0.00204980967513032, 0.0014503406143189645, -0.0016415822849309197, -0.4996359255700045, 0.7081368370462536, 0.4989049627914445]
+  held_out_acceptance:
+    median_pixel_error: 8.0
+    minimum_improvement_fraction: 0.30
+  fit_result:
+    camera_correction:
+      shared: [0.0003090864910792429, -0.0025048193669933213, 0.004316288391634221, -1.9137350565631548, 0.3177659424075417, 0.486459596603919]
+      left: [0.0003368883833682653, -0.003866168248125935, 0.005781196674983154, -2.321374509797004, 0.5393656817085859, 0.672802376740453]
+      right_mirrored: [0.0003081117949818329, -0.003900024586207093, 0.0057492578421972276, -1.9193526354538613, -0.01345363932629845, 0.5723172103038849]
+    camera_residuals:
+      left_translation_m: 0.002000000000000047
+      left_rotation_deg: 0.49999710164543015
+      right_translation_m: 0.0020000000000001687
+      right_rotation_deg: 0.34219538016505985
+    norms:
+      camera_shared: {translation_m: 0.004999999999998884, rotation_deg: 2.0000000000002456}
+      camera_left: {translation_m: 0.006962972475925919, rotation_deg: 2.4763598267392104}
+      camera_right_mirrored: {translation_m: 0.00695407005913034, rotation_deg: 2.002908517342923}
+      visual_clamp_left: {translation_m: 0.003, rotation_deg: 1.0000000000000002}
+      visual_clamp_right: {translation_m: 0.0029999999999999996, rotation_deg: 1.0}
+    held_out:
+      baseline_median_px: 29.61804545038953
+      corrected_median_px: 4.6566502793558175
+      improvement_fraction: 0.842776584053943
+      by_side:
+        left:
+          baseline_median_px: 29.428409691342225
+          corrected_median_px: 4.391715090322558
+          improvement_fraction: 0.8507661427720781
+        right:
+          baseline_median_px: 29.61804545038953
+          corrected_median_px: 6.024655312213506
+          improvement_fraction: 0.7965883561660119
+    applied_camera_poses:
+      left:
+        position: [0.0003368883833682653, 0.08613383175187406, 0.06578119667498315]
+        orientation_wxyz: [0.0060655956224658905, 0.004452678681902435, -0.9709429900953513, -0.23919258388796036]
+      right:
+        position: [-0.0003081117949818329, 0.0860999754137929, 0.06574925784219722]
+        orientation_wxyz: [-0.001179193645425262, -0.004854368802485749, -0.9701131561935187, -0.24260154324761762]
+
+application_contract:
+  target_cameras: [cam_left_wrist, cam_right_wrist]
+  camera_correction_application: post_pose_convention_pre_hardware_frame_alignment
+  visual_clamp_application:
+    frame: molmo_link6
+    targets: [tip_left/visuals, tip_right/visuals]
+    collision_and_rigid_body_prims: unchanged
+  unchanged:
+    - cam_head_pose
+    - camera_intrinsics
+    - robot_roots
+    - reset_joint_state
+    - action_contract
+    - collision_geometry
+  camera_housing:
+    status: generated_visual_proxy
+    asset: Robots/yam/D405_proxy.usd
+    optical_frame: OpticalFrame
+    optical_frame_transform: identity
+    collision: false
+    physics: none
+    purpose: visual_occlusion_only

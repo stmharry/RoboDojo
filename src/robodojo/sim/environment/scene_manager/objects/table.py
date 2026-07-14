@@ -154,19 +154,21 @@ class Table(SingleGeometryPrim, SingleRigidPrim):
 
         if not resolved_mdl_path:
             logger.warning("MDL material path not found: %s", self.mdl_file_path)
-            return
+        else:
+            if not self.mdl_name:
+                mdl_name = os.path.splitext(os.path.basename(resolved_mdl_path))[0]
 
-        if not self.mdl_name:
-            mdl_name = os.path.splitext(os.path.basename(resolved_mdl_path))[0]
-
-        # Create unique material path under geometry's Looks
-        material_path = find_unique_string_name(
-            initial_name=self.materials_prim_path,
-            is_unique_fn=lambda x: not is_prim_path_valid(x),
-        )
-        self.materials_prim_path = material_path
-        create_mdl_material(resolved_mdl_path, mdl_name, self.materials_prim_path)
-        self.apply_material()
+            # Create unique material path under geometry's Looks
+            material_path = find_unique_string_name(
+                initial_name=self.materials_prim_path,
+                is_unique_fn=lambda x: not is_prim_path_valid(x),
+            )
+            self.materials_prim_path = material_path
+            create_mdl_material(resolved_mdl_path, mdl_name, self.materials_prim_path)
+            self.apply_material()
+        visual_color = self.instance_config.get("visual_color")
+        if visual_color is not None:
+            self.apply_visual_color(visual_color)
 
         self._default_linear_velocity = [0.0, 0.0, 0.0]
         self._default_angular_velocity = [0.0, 0.0, 0.0]
@@ -246,3 +248,22 @@ class Table(SingleGeometryPrim, SingleRigidPrim):
 
         except Exception as e:
             logger.warning("Failed to apply MDL material %s: %s", self.materials_prim_path, e)
+
+    def apply_visual_color(self, color):
+        """Apply an opt-in deterministic PreviewSurface appearance fallback."""
+        color = np.asarray(color, dtype=np.float32)
+        if color.shape != (3,) or not np.all(np.isfinite(color)) or np.any((color < 0.0) | (color > 1.0)):
+            raise ValueError("table visual_color must contain three finite values in [0, 1]")
+        material_path = find_unique_string_name(
+            self.prim_path + "/VisualColor",
+            lambda path: not is_prim_path_valid(path),
+        )
+        material = PreviewSurface(prim_path=material_path, color=color)
+        omni.kit.commands.execute(
+            "BindMaterialCommand",
+            prim_path=self.prim_path,
+            material_path=material_path,
+            strength=UsdShade.Tokens.strongerThanDescendants,
+        )
+        self.visual_material_path = material_path
+        self.visual_material = material

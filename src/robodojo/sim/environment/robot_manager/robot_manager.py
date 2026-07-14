@@ -6,7 +6,7 @@ from typing import List, Literal
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.scene import InteractiveSceneCfg
 import numpy as np
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 import torch
 import transforms3d as t3d
 
@@ -15,6 +15,7 @@ from robodojo.sim.environment.environment.isaac.isaac_rl_env import IsaacRLEnv
 from robodojo.sim.environment.global_configs import ENV_REGEX_NAMESPACE
 from robodojo.sim.environment.planner_manager.curobo_planner import CuroboPlanner
 from robodojo.sim.environment.robot_manager.control_manager import ControlManager, MetaControl
+from robodojo.sim.environment.robot_manager.visual_calibration import apply_visual_calibration
 from robodojo.sim.utils.ensure_usd_path import ensure_usd_path
 
 
@@ -43,6 +44,7 @@ class RobotManager:
         self.planner = dict()
         self.ik_solver = dict()
         self.robot_origin_endpose = None
+        self._visual_calibration_cache: dict = {}
         self.robot_init_joint = [dict() for _ in range(self.num_envs)]
         for idx, cfg in enumerate(self.robots_cfg):
             if not cfg.get("coupled", False):
@@ -553,12 +555,40 @@ class RobotManager:
     def initialize(self, sim: IsaacRLEnv):
         self.sim = sim
         self.scene = sim.scene
+        self.update_visual_calibration()
+
+    def update_visual_calibration(self) -> None:
+        """Keep optional jaw appearance calibration in its declared fixed frame."""
+        if not any(getattr(robot, "visual_calibration", None) for robot in self.robot_list):
+            return
+        from isaacsim.core.utils.stage import get_current_stage
+
+        stage = get_current_stage()
+        scene_robot_index = 0
+        for index, robot in enumerate(self.robot_list):
+            if self.use_scene_cfg[index]:
+                robot_mount_name = f"robot{scene_robot_index}"
+                scene_robot_index += 1
+            else:
+                robot_mount_name = f"robot{scene_robot_index - 1}"
+            calibration = getattr(robot, "visual_calibration", None)
+            if calibration:
+                for env_id in range(self.num_envs):
+                    apply_visual_calibration(
+                        stage,
+                        f"/World/envs/env_{env_id}/{robot_mount_name}",
+                        OmegaConf.to_container(calibration, resolve=True)
+                        if isinstance(calibration, DictConfig)
+                        else dict(calibration),
+                        self._visual_calibration_cache,
+                    )
 
     def close(self):
         self.control_manager.reset()
         self.robot_key.clear()
         self.robot_origin_endpose = [dict() for _ in range(self.num_envs)]
         self.robot_init_joint = [dict() for _ in range(self.num_envs)]
+        self._visual_calibration_cache.clear()
 
     def _get_SceneCfg(self, num_envs, env_spacing, replicate_physics=False):
         scene_cfg = InteractiveSceneCfg(

@@ -29,6 +29,7 @@ from robodojo.sim.camera_template import (
 )
 from robodojo.sim.environment.camera_manager.mount_registry import (
     align_hardware_frame_pose,
+    apply_mount_calibration,
     mount_orientation,
     orientation_quaternion,
     require_camera_mount_prim,
@@ -273,8 +274,16 @@ class CameraManager:
                             str(camera_config.camera.get("mount_pose_convention", "isaac_usd")),
                             float(camera_config.camera.get("optical_roll_deg", 0.0)),
                         )
+                        target_position = camera_config.camera.pos
+                        if camera_config.camera.get("mount_calibration_translation_m") is not None:
+                            target_position, target_orientation = apply_mount_calibration(
+                                target_position,
+                                target_orientation,
+                                camera_config.camera.mount_calibration_translation_m,
+                                camera_config.camera.mount_calibration_rotation_rotvec_deg,
+                            )
                         position, orientation = align_hardware_frame_pose(
-                            camera_config.camera.pos,
+                            target_position,
                             target_orientation,
                             frame_matrix,
                         )
@@ -549,6 +558,15 @@ class CameraManager:
                     position = torch.tensor(camera_config.camera.pos)
                 else:
                     position = torch.tensor([0, 0, 1])
+                if camera_config.camera.get("mount_calibration_translation_m") is not None:
+                    calibrated_position, calibrated_orientation = apply_mount_calibration(
+                        position.detach().cpu().numpy(),
+                        orientation.detach().cpu().numpy(),
+                        camera_config.camera.mount_calibration_translation_m,
+                        camera_config.camera.mount_calibration_rotation_rotvec_deg,
+                    )
+                    position = torch.as_tensor(calibrated_position, dtype=torch.float32)
+                    orientation = torch.as_tensor(calibrated_orientation, dtype=torch.float32)
                 final_position = position + random_pos
                 if camera_config.camera.get("mount_hardware_enabled", True) and camera_config.camera.get(
                     "mount_hardware_camera_frame"

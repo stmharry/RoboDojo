@@ -96,6 +96,10 @@ class TaskEnv(BaseEnv):
     def step(self, meta_control_list: List[ControlSeq]):
         self.robot_manager.control_robot(meta_control_list=meta_control_list)
 
+    def sim_step(self, render: bool = True):
+        self.robot_manager.update_visual_calibration()
+        super().sim_step(render=render)
+
     def close(self):
         self.capture_manager.destroy()
         self.camera_manager.destroy()
