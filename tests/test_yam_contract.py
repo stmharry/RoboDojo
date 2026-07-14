@@ -19,7 +19,12 @@ from robodojo.sim.environment.camera_manager.mount_registry import (
 )
 from robodojo.sim.environment.camera_manager.rig_spec import normalize_camera_rig
 from robodojo.sim.utils.pipeline_utils import process_config
-from robodojo.workflows.assets_yam import _fixed_camera_frame_contract, derive_yam_urdf
+from robodojo.workflows.assets_yam import (
+    _appearance_contract,
+    _fixed_camera_frame_contract,
+    _visual_proxy_contracts,
+    derive_yam_urdf,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -137,6 +142,65 @@ def test_yam_tooling_and_policy_reference_are_revision_pinned():
             "sha256": "31d70e2129a3ab8e85f391785cae5bba4163e1e16fb02a3988c5ac1c549c9d78",
         },
     }
+    appearance_source = tooling["sources"]["molmoact2_bimanual_yam_dataset"]
+    assert appearance_source == {
+        "repository": "https://huggingface.co/datasets/allenai/MolmoAct2-BimanualYAM-Dataset",
+        "revision": "e9f21ae15074330839f2ac25ed4b49d76dfa1f9c",
+        "license": "Apache-2.0",
+        "usage": "reference_only",
+        "derivation": "visually match coarse YAM link colors from public top and wrist RGB training frames",
+        "inspected_modalities": [
+            "observation.images.top",
+            "observation.images.left",
+            "observation.images.right",
+        ],
+    }
+    assert "author_molmo_style_preview_materials" in tooling["asset"]["transformations"]
+    visual_links = ["base", "gripper", "link1", "link2", "link3", "link4", "link5", "tip_left", "tip_right"]
+    appearance = _appearance_contract(tooling, visual_links)
+    assert appearance == _appearance_contract(tooling, list(reversed(visual_links)))
+    assert appearance["derivation_source"] == "molmoact2_bimanual_yam_dataset"
+    assert appearance["shader"] == "UsdPreviewSurface"
+    assert appearance["color_space"] == "linear_rgb"
+    assert appearance["link_materials"] == {
+        "base": "charcoal",
+        "gripper": "charcoal",
+        "link1": "charcoal",
+        "link2": "off_white",
+        "link3": "light_gray",
+        "link4": "charcoal",
+        "link5": "charcoal",
+        "tip_left": "charcoal",
+        "tip_right": "charcoal",
+    }
+    assert appearance["palette"]["charcoal"]["diffuse_color"] == [0.03, 0.035, 0.04]
+    assert appearance["palette"]["off_white"]["diffuse_color"] == [0.78, 0.8, 0.82]
+    assert appearance["palette"]["light_gray"]["diffuse_color"] == [0.52, 0.55, 0.58]
+    assert {name: material["sha256"] for name, material in appearance["palette"].items()} == {
+        "charcoal": "a991aa064b75bec04a85965f2c3b5d45385b35e2bf9f8d848f2af24d5521861f",
+        "light_gray": "413bf0e0234400226e61cbae77101bf731fa85fdb3f0863e421591607a05054d",
+        "off_white": "cf69ba4a745fe50be4daf688ab02adae8e8887d7b6fc32ffa8064c6ca90d7825",
+    }
+    assert tooling["sources"]["realsense_d405"] == {
+        "product_page": "https://www.realsenseai.com/products/stereo-depth-camera-d405/",
+        "datasheet": (
+            "https://realsenseai.com/wp-content/uploads/dlm_uploads/2025/08/"
+            "Intel-RealSense-D400-Series-Datasheet-August-2025.pdf"
+        ),
+        "datasheet_revision": "017",
+        "usage": "geometry_reference",
+        "nominal_dimensions_m": {"width": 0.042, "height": 0.042, "depth": 0.023},
+    }
+    visual_proxies = _visual_proxy_contracts(tooling, appearance)
+    assert visual_proxies["d405"]["output"] == "D405_proxy.usd"
+    assert visual_proxies["d405"]["default_prim"] == "OpticalFrame"
+    assert visual_proxies["d405"]["dimensions_m"] == [0.042, 0.042, 0.023]
+    assert visual_proxies["d405"]["materials"] == {"housing": "light_gray", "detail": "charcoal"}
+    assert visual_proxies["d405"]["physical"] is False
+    assert visual_proxies["d405"]["contract_sha256"] == (
+        "354029e2cc6cb4ae23f99bdf71140f8293ec2ca8bad5f705fc80e3b6f8050cd4"
+    )
+    assert "author_nonphysical_d405_visual_proxy" in tooling["asset"]["transformations"]
     assert _fixed_camera_frame_contract(tooling) == [
         {
             "name": "molmo_link6",
@@ -237,6 +301,7 @@ def test_derived_yam_urdf_is_normalized_and_collision_complete(tmp_path):
         assert joint.find("limit").get("upper") == "0.0"
     assert (output / "LICENSE-I2RT").read_text() == "MIT fixture\n"
     assert yaml.safe_load((output / "robot_config.yml").read_text())["base_link"] == "base"
+    assert contract["visual_proxies"]["d405"]["output"] == "D405_proxy.usd"
 
 
 def test_yam_initial_state_and_control_seed_preserve_partial_opening():

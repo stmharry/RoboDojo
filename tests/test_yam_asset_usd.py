@@ -1,14 +1,23 @@
 from pathlib import Path
 
 import pytest
+import yaml
 
 pxr = pytest.importorskip("pxr")
-from pxr import Sdf, Usd, UsdGeom  # noqa: E402
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade  # noqa: E402
 
 from robodojo.workflows.assets_yam import (  # noqa: E402
+    _appearance_contract,
+    _author_d405_visual_proxy,
+    _author_preview_appearance,
     _remove_empty_generated_visual_prims,
+    _stage_physics_digest,
     _validate_generated_visuals,
+    _visual_proxy_contracts,
 )
+
+ROOT = Path(__file__).resolve().parents[1]
+YAM_VISUAL_LINKS = ("base", "gripper", "link1", "link2", "link3", "link4", "link5", "tip_left", "tip_right")
 
 
 def _generated_asset(
@@ -64,3 +73,101 @@ def test_expected_visual_link_without_renderable_geometry_is_rejected(tmp_path: 
 
     with pytest.raises(RuntimeError, match="missing renderable geometry below /yam/base/visuals"):
         _validate_generated_visuals(stage, ["base"], ["root"])
+
+
+def _appearance_stage(path: Path) -> tuple[Usd.Stage, list[str]]:
+    stage = Usd.Stage.CreateNew(str(path))
+    yam = UsdGeom.Xform.Define(stage, "/yam").GetPrim()
+    stage.SetDefaultPrim(yam)
+    visual_paths = []
+    for link in YAM_VISUAL_LINKS:
+        link_prim = UsdGeom.Xform.Define(stage, f"/yam/{link}").GetPrim()
+        UsdPhysics.RigidBodyAPI.Apply(link_prim)
+        UsdGeom.Xform.Define(stage, f"/yam/{link}/visuals")
+        visual = UsdGeom.Mesh.Define(stage, f"/yam/{link}/visuals/{link}_mesh").GetPrim()
+        visual_paths.append(str(visual.GetPath()))
+        UsdGeom.Xform.Define(stage, f"/yam/{link}/collisions")
+        collision = UsdGeom.Mesh.Define(stage, f"/yam/{link}/collisions/{link}_mesh").GetPrim()
+        UsdPhysics.CollisionAPI.Apply(collision)
+    UsdPhysics.RevoluteJoint.Define(stage, "/yam/dof_joint1")
+    return stage, visual_paths
+
+
+def test_preview_appearance_is_deterministic_and_render_only(tmp_path: Path):
+    tooling = yaml.safe_load((ROOT / "configs/tooling/yam.yml").read_text())
+    appearance = _appearance_contract(tooling, list(YAM_VISUAL_LINKS))
+    stage, visual_paths = _appearance_stage(tmp_path / "appearance.usda")
+    physics_before = _stage_physics_digest(stage)
+
+    generated = _author_preview_appearance(stage, appearance, visual_paths)
+
+    assert _stage_physics_digest(stage) == physics_before
+    assert [binding["target"] for binding in generated["bindings"]] == [
+        f"/yam/{link}/visuals" for link in sorted(YAM_VISUAL_LINKS)
+    ]
+    assert generated["link_materials"] == appearance["link_materials"]
+    assert {
+        name: material["sha256"] for name, material in generated["palette"].items()
+    } == {name: material["sha256"] for name, material in appearance["palette"].items()}
+
+    bound_targets = set()
+    for binding in generated["bindings"]:
+        for renderable_path in binding["renderable_paths"]:
+            prim = stage.GetPrimAtPath(renderable_path)
+            bound = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial()[0]
+            assert str(bound.GetPath()) == f"/yam/Looks/{binding['material']}"
+            display_color = UsdGeom.PrimvarsAPI(prim).FindPrimvarWithInheritance("displayColor").Get()
+            assert tuple(display_color[0]) == pytest.approx(
+                appearance["palette"][binding["material"]]["diffuse_color"]
+            )
+            bound_targets.add(str(prim.GetPath()))
+    assert bound_targets == set(visual_paths)
+
+    for link in YAM_VISUAL_LINKS:
+        collision = stage.GetPrimAtPath(f"/yam/{link}/collisions/{link}_mesh")
+        assert collision.HasAPI(UsdPhysics.CollisionAPI)
+        assert not UsdShade.MaterialBindingAPI(collision).ComputeBoundMaterial()[0]
+
+    for name, parameters in appearance["palette"].items():
+        shader = UsdShade.Shader(stage.GetPrimAtPath(f"/yam/Looks/{name}/PreviewSurface"))
+        assert shader.GetIdAttr().Get() == "UsdPreviewSurface"
+        assert tuple(shader.GetInput("diffuseColor").Get()) == pytest.approx(parameters["diffuse_color"])
+        assert shader.GetInput("roughness").Get() == pytest.approx(parameters["roughness"])
+        assert shader.GetInput("metallic").Get() == pytest.approx(parameters["metallic"])
+
+    stage.GetRootLayer().Save()
+    reopened = Usd.Stage.Open(str(tmp_path / "appearance.usda"), load=Usd.Stage.LoadAll)
+    assert reopened and _stage_physics_digest(reopened) == physics_before
+
+
+def test_d405_proxy_is_deterministic_identity_optical_frame_without_physics(tmp_path: Path):
+    tooling = yaml.safe_load((ROOT / "configs/tooling/yam.yml").read_text())
+    appearance = _appearance_contract(tooling, list(YAM_VISUAL_LINKS))
+    contract = _visual_proxy_contracts(tooling, appearance)["d405"]
+
+    first = _author_d405_visual_proxy(tmp_path, contract, appearance)
+    first_bytes = (tmp_path / "D405_proxy.usd").read_bytes()
+    second = _author_d405_visual_proxy(tmp_path, contract, appearance)
+
+    assert first == second
+    assert (tmp_path / "D405_proxy.usd").read_bytes() == first_bytes
+    assert first["sha256"] == "922933e787762834aa9c87108ef6369ba7862b3b343a56e6afcbf62b845e321b"
+    assert first["contract_sha256"] == "354029e2cc6cb4ae23f99bdf71140f8293ec2ca8bad5f705fc80e3b6f8050cd4"
+    assert first["visual_paths"] == [
+        "/OpticalFrame/FrontPanel",
+        "/OpticalFrame/Housing",
+        "/OpticalFrame/LeftLens",
+        "/OpticalFrame/RightLens",
+    ]
+
+    stage = Usd.Stage.Open(str(tmp_path / "D405_proxy.usd"), load=Usd.Stage.LoadAll)
+    assert stage and str(stage.GetDefaultPrim().GetPath()) == "/OpticalFrame"
+    assert not UsdGeom.Xformable(stage.GetDefaultPrim()).GetOrderedXformOps()
+    housing_ops = UsdGeom.Xformable(stage.GetPrimAtPath("/OpticalFrame/Housing")).GetOrderedXformOps()
+    assert tuple(housing_ops[0].Get()) == pytest.approx((0.0, 0.0, 0.0115))
+    assert tuple(housing_ops[1].Get()) == pytest.approx((0.042, 0.042, 0.023))
+    for prim in stage.Traverse():
+        assert not prim.HasAPI(UsdPhysics.RigidBodyAPI)
+        assert not prim.HasAPI(UsdPhysics.CollisionAPI)
+        assert not prim.HasAPI(UsdPhysics.MassAPI)
+        assert not prim.IsA(UsdPhysics.Joint)
