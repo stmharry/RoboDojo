@@ -205,9 +205,11 @@ class LayoutManager:
             elif key == "Room":
                 value = merge_fixture_appearance(value, self.scene_config.Room)
                 value = self.select_room(env_idx, room_cfg=value)
+                env_config[key] = value
             elif key == "Table":
                 value = merge_fixture_appearance(value, self.scene_config.Table)
                 value = self.select_table(env_idx, table_cfg=value)
+                env_config[key] = value
             elif key == "Ground":
                 value = self.select_ground(env_idx, ground_cfg=value)
             elif key == "Light":
