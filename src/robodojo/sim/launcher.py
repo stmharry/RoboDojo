@@ -84,6 +84,10 @@ def simulator_command(paths: RepositoryPaths, request: SimulatorLaunchRequest) -
     # CUDA_VISIBLE_DEVICES preserves the upstream physical device_id while
     # exposing that selected GPU to Isaac Lab as the process-local cuda:0.
     logical_device = "cuda:0"
+    # IsaacLab's headless rendering experience disables USD and Fabric
+    # transform updates. RoboDojo's CPU/no-Fabric cloth tasks therefore need
+    # the full Python experience so camera frames track simulated robots.
+    experience = "isaaclab.python.kit"
     kit_args = " --enable isaacsim.replicator.behavior --enable isaacsim.sensors.camera"
     argv = [
         sys.executable,
@@ -99,6 +103,8 @@ def simulator_command(paths: RepositoryPaths, request: SimulatorLaunchRequest) -
         "--num_envs",
         str(num_envs),
         "--enable_cameras",
+        "--experience",
+        experience,
         "--kit_args",
         kit_args,
         "--device",

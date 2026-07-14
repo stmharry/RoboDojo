@@ -312,6 +312,7 @@ def test_simulator_command_uses_the_domain_module_path():
     assert command[command.index("--policy_server_url") + 1] == "ws://127.0.0.1:19000"
     assert command[command.index("--device") + 1] == "cuda:0"
     assert command[command.index("--device_id") + 1] == "1"
+    assert command[command.index("--experience") + 1] == "isaaclab.python.kit"
     assert environment["CUDA_VISIBLE_DEVICES"] == "1"
 
 
