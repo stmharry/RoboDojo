@@ -34,6 +34,12 @@ logger = logging.getLogger(__name__)
 OBJECT_CONFIG_TYPES = ("Rigid", "Dynamic", "Geometry", "Articulation", "Garment", "Fluid")
 
 
+def _as_host_numpy(value):
+    if isinstance(value, torch.Tensor):
+        return value.detach().cpu().numpy()
+    return np.asarray(value)
+
+
 @dataclass
 class ObjectTypeRecords:
     layout_records_by_env: list[list[dict[str, Any]]]
@@ -431,6 +437,12 @@ class LayoutManager:
         return label_list
 
     def get_instance_pose(self, env_idx: int, label: str = None, inst_name: str = None, relative: bool = True):
+        """Return position and quaternion as host NumPy arrays.
+
+        Official RoboDojo currently returns device tensors for rigid and
+        articulated objects but host arrays for garments and geometry. Keep
+        this fork's NumPy-based reward boundary consistent across object types.
+        """
         if inst_name is None:
             inst_name = self.get_instance_name(env_idx, label)
         if inst_name is None:
@@ -443,10 +455,10 @@ class LayoutManager:
             if not relative:
                 env_pos = deepcopy(self.scene_manager.env_origins[env_idx]).to(device)
                 pos = pos + env_pos
-            return (pos, rot)
+            return (_as_host_numpy(pos), _as_host_numpy(rot))
         elif instance_type in ["garment", "geometry"]:
             state = obj.get_state(is_relative=True)
-            root_pose = state["root_pose"].detach().cpu().numpy()
+            root_pose = _as_host_numpy(state["root_pose"])
             pos = root_pose[:3]
             rot = root_pose[3:]
             return (pos, rot)
