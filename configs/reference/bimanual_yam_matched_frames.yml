@@ -3,9 +3,10 @@ profile_id: bimanual_yam
 status: complete
 status_reason: >-
   Twenty-four released frames and independently reviewed landmark annotations
-  are pinned. The training-only bounded fit passes both held-out acceptance
-  gates, and the separately persisted camera and visual-only jaw corrections
-  are enabled for bimanual_yam.
+  are pinned. The training-only bounded fit plus recorded reset-geometry
+  residual refinement passes the held-out and cloth-visibility gates, and the
+  separately persisted camera and visual-only jaw corrections are enabled for
+  bimanual_yam.
 
 annotation_artifact:
   path: bimanual_yam_landmark_annotations.json
@@ -144,8 +145,27 @@ fit_contract:
     per_arm_residual_rotation_deg: 0.5
     visual_clamp_translation_m: 0.003
     visual_clamp_rotation_deg: 1.0
+  geometry_gate_refinement:
+    source:
+      task: fold_clothes
+      environment_profile: bimanual_yam
+      seed: 0
+      layout_id: 0
+      garment: Top_Long_9_2
+      particle_count: 9665
+      source_revision: 1b475e9ae7e30741eb7bd240caf65ac216fc830f
+    parameter_order: [tx_m, ty_m, tz_m, rx_deg, ry_deg, rz_deg]
+    camera_parameter_offsets:
+      left: [0.0, 0.0, 0.0, 0.8, -0.25, 0.0]
+      right_mirrored: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    reset_cloth_visibility:
+      minimum_fraction: 0.25
+      baseline_left_fraction: 0.23766166580444903
+      refined_left_fraction: 0.25266425245732024
+      projection_resolution: [640, 360]
+    rationale: bounded_left_residual_refinement_for_existing_reset_geometry_gate
   visual_clamp_correction:
-    left: [0.0019784327867106355, 0.0011115488293251762, -0.0019622086811789973, -0.34407168350068973, 0.14363804761651136, 0.9278915819695309]
+    left: [0.0014766420522317357, 0.00025120446006139137, -0.002599312326141951, -0.15068164338723466, 0.4066846516683395, 0.9010564002567725]
     right: [0.00204980967513032, 0.0014503406143189645, -0.0016415822849309197, -0.4996359255700045, 0.7081368370462536, 0.4989049627914445]
   held_out_acceptance:
     median_pixel_error: 8.0
@@ -153,28 +173,28 @@ fit_contract:
   fit_result:
     camera_correction:
       shared: [0.0003090864910792429, -0.0025048193669933213, 0.004316288391634221, -1.9137350565631548, 0.3177659424075417, 0.486459596603919]
-      left: [0.0003368883833682653, -0.003866168248125935, 0.005781196674983154, -2.321374509797004, 0.5393656817085859, 0.672802376740453]
+      left: [0.0003368883833682653, -0.003866168248125935, 0.005781196674983154, -1.5213745097970042, 0.2893656817085859, 0.672802376740453]
       right_mirrored: [0.0003081117949818329, -0.003900024586207093, 0.0057492578421972276, -1.9193526354538613, -0.01345363932629845, 0.5723172103038849]
     camera_residuals:
       left_translation_m: 0.002000000000000047
-      left_rotation_deg: 0.49999710164543015
+      left_rotation_deg: 0.43528052546901097
       right_translation_m: 0.0020000000000001687
       right_rotation_deg: 0.34219538016505985
     norms:
       camera_shared: {translation_m: 0.004999999999998884, rotation_deg: 2.0000000000002456}
-      camera_left: {translation_m: 0.006962972475925919, rotation_deg: 2.4763598267392104}
+      camera_left: {translation_m: 0.006962972475925919, rotation_deg: 1.6884833238614918}
       camera_right_mirrored: {translation_m: 0.00695407005913034, rotation_deg: 2.002908517342923}
-      visual_clamp_left: {translation_m: 0.003, rotation_deg: 1.0000000000000002}
+      visual_clamp_left: {translation_m: 0.003000000000001228, rotation_deg: 1.0000000000000846}
       visual_clamp_right: {translation_m: 0.0029999999999999996, rotation_deg: 1.0}
     held_out:
       baseline_median_px: 29.61804545038953
-      corrected_median_px: 4.6566502793558175
-      improvement_fraction: 0.842776584053943
+      corrected_median_px: 4.792359129553935
+      improvement_fraction: 0.8381946189669681
       by_side:
         left:
           baseline_median_px: 29.428409691342225
-          corrected_median_px: 4.391715090322558
-          improvement_fraction: 0.8507661427720781
+          corrected_median_px: 4.63638994509257
+          improvement_fraction: 0.842451902983511
         right:
           baseline_median_px: 29.61804545038953
           corrected_median_px: 6.024655312213506
@@ -182,7 +202,7 @@ fit_contract:
     applied_camera_poses:
       left:
         position: [0.0003368883833682653, 0.08613383175187406, 0.06578119667498315]
-        orientation_wxyz: [0.0060655956224658905, 0.004452678681902435, -0.9709429900953513, -0.23919258388796036]
+        orientation_wxyz: [0.003958601257130655, 0.005017499186307577, -0.9692570575184578, -0.2459672958518337]
       right:
         position: [-0.0003081117949818329, 0.0860999754137929, 0.06574925784219722]
         orientation_wxyz: [-0.001179193645425262, -0.004854368802485749, -0.9701131561935187, -0.24260154324761762]

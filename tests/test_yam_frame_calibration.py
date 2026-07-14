@@ -162,6 +162,13 @@ def test_annotated_fit_is_deterministic_and_matches_persisted_runtime_applicatio
         (parameter_mirror @ fit.correction.right_mirrored)[:3]
     )
     assert manifest["fit_contract"]["mirror_matrix"] == mirror.tolist()
+    refinement = manifest["fit_contract"]["geometry_gate_refinement"]
+    assert refinement["camera_parameter_offsets"]["left"] == [0.0, 0.0, 0.0, 0.8, -0.25, 0.0]
+    assert refinement["camera_parameter_offsets"]["right_mirrored"] == [0.0] * 6
+    assert refinement["reset_cloth_visibility"]["baseline_left_fraction"] < 0.25
+    assert refinement["reset_cloth_visibility"]["refined_left_fraction"] >= 0.25
+    assert fit.correction.left_residual_translation_m <= 0.002 + 1e-12
+    assert fit.correction.left_residual_rotation_deg <= 0.5 + 1e-12
 
 
 def test_visual_only_clamp_application_is_bounded_mirrored_and_changes_no_physics_contract():

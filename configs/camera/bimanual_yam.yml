@@ -54,7 +54,7 @@ camera_rig:
         basis: molmoact2_yam_sim_contract
         calibration_correction:
           translation_m: [0.0003368883833682653, -0.003866168248125935, 0.005781196674983154]
-          rotation_rotvec_deg: [-2.321374509797004, 0.5393656817085859, 0.672802376740453]
+          rotation_rotvec_deg: [-1.5213745097970042, 0.2893656817085859, 0.672802376740453]
           source: bimanual_yam_matched_frames_v1
         hardware: &wrist_hardware
           enabled: true

@@ -504,6 +504,45 @@ def fit_bounded_mirrored_correction(
     )
 
 
+def _apply_yam_geometry_gate_refinement(
+    manifest: dict[str, Any], correction: MirroredCorrectionFit, bounds: CorrectionBounds
+) -> MirroredCorrectionFit:
+    """Apply a recorded parameter-space refinement and re-check residual bounds.
+
+    The matched-frame least-squares fit remains the starting point. A complete
+    manifest may then record a small deterministic residual adjustment derived
+    from a reset-scene geometry gate. This keeps the gate decision auditable
+    while retaining the same physical correction bounds and held-out checks.
+    """
+    refinement = manifest["fit_contract"].get("geometry_gate_refinement")
+    if refinement is None:
+        return correction
+    offsets = refinement.get("camera_parameter_offsets")
+    if not isinstance(offsets, dict) or set(offsets) != {"left", "right_mirrored"}:
+        raise ValueError("YAM geometry-gate refinement must provide left and right_mirrored offsets")
+    left = correction.left + _finite_array(offsets["left"], (6,), "left geometry-gate offset")
+    right_mirrored = correction.right_mirrored + _finite_array(
+        offsets["right_mirrored"], (6,), "right geometry-gate offset"
+    )
+    left_translation = float(np.linalg.norm(left[:3] - correction.shared[:3]))
+    right_translation = float(np.linalg.norm(right_mirrored[:3] - correction.shared[:3]))
+    left_rotation = _rotation_distance_deg(left, correction.shared)
+    right_rotation = _rotation_distance_deg(right_mirrored, correction.shared)
+    if max(left_translation, right_translation) > bounds.per_arm_residual_translation_m + 1e-12:
+        raise ValueError("geometry-gate wrist translation residual exceeds calibration bounds")
+    if max(left_rotation, right_rotation) > bounds.per_arm_residual_rotation_deg + 1e-12:
+        raise ValueError("geometry-gate wrist rotation residual exceeds calibration bounds")
+    return replace(
+        correction,
+        left=left,
+        right_mirrored=right_mirrored,
+        left_residual_translation_m=left_translation,
+        left_residual_rotation_deg=left_rotation,
+        right_residual_translation_m=right_translation,
+        right_residual_rotation_deg=right_rotation,
+    )
+
+
 def pinhole_project(
     points_link: np.ndarray,
     position: np.ndarray,
@@ -770,6 +809,7 @@ def fit_yam_matched_manifest(manifest: dict[str, Any], camera_config: dict[str, 
         manifest["fit_contract"]["mirror_matrix"],
         bounds,
     )
+    correction = _apply_yam_geometry_gate_refinement(manifest, correction, bounds)
     parameter_mirror = _parameter_mirror_matrix(manifest["fit_contract"]["mirror_matrix"])
     correction = replace(
         correction,

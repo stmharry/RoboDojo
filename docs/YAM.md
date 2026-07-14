@@ -94,6 +94,16 @@ left and right jaw render prims symmetrically in each arm's `molmo_link6`
 frame. Their runtime adapter rejects any collision or rigid-body prim; physics,
 contacts, joint state, and policy observations remain unchanged.
 
+The persisted fit also records a reset-geometry refinement for the left wrist:
+the fitted rotation-vector parameters receive `[+0.8, -0.25, 0]` degrees after
+the two-session least-squares fit. This moves seed-0/layout-0 cloth visibility
+from 23.77% to 25.27% at 640x360 while the residual remains 0.4353 degrees,
+inside the 0.5-degree per-arm bound. The visual clamp is then re-fitted. On the
+held-out collection session the resulting median landmark error is 4.64 px for
+the left wrist and 6.02 px for the right (4.79 px aggregate), still an 83.8%
+reduction from baseline. The refinement, source revision, and projection gate
+are recorded in the matched-frame reference contract.
+
 Released near-home frames use grippers around `g=0.98–1.0`; the intentionally
 preserved simulator reset at `q=-0.02 m` is only `g≈0.421`. Reset contact sheets
 therefore cannot assess wrist aperture alignment. Matched replay commands each

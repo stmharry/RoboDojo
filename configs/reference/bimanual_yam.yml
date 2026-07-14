@@ -102,8 +102,12 @@ camera_contract:
     landmark_artifact_sha256: 29b71657dd5564d0d209ac482d383c76b1e56fa99679c07d9357d1bce35667fa
     status: complete
     application: wrist_extrinsics_and_visual_only_jaw_prims
-    held_out_median_pixel_error: 4.6566502793558175
-    held_out_improvement_fraction: 0.842776584053943
+    held_out_median_pixel_error: 4.792359129553935
+    held_out_improvement_fraction: 0.8381946189669681
+    reset_geometry_refinement:
+      left_cloth_visibility_fraction: 0.25266425245732024
+      minimum_fraction: 0.25
+      left_residual_rotation_deg: 0.43528052546901097
   camera_housing:
     status: generated_visual_proxy
     asset: Robots/yam/D405_proxy.usd
