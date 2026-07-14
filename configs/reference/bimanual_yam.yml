@@ -1,19 +1,20 @@
 format: 1
 profile_id: bimanual_yam
-purpose: Zero-shot cloth-folding simulation baseline for MolmoAct2
+purpose: Canonical simulation embodiment contract for the bimanual YAM hardware
 
 sources:
   embodiment:
     repository: https://github.com/i2rt-robotics/i2rt.git
     revision: ac096928d6899ddf852a71c5e8fbaa6055cd9745
     license: MIT
-  simulator_contract:
+  historical_simulator_contract:
     repository: https://github.com/allenai/molmoact2.git
     revision: c2282820f9b188b60e66ea1636b3efd81c45cbb4
+    usage: provenance_only
     paths:
       - sim_eval/robots/bimanual_yam.py
       - sim_eval/inference/common.py
-  simulator_assets_reference:
+  historical_camera_mount_reference:
     repository: https://huggingface.co/datasets/TreeePlanter/molmoact2-sim-eval-assets
     revision: 9332a64224ff0a813d9f77bd377b845270232513
     license: undeclared
@@ -25,10 +26,22 @@ sources:
       gripper_mesh:
         path: assets/yam/yam_mujoco/assets/gripper_linear.obj
         sha256: 31d70e2129a3ab8e85f391785cae5bba4163e1e16fb02a3988c5ac1c549c9d78
-  policy_checkpoint:
-    repository: allenai/MolmoAct2-BimanualYAM
-    revision: 8dcbed66f2380e4393189c303ea72488eb9e63c2
-    redistribution: prohibited_without_an_explicit_upstream_license
+  historical_hardware_calibration:
+    usage: provenance_only_final_values_retained
+    method: offline_matched_frame_fit
+    datasets:
+      allenai/18122025-foldclo-01:
+        revision: 605ebe5de5fffa11ade4ed17f3ad66cd2cf6dac9
+        split: training
+        license: apache-2.0
+      allenai/18122025-foldclo-13:
+        revision: a84f36156e064c4ad70592743639cbfe233000ca
+        split: training
+        license: apache-2.0
+      allenai/24122025-foldclo-05:
+        revision: a57ba8d100cbf4d085e2f84da937f5eba4ecd7f4
+        split: held_out
+        license: apache-2.0
 
 state_action_contract:
   frequency_hz: 30
@@ -51,17 +64,10 @@ state_action_contract:
   joint_action_type: absolute
   gripper:
     physical_range_m: [-0.0475, 0.0]
-    policy_range: [0.0, 1.0]
+    normalized_range: [0.0, 1.0]
     formula: g=-q/0.0475
     open: 1.0
     closed: 0.0
-  predicted_horizon: 30
-  executed_horizon: 25
-  joint_convention_bridge:
-    scope: molmoact2_bimanual_yam_original_hf_only
-    simulator_to_checkpoint_signs: [1.0, 1.0, 1.0, 1.0, -1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, -1.0, 1.0, 1.0]
-    checkpoint_to_simulator_signs: [1.0, 1.0, 1.0, 1.0, -1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, -1.0, 1.0, 1.0]
-    negated_indices_zero_based: [4, 11]
 
 initial_state:
   name: home
@@ -74,8 +80,8 @@ embodiment_frame_contract:
     right: [0.24, -0.45, 0.765]
   root_orientation_wxyz: [0.0, 0.0, 0.0, 1.0]
   camera_mount_aliases:
-    link6: gripper/molmo_link6
-  molmo_link6:
+    wrist_camera_mount: gripper/wrist_camera_mount
+  wrist_camera_mount:
     parent: gripper
     position_m: [0.0, 0.0, 0.0005]
     orientation_wxyz: [0.0, 0.7071067811865476, -0.7071067811865476, 0.0]
@@ -84,32 +90,30 @@ embodiment_frame_contract:
 camera_contract:
   dtype: uint8
   shape_hwc: [360, 640, 3]
-  observation_order: [cam_head, cam_left_wrist, cam_right_wrist]
   configured_pose_convention: sapien_robotics
   runtime_pose_convention: isaac_usd
   sapien_to_usd_orientation_wxyz: [0.5, 0.5, -0.5, -0.5]
-  policy_mapping:
-    cam_head: observation.images.top
-    cam_left_wrist: observation.images.left
-    cam_right_wrist: observation.images.right
   horizontal_fov_deg:
     cam_head: 69.4
     cam_left_wrist: 87.0
     cam_right_wrist: 87.0
-  matched_frame_calibration:
-    manifest: configs/reference/bimanual_yam_matched_frames.yml
-    landmark_artifact: configs/reference/bimanual_yam_landmark_annotations.json
-    landmark_artifact_sha256: 29b71657dd5564d0d209ac482d383c76b1e56fa99679c07d9357d1bce35667fa
-    status: complete
-    application: wrist_extrinsics_and_visual_only_jaw_prims
-    held_out_median_pixel_error: 4.792359129553935
-    held_out_improvement_fraction: 0.8381946189669681
-    reset_geometry_refinement:
-      left_cloth_visibility_fraction: 0.25266425245732024
-      minimum_fraction: 0.25
-      left_residual_rotation_deg: 0.43528052546901097
+  hardware_calibration:
+    source: yam_hardware_calibration_v1
+    wrist_extrinsic_corrections:
+      left:
+        translation_m: [0.0003368883833682653, -0.003866168248125935, 0.005781196674983154]
+        rotation_rotvec_deg: [-1.5213745097970042, 0.2893656817085859, 0.672802376740453]
+      right:
+        translation_m: [-0.0003081117949818329, -0.003900024586207093, 0.0057492578421972276]
+        rotation_rotvec_deg: [-1.9193526354538613, 0.01345363932629845, -0.5723172103038849]
+    visual_only_jaw_transforms:
+      left_arm:
+        tip_left: [0.0014766420522317357, 0.00025120446006139137, -0.002599312326141951, -0.15068164338723466, 0.4066846516683395, 0.9010564002567725]
+        tip_right: [-0.0014766420522317357, 0.00025120446006139137, -0.002599312326141951, -0.15068164338723466, -0.4066846516683395, -0.9010564002567725]
+      right_arm:
+        tip_left: [0.00204980967513032, 0.0014503406143189645, -0.0016415822849309197, -0.4996359255700045, 0.7081368370462536, 0.4989049627914445]
+        tip_right: [-0.00204980967513032, 0.0014503406143189645, -0.0016415822849309197, -0.4996359255700045, -0.7081368370462536, -0.4989049627914445]
   camera_housing:
-    status: generated_visual_proxy
     asset: Robots/yam/D405_proxy.usd
     optical_frame: OpticalFrame
     collision: false

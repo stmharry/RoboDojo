@@ -65,6 +65,7 @@ def run_evaluation(paths: RepositoryPaths, request: EvaluationRequest) -> int:
         host="127.0.0.1",
         port=port,
         env_config=request.env_config,
+        scene_config=request.scene_config,
         env_gpu=request.env_gpu,
         seed=request.seed,
         eval_num=eval_num,

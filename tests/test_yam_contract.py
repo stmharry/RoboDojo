@@ -34,7 +34,7 @@ def test_bimanual_yam_profile_preserves_30hz_component_graph():
     assert profile.document.layout_config_name == "arx_x5"
     assert profile.document.config.model_dump() == {
         "sim": "real_time_30hz",
-        "scene": "molmo_yam",
+        "scene": "default",
         "robot": "dual_yam",
         "camera": "bimanual_yam",
     }
@@ -75,7 +75,7 @@ def test_dual_yam_order_pose_and_no_planner_are_explicit():
     assert all(robot["coupled"] is False and robot["need_planner"] is False for robot in robots)
 
 
-def test_yam_camera_rig_matches_molmo_contract_and_runtime_templates():
+def test_yam_camera_rig_matches_embodiment_contract_and_runtime_templates():
     rig = normalize_camera_rig(yaml.safe_load((ROOT / "configs/camera/bimanual_yam.yml").read_text()))
     assert rig.profile_id == "bimanual_yam"
     assert rig.default_frequency == 30
@@ -91,7 +91,10 @@ def test_yam_camera_rig_matches_molmo_contract_and_runtime_templates():
     assert top.mount["pose_convention"] == "sapien_robotics"
     assert top.projection["fx"] == pytest.approx(462.1386898729645)
     assert top.projection["horizontal_fov_deg"] == 69.4
-    assert [left.mount["target"], right.mount["target"]] == ["robot0/link6", "robot1/link6"]
+    assert [left.mount["target"], right.mount["target"]] == [
+        "robot0/wrist_camera_mount",
+        "robot1/wrist_camera_mount",
+    ]
     assert "hardware" not in top.mount
     for wrist in (left, right):
         assert wrist.mount["position"] == [0.0, 0.09, 0.06]
@@ -110,29 +113,30 @@ def test_yam_camera_rig_matches_molmo_contract_and_runtime_templates():
     assert 640 * YAM_WRIST["focal_length"] / YAM_WRIST["horizontal_aperture"] == pytest.approx(left.projection["fx"])
 
 
-def test_yam_tooling_and_policy_reference_are_revision_pinned():
+def test_yam_tooling_and_embodiment_reference_are_revision_pinned():
     tooling = yaml.safe_load((ROOT / "configs/tooling/yam.yml").read_text())
     reference = yaml.safe_load((ROOT / "configs/reference/bimanual_yam.yml").read_text())
     assert tooling["sources"]["i2rt"]["revision"] == "ac096928d6899ddf852a71c5e8fbaa6055cd9745"
-    assert reference["sources"]["simulator_contract"]["revision"] == ("c2282820f9b188b60e66ea1636b3efd81c45cbb4")
-    assert reference["sources"]["policy_checkpoint"]["revision"] == ("8dcbed66f2380e4393189c303ea72488eb9e63c2")
+    assert reference["sources"]["historical_simulator_contract"]["revision"] == (
+        "c2282820f9b188b60e66ea1636b3efd81c45cbb4"
+    )
     assert reference["state_action_contract"]["dimension"] == 14
     assert reference["state_action_contract"]["gripper"]["formula"] == "g=-q/0.0475"
-    assert reference["state_action_contract"]["predicted_horizon"] == 30
-    assert reference["state_action_contract"]["executed_horizon"] == 25
-    bridge = reference["state_action_contract"]["joint_convention_bridge"]
-    assert bridge["scope"] == "molmoact2_bimanual_yam_original_hf_only"
-    assert bridge["negated_indices_zero_based"] == [4, 11]
-    assert bridge["simulator_to_checkpoint_signs"] == bridge["checkpoint_to_simulator_signs"]
+    assert "policy_checkpoint" not in reference["sources"]
+    assert "predicted_horizon" not in reference["state_action_contract"]
+    assert "executed_horizon" not in reference["state_action_contract"]
+    assert "joint_convention_bridge" not in reference["state_action_contract"]
 
     robot = tooling["robot_config"]
     assert robot["arm_joints_name"] == [f"dof_joint{i}" for i in range(1, 7)]
     assert robot["gripper_joints_name"] == ["dof_joint7", "dof_joint8"]
     assert robot["gripper_move"] == {"base": "dof_joint7", "sign": -1.0, "mimic": ["dof_joint8", 1.0, 0.0]}
     assert robot["gripper_scale"] == [-0.0475, 0.0]
-    assert robot["camera_mount_links"] == {"link6": "gripper/molmo_link6"}
+    assert robot["camera_mount_links"] == {
+        "wrist_camera_mount": "gripper/wrist_camera_mount"
+    }
 
-    reference_source = tooling["sources"]["molmoact2_sim_assets"]
+    reference_source = tooling["sources"]["historical_camera_mount_reference"]
     assert reference_source["repository"] == (
         "https://huggingface.co/datasets/TreeePlanter/molmoact2-sim-eval-assets"
     )
@@ -149,7 +153,7 @@ def test_yam_tooling_and_policy_reference_are_revision_pinned():
             "sha256": "31d70e2129a3ab8e85f391785cae5bba4163e1e16fb02a3988c5ac1c549c9d78",
         },
     }
-    appearance_source = tooling["sources"]["molmoact2_bimanual_yam_dataset"]
+    appearance_source = tooling["sources"]["hardware_appearance_reference"]
     assert appearance_source == {
         "repository": "https://huggingface.co/datasets/allenai/MolmoAct2-BimanualYAM-Dataset",
         "revision": "e9f21ae15074330839f2ac25ed4b49d76dfa1f9c",
@@ -162,11 +166,11 @@ def test_yam_tooling_and_policy_reference_are_revision_pinned():
             "observation.images.right",
         ],
     }
-    assert "author_molmo_style_preview_materials" in tooling["asset"]["transformations"]
+    assert "author_yam_hardware_preview_materials" in tooling["asset"]["transformations"]
     visual_links = ["base", "gripper", "link1", "link2", "link3", "link4", "link5", "tip_left", "tip_right"]
     appearance = _appearance_contract(tooling, visual_links)
     assert appearance == _appearance_contract(tooling, list(reversed(visual_links)))
-    assert appearance["derivation_source"] == "molmoact2_bimanual_yam_dataset"
+    assert appearance["derivation_source"] == "hardware_appearance_reference"
     assert appearance["shader"] == "UsdPreviewSurface"
     assert appearance["color_space"] == "linear_rgb"
     assert appearance["link_materials"] == {
@@ -210,13 +214,13 @@ def test_yam_tooling_and_policy_reference_are_revision_pinned():
     assert "author_nonphysical_d405_visual_proxy" in tooling["asset"]["transformations"]
     assert _fixed_camera_frame_contract(tooling) == [
         {
-            "name": "molmo_link6",
+            "name": "wrist_camera_mount",
             "parent": "gripper",
             "position": [0.0, 0.0, 0.0005],
             "orientation": [0.0, 0.7071067811865476, -0.7071067811865476, 0.0],
-            "derivation_source": "molmoact2_sim_assets",
+            "derivation_source": "historical_camera_mount_reference",
             "physical": False,
-            "path": "gripper/molmo_link6",
+            "path": "gripper/wrist_camera_mount",
         }
     ]
 
@@ -394,7 +398,11 @@ def test_camera_pose_convention_default_and_validation_are_backward_compatible()
 
 def test_nested_yam_camera_mount_alias_resolves_to_generated_frame():
     tooling = yaml.safe_load((ROOT / "configs/tooling/yam.yml").read_text())
-    nested_link = tooling["robot_config"]["camera_mount_links"]["link6"]
-    assert robot_link_prim_path(3, "robot0", nested_link) == "/World/envs/env_3/robot0/gripper/molmo_link6"
+    nested_link = tooling["robot_config"]["camera_mount_links"]["wrist_camera_mount"]
+    assert robot_link_prim_path(3, "robot0", nested_link) == (
+        "/World/envs/env_3/robot0/gripper/wrist_camera_mount"
+    )
     with pytest.raises(ValueError, match="rebuild the embodiment asset"):
-        require_camera_mount_prim("/World/envs/env_3/robot0/gripper/molmo_link6", lambda _: False)
+        require_camera_mount_prim(
+            "/World/envs/env_3/robot0/gripper/wrist_camera_mount", lambda _: False
+        )

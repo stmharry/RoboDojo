@@ -73,7 +73,7 @@ def _enable_teleop_physx_stabilization(sim_cfg):
     sim_cfg["physx"]["enable_stabilization"] = True
 
 
-def process_config(env_cfg, task_name):
+def process_config(env_cfg, task_name, resolved_scene_config=None):
     task_index_path = os.path.join(TASK_CONFIG_PATH, "_task.yml")
     info = load_yaml(task_index_path)
     task_info = info["tasks"].get(task_name, {})
@@ -87,10 +87,11 @@ def process_config(env_cfg, task_name):
     if render_interval != default_render_interval:
         env_cfg["sim"]["render_interval"] = render_interval
 
-    default_scene = "default"
-    scene_config = _task_setting(task_info, common_info, "scene_config", default_scene)
-    if scene_config != default_scene:
-        env_cfg.scene = load_yaml(os.path.join(ENV_CONFIG_PATH, "scene", scene_config + ".yml"))
+    if resolved_scene_config is None:
+        default_scene = "default"
+        scene_config = _task_setting(task_info, common_info, "scene_config", default_scene)
+        if scene_config != default_scene:
+            env_cfg.scene = load_yaml(os.path.join(ENV_CONFIG_PATH, "scene", scene_config + ".yml"))
 
     default_camera = "camera_config"
     camera_config = _task_setting(task_info, common_info, "camera_config", default_camera)

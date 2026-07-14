@@ -56,6 +56,7 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
             super().__init__(config, app, **kwargs)
             self.eval_cfg = config.eval_cfg
             self.config_name = self.eval_cfg.get("config_name", None)
+            self.scene_config = self.eval_cfg.get("scene_config", self.eval_cfg.get("config", {}).get("scene"))
             self.task_name = self.eval_cfg.get("task_name", None)
             self.eval_batch = self.eval_cfg.get("eval_batch", False)
             self.eval_num = int(self.eval_cfg.get("eval_num", 50))
@@ -132,6 +133,7 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
                 "success_rate": 0.0,
                 "eval_time": 0,
                 "score": 0.0,
+                "scene_config": self.scene_config,
                 "details": {},
             }
 
@@ -141,6 +143,11 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
             completed_layout_ids: list[int] = []
             abandoned_layout_ids: list[int] = []
             if resume_state is not None:
+                resumed_scene = resume_state.get("scene_config")
+                if resumed_scene != self.scene_config:
+                    raise ValueError(
+                        f"resume manifest scene mismatch: expected {self.scene_config!r}, found {resumed_scene!r}"
+                    )
                 self.success_nums = int(resume_state.get("success_nums", 0))
                 self.fail_nums = int(resume_state.get("fail_nums", 0))
                 self.total_score = float(resume_state.get("total_score", 0.0))
@@ -739,6 +746,7 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
                 "task_name": self.task_name,
                 "policy_name": self.policy_name,
                 "config_name": self.config_name,
+                "scene_config": self.scene_config,
                 "eval_seed": self.eval_seed,
                 "additional_info": self.additional_info,
                 "success_nums": int(self.success_nums),

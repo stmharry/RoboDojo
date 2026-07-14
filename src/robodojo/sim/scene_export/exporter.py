@@ -562,6 +562,7 @@ def export_scene_snapshot(env, output_dir: str | os.PathLike[str], layout_id: in
     identity = ExportIdentity(
         task=str(env.task_name),
         profile=str(env.config_name),
+        scene_config=str(env.scene_config),
         seed=int(env.eval_seed),
         layout_id=int(layout_id),
         repository_revision=revision,
@@ -615,6 +616,7 @@ def export_scene_snapshot(env, output_dir: str | os.PathLike[str], layout_id: in
             "snapshot_boundary": "post_reset_pre_rollout",
             "task": env.task_name,
             "profile": {"config_name": env.config_name, "camera_profile_id": env.camera_rig.profile_id},
+            "scene_config": env.scene_config,
             "seed": int(env.eval_seed),
             "layout": {
                 "id": int(layout_id),

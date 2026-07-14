@@ -31,6 +31,7 @@ class EvaluationRequest(StrictModel):
     policy_env: str
     dataset: str = "RoboDojo"
     env_config: str = "arx_x5"
+    scene_config: str | None = None
     expert_num: Annotated[int, Field(ge=1)] = 100
     action_type: str = "ee"
     seed: NonNegativeInt = 0
@@ -48,6 +49,13 @@ class EvaluationRequest(StrictModel):
     @classmethod
     def non_empty(cls, value: str) -> str:
         if not value.strip():
+            raise ValueError("must not be empty")
+        return value
+
+    @field_validator("scene_config")
+    @classmethod
+    def optional_non_empty(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
             raise ValueError("must not be empty")
         return value
 
@@ -80,6 +88,7 @@ class SimulatorLaunchRequest(StrictModel):
     host: str = "127.0.0.1"
     port: Port
     env_config: str = "arx_x5"
+    scene_config: str | None = None
     env_gpu: NonNegativeInt = 0
     seed: NonNegativeInt = 0
     eval_num: Annotated[int, Field(ge=1)] | Literal["native"] = 1
@@ -87,6 +96,13 @@ class SimulatorLaunchRequest(StrictModel):
     protocol: Literal["ws"] = "ws"
     policy_server_url: str = ""
     dry_run: bool = False
+
+    @field_validator("scene_config")
+    @classmethod
+    def optional_non_empty(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("must not be empty")
+        return value
 
 
 class SweepRequest(EvaluationRequest):
@@ -126,6 +142,7 @@ class EnvironmentConfigDocument(BaseModel):
 class SmokeRecord(StrictModel):
     status: Literal["PASS", "FAIL", "SKIP", "DRY_RUN"]
     task: str
+    scene_config: str | None = None
     exit_code: int
     elapsed_sec: float
     result_path: str = ""

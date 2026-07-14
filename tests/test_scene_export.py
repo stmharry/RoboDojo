@@ -58,7 +58,7 @@ def test_openarm_fisheye_intrinsics_match_fitted_and_published_diagonal_fov():
 
 
 def test_completed_export_requires_exact_identity(tmp_path):
-    identity = ExportIdentity("fold_clothes", "openarm_wowrobo_v1_1", 0, 0, "abc123")
+    identity = ExportIdentity("fold_clothes", "openarm_wowrobo_v1_1", "default", 0, 0, "abc123")
     assert not completed_export_matches(tmp_path, identity)
     (tmp_path / "scene_manifest.json").write_text(
         json.dumps(_complete_manifest(identity)),
@@ -70,12 +70,16 @@ def test_completed_export_requires_exact_identity(tmp_path):
     assert completed_export_matches(tmp_path, identity)
     assert not completed_export_matches(
         tmp_path,
-        ExportIdentity("fold_clothes", "openarm_wowrobo_v1_1", 0, 1, "abc123"),
+        ExportIdentity("fold_clothes", "openarm_wowrobo_v1_1", "default", 0, 1, "abc123"),
+    )
+    assert not completed_export_matches(
+        tmp_path,
+        ExportIdentity("fold_clothes", "openarm_wowrobo_v1_1", "molmo_yam", 0, 0, "abc123"),
     )
 
 
-def test_completed_export_rejects_incomplete_v2_manifest(tmp_path):
-    identity = ExportIdentity("fold_clothes", "arx_x5", 0, 0, "abc123")
+def test_completed_export_rejects_incomplete_v3_manifest(tmp_path):
+    identity = ExportIdentity("fold_clothes", "arx_x5", "default", 0, 0, "abc123")
     for name in ("scene_referenced.usda", "scene_flattened.usdc", "scene_preview.usdz"):
         (tmp_path / name).touch()
     incomplete = _complete_manifest(identity)
@@ -85,7 +89,7 @@ def test_completed_export_rejects_incomplete_v2_manifest(tmp_path):
 
 
 def test_completed_export_rejects_legacy_manifest(tmp_path):
-    identity = ExportIdentity("fold_clothes", "arx_x5", 0, 0, "abc123")
+    identity = ExportIdentity("fold_clothes", "arx_x5", "default", 0, 0, "abc123")
     for name in ("scene_referenced.usda", "scene_flattened.usdc", "scene_preview.usdz"):
         (tmp_path / name).touch()
     (tmp_path / "scene_manifest.json").write_text(

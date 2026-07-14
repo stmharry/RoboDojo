@@ -19,6 +19,7 @@ OMNI_KIT_ACCEPT_EULA ?= yes
 DATASET ?= RoboDojo
 TASK ?= stack_bowls
 ENV_CFG ?= arx_x5
+SCENE ?=
 SEED ?= 0
 ACTION_TYPE ?= ee
 EXPERT_NUM ?= 100
@@ -58,7 +59,8 @@ EVAL_FLAGS = \
 	--dataset "$(DATASET)" \
 	--expert-num "$(EXPERT_NUM)" \
 	--env-gpu "$(ENV_GPU)" \
-	--eval-num "$(EVAL_NUM)"
+	--eval-num "$(EVAL_NUM)" \
+	$(if $(strip $(SCENE)),--scene "$(SCENE)")
 
 .PHONY: help
 help: ## Show targets and common configuration variables
@@ -68,9 +70,10 @@ help: ## Show targets and common configuration variables
 		'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_.-]+:.*## / {printf "  %-24s %s\n", $$1, $$2}' \
 		"$(SELF)"
 	@printf \
-		'\nTASK=%s ENV_CFG=%s SEED=%s EVAL_NUM=%s\n' \
+		'\nTASK=%s ENV_CFG=%s SCENE=%s SEED=%s EVAL_NUM=%s\n' \
 		"$(TASK)" \
 		"$(ENV_CFG)" \
+		"$(SCENE)" \
 		"$(SEED)" \
 		"$(EVAL_NUM)"
 
@@ -187,6 +190,7 @@ doctor: ## Validate installation and configuration
 		doctor \
 		--task "$(TASK)" \
 		--env-cfg "$(ENV_CFG)" \
+		$(if $(strip $(SCENE)),--scene "$(SCENE)") \
 		$(if $(strip $(POLICY_DIR)),--policy-dir "$(POLICY_DIR)",--skip-policy) \
 		$(ARGS)
 
@@ -248,6 +252,7 @@ client: ## Run simulator client against an external server
 		--policy-port "$(POLICY_PORT)" \
 		--ckpt "$(CKPT)" \
 		--env-cfg "$(ENV_CFG)" \
+		$(if $(strip $(SCENE)),--scene "$(SCENE)") \
 		--action-type "$(ACTION_TYPE)" \
 		--seed "$(SEED)" \
 		--env-gpu "$(ENV_GPU)" \
@@ -271,6 +276,7 @@ smoke: ## Run selected/all tasks with one episode
 		--ckpt "$(CKPT)" \
 		--policy-env "$(POLICY_ENV)" \
 		--env-cfg "$(ENV_CFG)" \
+		$(if $(strip $(SCENE)),--scene "$(SCENE)") \
 		--action-type "$(ACTION_TYPE)" \
 		--seed "$(SEED)" \
 		--policy-gpu "$(POLICY_GPU)" \
@@ -296,6 +302,7 @@ benchmark: ## Run a benchmark sweep
 		--policy-env "$(POLICY_ENV)" \
 		--eval-num "$(EVAL_NUM)" \
 		--env-cfg "$(ENV_CFG)" \
+		$(if $(strip $(SCENE)),--scene "$(SCENE)") \
 		--action-type "$(ACTION_TYPE)" \
 		--seed "$(SEED)" \
 		--policy-gpu "$(POLICY_GPU)" \
@@ -384,6 +391,7 @@ docker-smoke: ## Run Docker GPU smoke test
 		smoke \
 		--image "$(IMAGE)" \
 		--policy-port "$(POLICY_PORT)" \
+		$(if $(strip $(SCENE)),--scene "$(SCENE)") \
 		$(ARGS)
 
 .PHONY: docker-monitor

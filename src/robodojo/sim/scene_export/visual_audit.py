@@ -555,6 +555,7 @@ def run_scene_visual_audit(env, scene_export_dir: str | os.PathLike[str], layout
                 "run_directory": str(Path(env.save_dir).resolve()),
                 "task": str(env.task_name),
                 "environment_profile": str(env.config_name),
+                "scene_config": str(env.scene_config),
                 "policy_name": str(env.eval_cfg.get("policy_name", "")),
                 "checkpoint_label": os.environ.get("ROBODOJO_CKPT_LABEL"),
                 "seed": int(env.eval_seed),

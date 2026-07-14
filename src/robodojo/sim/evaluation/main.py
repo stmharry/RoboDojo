@@ -9,6 +9,7 @@ import sys
 from isaaclab.app import AppLauncher
 
 from robodojo.core.logging import configure_logging
+from robodojo.core.models import SimulatorLaunchRequest
 from robodojo.core.paths import RepositoryPaths
 from robodojo.core.profiles import load_environment_profile
 
@@ -26,6 +27,12 @@ parser.add_argument(
     type=str,
     required=True,
     help="config file name for evaluation",
+)
+parser.add_argument(
+    "--scene_config",
+    type=str,
+    default=None,
+    help="resolved simulator scene config name",
 )
 parser.add_argument("--device_id", type=int, required=True, help="the device id for current process")
 parser.add_argument(
@@ -88,6 +95,7 @@ if SCENE_VISUAL_AUDIT_REQUESTED and not SCENE_EXPORT_ONLY:
 # and GLOBAL_CONFIGS only imports os, so this pulls in no app-dependent code.
 from robodojo.sim import tasks_registry
 from robodojo.sim.environment.global_configs import ROOT_DIR
+from robodojo.sim.launcher import resolve_scene_config
 
 task_registry = tasks_registry
 
@@ -110,6 +118,19 @@ def get_monitor():
 
 REPOSITORY_PATHS = RepositoryPaths.resolve(ROOT_DIR)
 ENVIRONMENT_PROFILE = load_environment_profile(REPOSITORY_PATHS, args_cli.env_cfg_type)
+RESOLVED_SCENE_CONFIG = resolve_scene_config(
+    REPOSITORY_PATHS,
+    SimulatorLaunchRequest(
+        task=args_cli.task_name,
+        policy_name=args_cli.policy_name,
+        host=args_cli.host,
+        port=args_cli.port,
+        env_config=args_cli.env_cfg_type,
+        scene_config=args_cli.scene_config,
+        additional_info=args_cli.additional_info,
+    ),
+    profile=ENVIRONMENT_PROFILE,
+)
 
 
 def _physx_monitor_needed(task_name) -> bool:
@@ -200,6 +221,12 @@ def _load_resume_manifest(eval_cfg, run_id):
     except Exception as e:
         logger.warning("[main] failed to load resume manifest at %s: %s; ignoring.", path, e)
         return None
+    resumed_scene = data.get("scene_config")
+    current_scene = eval_cfg["config"]["scene"]
+    if resumed_scene != current_scene:
+        raise ValueError(
+            f"resume manifest scene mismatch: expected {current_scene!r}, found {resumed_scene!r} at {path}"
+        )
     logger.info(
         "[main] resuming from manifest %s (success=%s fail=%s completed=%s abandoned=%s restart_count=%s)",
         path,
@@ -291,6 +318,8 @@ def main():
     task_name = args_cli.task_name
     num_envs = 1 if SCENE_EXPORT_ONLY else args_cli.num_envs
     eval_cfg = load_yaml(ENVIRONMENT_PROFILE.path)
+    eval_cfg["config"]["scene"] = RESOLVED_SCENE_CONFIG
+    eval_cfg["scene_config"] = RESOLVED_SCENE_CONFIG
     eval_cfg["task_name"] = task_name
     eval_cfg["num_envs"] = num_envs
     eval_cfg["device_id"] = args_cli.device_id
@@ -355,7 +384,11 @@ def main():
     OmegaConf.update(env_cfg, "sim.scene.num_envs", num_envs, force_add=True)
     OmegaConf.update(env_cfg, "eval_cfg.num_envs", num_envs, force_add=True)
     env_cfg = process_randomization(env_cfg)
-    env_cfg, eval_num = process_config(env_cfg, task_name=task_name)
+    env_cfg, eval_num = process_config(
+        env_cfg,
+        task_name=task_name,
+        resolved_scene_config=RESOLVED_SCENE_CONFIG,
+    )
 
     if os.environ.get("EVAL_NUM"):
         _env_eval_num = os.environ.get("EVAL_NUM")

@@ -13,15 +13,53 @@ import yaml
 from robodojo.core.models import SimulatorLaunchRequest
 from robodojo.core.paths import RepositoryPaths
 from robodojo.core.processes import format_command, run
-from robodojo.core.profiles import load_environment_profile
+from robodojo.core.profiles import EnvironmentProfile, load_environment_profile
 
 logger = logging.getLogger(__name__)
 
 
-def load_simulator_config(paths: RepositoryPaths, request: SimulatorLaunchRequest) -> tuple[int, str]:
+def _task_scene_config(paths: RepositoryPaths, task: str) -> str | None:
+    """Return a task-specific scene override, including an explicit ``default``."""
+    index_path = paths.task_configs / "_task.yml"
+    payload = yaml.safe_load(index_path.read_text(encoding="utf-8")) or {}
+    common = payload.get("common", {})
+    task_config = payload.get("tasks", {}).get(task, {})
+    if "scene_config" in task_config:
+        return str(task_config["scene_config"])
+    selected = common.get("scene_config", "default")
+    return str(selected) if selected != "default" else None
+
+
+def _validate_scene_config(paths: RepositoryPaths, scene_config: str) -> None:
+    scene_root = (paths.environment_configs / "scene").resolve()
+    scene_path = (scene_root / f"{scene_config}.yml").resolve()
+    if not scene_path.is_relative_to(scene_root):
+        raise ValueError(f"scene config must stay below {scene_root}: {scene_config}")
+    if not scene_path.is_file():
+        raise ValueError(f"scene config not found: {scene_path}")
+
+
+def resolve_scene_config(
+    paths: RepositoryPaths,
+    request: SimulatorLaunchRequest,
+    *,
+    profile: EnvironmentProfile | None = None,
+) -> str:
+    """Resolve explicit, task, and profile scene selection in precedence order."""
+    profile = profile or load_environment_profile(paths, request.env_config)
+    scene_config = request.scene_config or _task_scene_config(paths, request.task) or profile.document.config.scene
+    _validate_scene_config(paths, scene_config)
+    return scene_config
+
+
+def _resolved_simulator_config(
+    paths: RepositoryPaths,
+    request: SimulatorLaunchRequest,
+) -> tuple[int, str, str]:
     """Validate the selected config graph and resolve launch-time values."""
     profile = load_environment_profile(paths, request.env_config)
     num_envs = profile.num_envs
+    scene_config = resolve_scene_config(paths, request, profile=profile)
 
     deploy = paths.xpolicy_root / "policy" / request.policy_name / "deploy.yml"
     protocol = request.protocol
@@ -30,12 +68,18 @@ def load_simulator_config(paths: RepositoryPaths, request: SimulatorLaunchReques
         protocol = str(deploy_payload.get("protocol", protocol))
     if protocol != "ws":
         raise ValueError(f"unsupported policy protocol: {protocol}")
+    return num_envs, protocol, scene_config
+
+
+def load_simulator_config(paths: RepositoryPaths, request: SimulatorLaunchRequest) -> tuple[int, str]:
+    """Validate the selected config graph and resolve launch-time values."""
+    num_envs, protocol, _ = _resolved_simulator_config(paths, request)
     return num_envs, protocol
 
 
 def simulator_command(paths: RepositoryPaths, request: SimulatorLaunchRequest) -> tuple[list[str], dict[str, str]]:
     """Build the simulator command while preserving upstream option names."""
-    num_envs, protocol = load_simulator_config(paths, request)
+    num_envs, protocol, scene_config = _resolved_simulator_config(paths, request)
     server_url = request.policy_server_url or f"ws://{request.host}:{request.port}"
     kit_args = " --enable isaacsim.replicator.behavior --enable isaacsim.sensors.camera"
     argv = [
@@ -47,6 +91,8 @@ def simulator_command(paths: RepositoryPaths, request: SimulatorLaunchRequest) -
         request.task,
         "--env_cfg_type",
         request.env_config,
+        "--scene_config",
+        scene_config,
         "--num_envs",
         str(num_envs),
         "--enable_cameras",

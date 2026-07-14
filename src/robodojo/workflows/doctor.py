@@ -8,13 +8,21 @@ import shutil
 import subprocess
 
 from robodojo.core.calibration import load_hardware_calibration
+from robodojo.core.models import SimulatorLaunchRequest
 from robodojo.core.paths import RepositoryPaths
 from robodojo.core.profiles import load_environment_profile
 from robodojo.core.storage import assets_root
+from robodojo.sim.launcher import resolve_scene_config
 from robodojo.workflows.task_inventory import build_inventory
 
 
-def run_doctor(paths: RepositoryPaths, task: str, env_config: str, policy_dir: Path | None = None) -> int:
+def run_doctor(
+    paths: RepositoryPaths,
+    task: str,
+    env_config: str,
+    policy_dir: Path | None = None,
+    scene_config: str | None = None,
+) -> int:
     checks: list[tuple[str, bool, str]] = []
 
     def record(name: str, ok: bool, detail: str) -> None:
@@ -28,6 +36,18 @@ def run_doctor(paths: RepositoryPaths, task: str, env_config: str, policy_dir: P
     try:
         profile = load_environment_profile(paths, env_config, validate_calibration=False)
         record("environment config", True, str(profile.path))
+        selected_scene = resolve_scene_config(
+            paths,
+            SimulatorLaunchRequest(
+                task=task,
+                policy_name="doctor",
+                port=1,
+                env_config=env_config,
+                scene_config=scene_config,
+                additional_info="doctor",
+            ),
+            profile=profile,
+        )
         calibration = profile.document.hardware_calibration
         if calibration:
             try:
@@ -35,7 +55,9 @@ def run_doctor(paths: RepositoryPaths, task: str, env_config: str, policy_dir: P
                 record("hardware calibration", True, calibration)
             except ValueError as exc:
                 record("hardware calibration", False, str(exc))
-        for kind, referenced in profile.component_paths.items():
+        component_paths = dict(profile.component_paths)
+        component_paths["scene"] = paths.environment_configs / "scene" / f"{selected_scene}.yml"
+        for kind, referenced in component_paths.items():
             record(f"{kind} config", referenced.is_file(), str(referenced))
     except Exception as exc:
         record("environment config", False, str(exc))

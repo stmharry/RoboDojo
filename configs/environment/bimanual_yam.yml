@@ -1,12 +1,9 @@
 config_name: bimanual_yam
 layout_config_name: arx_x5
 
-diagnostics:
-  matched_replay_manifest: reference/bimanual_yam_matched_frames.yml
-
 config:
   sim: real_time_30hz
-  scene: molmo_yam
+  scene: default
   robot: dual_yam
   camera: bimanual_yam
 

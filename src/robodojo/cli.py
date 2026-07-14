@@ -90,6 +90,7 @@ def install(
 def doctor(
     task: str = typer.Option("stack_bowls", "--task"),
     env_config: str = typer.Option("arx_x5", "--env-cfg"),
+    scene_config: str | None = typer.Option(None, "--scene"),
     policy_dir: Path | None = typer.Option(None, "--policy-dir"),
     skip_policy: bool = typer.Option(False, "--skip-policy"),
     root: Path | None = typer.Option(None, "--root"),
@@ -97,7 +98,7 @@ def doctor(
     """Validate the checkout, configuration, assets, and optional policy adapter."""
     from robodojo.workflows.doctor import run_doctor
 
-    code = run_doctor(_paths(root), task, env_config, None if skip_policy else policy_dir)
+    code = run_doctor(_paths(root), task, env_config, None if skip_policy else policy_dir, scene_config)
     raise typer.Exit(code)
 
 
@@ -133,6 +134,7 @@ def _evaluation_request(
     policy_env: str,
     dataset: str,
     env_config: str,
+    scene_config: str | None,
     expert_num: int,
     action_type: str,
     seed: int,
@@ -160,6 +162,7 @@ def _evaluation_request(
         policy_env=policy_env,
         dataset=dataset,
         env_config=env_config,
+        scene_config=scene_config,
         expert_num=expert_num,
         action_type=action_type,
         seed=seed,
@@ -183,6 +186,7 @@ def evaluate(
     policy_env: str = typer.Option(..., "--policy-env"),
     dataset: str = typer.Option("RoboDojo", "--dataset"),
     env_config: str = typer.Option("arx_x5", "--env-cfg"),
+    scene_config: str | None = typer.Option(None, "--scene"),
     expert_num: int = typer.Option(100, "--expert-num"),
     action_type: str = typer.Option("ee", "--action-type"),
     seed: int = typer.Option(0, "--seed"),
@@ -249,6 +253,7 @@ def _client(
     policy_host: str,
     policy_port: int,
     env_config: str,
+    scene_config: str | None,
     env_gpu: int,
     seed: int,
     eval_num: str,
@@ -274,6 +279,7 @@ def _client(
         host=policy_host,
         port=policy_port,
         env_config=env_config,
+        scene_config=scene_config,
         env_gpu=env_gpu,
         seed=seed,
         eval_num=parsed_eval_num,
@@ -291,6 +297,7 @@ def client(
     policy_host: str = typer.Option("127.0.0.1", "--policy-host"),
     policy_port: int = typer.Option(..., "--policy-port"),
     env_config: str = typer.Option("arx_x5", "--env-cfg"),
+    scene_config: str | None = typer.Option(None, "--scene"),
     env_gpu: int = typer.Option(0, "--env-gpu"),
     seed: int = typer.Option(0, "--seed"),
     eval_num: str = typer.Option("1", "--eval-num"),
@@ -318,6 +325,7 @@ def _sweep_command(
     checkpoint: str,
     policy_env: str,
     env_config: str,
+    scene_config: str | None,
     action_type: str,
     seed: int,
     policy_gpu: int,
@@ -341,6 +349,7 @@ def _sweep_command(
         checkpoint=checkpoint,
         policy_env=policy_env,
         env_config=env_config,
+        scene_config=scene_config,
         action_type=action_type,
         seed=seed,
         policy_gpu=policy_gpu,
@@ -367,6 +376,7 @@ def smoke(
     checkpoint: str = typer.Option(..., "--ckpt"),
     policy_env: str = typer.Option(..., "--policy-env"),
     env_config: str = typer.Option("arx_x5", "--env-cfg"),
+    scene_config: str | None = typer.Option(None, "--scene"),
     action_type: str = typer.Option("ee", "--action-type"),
     seed: int = typer.Option(0, "--seed"),
     policy_gpu: int = typer.Option(0, "--policy-gpu"),
@@ -392,6 +402,7 @@ def benchmark(
     policy_env: str = typer.Option(..., "--policy-env"),
     eval_num: str = typer.Option(..., "--eval-num"),
     env_config: str = typer.Option("arx_x5", "--env-cfg"),
+    scene_config: str | None = typer.Option(None, "--scene"),
     action_type: str = typer.Option("ee", "--action-type"),
     seed: int = typer.Option(0, "--seed"),
     policy_gpu: int = typer.Option(0, "--policy-gpu"),
@@ -410,11 +421,22 @@ def benchmark(
 
 
 @app.command()
-def summarize(output: Path | None = typer.Option(None, "--output")) -> None:
+def summarize(
+    output: Path | None = typer.Option(None, "--output"),
+    env_config: str | None = typer.Option(None, "--env-cfg"),
+    scene_config: str | None = typer.Option(None, "--scene"),
+) -> None:
     """Aggregate evaluation results into Markdown."""
     from robodojo.workflows.results_summary import main
 
-    main(["--output", str(output)] if output else [])
+    args: list[str] = []
+    if output:
+        args += ["--output", str(output)]
+    if env_config:
+        args += ["--env-cfg", env_config]
+    if scene_config:
+        args += ["--scene", scene_config]
+    main(args)
 
 
 @assets_app.command("download")
@@ -568,6 +590,8 @@ def results_stats(
     root: Path | None = typer.Option(None, "--root"),
     policies: list[str] | None = typer.Option(None, "--policy"),
     tasks: list[str] | None = typer.Option(None, "--task"),
+    env_config: str | None = typer.Option(None, "--env-cfg"),
+    scene_config: str | None = typer.Option(None, "--scene"),
     per_seed: bool = typer.Option(False, "--per-seed"),
     json_out: Path | None = typer.Option(None, "--json-out"),
 ) -> None:
@@ -580,6 +604,10 @@ def results_stats(
         args += ["--policies", *policies]
     for task in tasks or []:
         args += ["--task", task]
+    if env_config:
+        args += ["--env-cfg", env_config]
+    if scene_config:
+        args += ["--scene", scene_config]
     if per_seed:
         args.append("--per-seed")
     if json_out:
@@ -611,11 +639,12 @@ def docker_smoke(
     task: str = typer.Option("stack_bowls"),
     policy: str = typer.Option("demo_policy"),
     env_config: str = typer.Option("arx_x5", "--env-cfg"),
+    scene_config: str | None = typer.Option(None, "--scene"),
     root: Path | None = typer.Option(None, "--root"),
 ) -> None:
     from robodojo.workflows.docker import smoke
 
-    raise typer.Exit(smoke(_paths(root), image, task, policy, port, env_config))
+    raise typer.Exit(smoke(_paths(root), image, task, policy, port, env_config, scene_config))
 
 
 @docker_app.command("monitor")

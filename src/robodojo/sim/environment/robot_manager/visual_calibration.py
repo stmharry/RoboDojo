@@ -38,8 +38,8 @@ def visual_only_local_matrix(
 def validate_visual_calibration(config: Any) -> dict[str, Any]:
     if not isinstance(config, dict) or config.get("enabled") is not True:
         raise ValueError("visual calibration must be an enabled mapping")
-    if config.get("frame") != "gripper/molmo_link6":
-        raise ValueError("YAM visual calibration must use gripper/molmo_link6")
+    if config.get("frame") != "gripper/wrist_camera_mount":
+        raise ValueError("YAM visual calibration must use gripper/wrist_camera_mount")
     visuals = config.get("visuals")
     if not isinstance(visuals, dict) or set(visuals) != {"tip_left/visuals", "tip_right/visuals"}:
         raise ValueError("YAM visual calibration must target exactly both jaw visual prims")

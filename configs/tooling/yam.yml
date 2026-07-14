@@ -4,7 +4,7 @@ sources:
     revision: ac096928d6899ddf852a71c5e8fbaa6055cd9745
     license: MIT
     license_path: LICENSE
-  molmoact2_sim_assets:
+  historical_camera_mount_reference:
     repository: https://huggingface.co/datasets/TreeePlanter/molmoact2-sim-eval-assets
     revision: 9332a64224ff0a813d9f77bd377b845270232513
     license: undeclared
@@ -17,7 +17,7 @@ sources:
       gripper_mesh:
         path: assets/yam/yam_mujoco/assets/gripper_linear.obj
         sha256: 31d70e2129a3ab8e85f391785cae5bba4163e1e16fb02a3988c5ac1c549c9d78
-  molmoact2_bimanual_yam_dataset:
+  hardware_appearance_reference:
     repository: https://huggingface.co/datasets/allenai/MolmoAct2-BimanualYAM-Dataset
     revision: e9f21ae15074330839f2ac25ed4b49d76dfa1f9c
     license: Apache-2.0
@@ -49,15 +49,15 @@ asset:
     - convert_zero_range_dof_joint0_to_fixed
     - set_finger_limits_to_negative_47_5_mm
     - add_convex_hull_collisions_from_visuals
-    - add_reference_only_molmo_link6_frame
-    - author_molmo_style_preview_materials
+    - add_reference_only_wrist_camera_mount_frame
+    - author_yam_hardware_preview_materials
     - author_nonphysical_d405_visual_proxy
   fixed_frames:
-    - name: molmo_link6
+    - name: wrist_camera_mount
       parent: gripper
       position: [0.0, 0.0, 0.0005]
       orientation: [0.0, 0.7071067811865476, -0.7071067811865476, 0.0]
-      derivation_source: molmoact2_sim_assets
+      derivation_source: historical_camera_mount_reference
       physical: false
   visual_proxies:
     d405:
@@ -78,7 +78,7 @@ asset:
     self_collision: false
 
 appearance:
-  derivation_source: molmoact2_bimanual_yam_dataset
+  derivation_source: hardware_appearance_reference
   shader: UsdPreviewSurface
   color_space: linear_rgb
   material_scope: Looks
@@ -129,7 +129,7 @@ robot_config:
   global_trans_matrix: [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
   grasp_camera_reference_axis: [1, 0, 0]
   camera_mount_links:
-    link6: gripper/molmo_link6
+    wrist_camera_mount: gripper/wrist_camera_mount
 
 physics_contract:
   arm:

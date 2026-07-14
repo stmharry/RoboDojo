@@ -36,7 +36,15 @@ def install(paths: RepositoryPaths) -> int:
     return 0
 
 
-def smoke(paths: RepositoryPaths, image: str, task: str, policy: str, port: int, env_config: str) -> int:
+def smoke(
+    paths: RepositoryPaths,
+    image: str,
+    task: str,
+    policy: str,
+    port: int,
+    env_config: str,
+    scene_config: str | None = None,
+) -> int:
     local_storage = storage_root()
     local_storage.mkdir(parents=True, exist_ok=True)
     container_storage = Path("/workspace/RoboDojo/.robodojo")
@@ -84,6 +92,8 @@ def smoke(paths: RepositoryPaths, image: str, task: str, policy: str, port: int,
         "--eval-num",
         "1",
     ]
+    if scene_config is not None:
+        command += ["--scene", scene_config]
     return subprocess.run(command, cwd=paths.root).returncode
 
 

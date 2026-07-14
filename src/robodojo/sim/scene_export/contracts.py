@@ -14,7 +14,7 @@ import numpy as np
 
 from robodojo.core.paths import RepositoryPaths
 
-SCENE_EXPORT_FORMAT_VERSION = 2
+SCENE_EXPORT_FORMAT_VERSION = 3
 REQUIRED_EXPORT_ARTIFACTS = (
     "scene_referenced.usda",
     "scene_flattened.usdc",
@@ -40,6 +40,7 @@ REQUIRED_PREVIEW_DIAGNOSTICS = (
 class ExportIdentity:
     task: str
     profile: str
+    scene_config: str
     seed: int
     layout_id: int
     repository_revision: str

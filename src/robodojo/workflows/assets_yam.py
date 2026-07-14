@@ -198,7 +198,7 @@ def _stage_physics_digest(stage) -> str:
 
 
 def _author_preview_appearance(stage, appearance: dict, validated_visual_paths: list[str]) -> dict:
-    """Author Molmo-style preview materials for validated renderable Gprims."""
+    """Author canonical YAM hardware materials for validated renderable Gprims."""
 
     from pxr import Gf, Sdf, UsdGeom, UsdShade
 

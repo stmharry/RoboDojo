@@ -24,7 +24,7 @@ camera_rig:
         orientation: [0.54167522, -0.45451948, 0.45451948, 0.54167522]
         pose_convention: sapien_robotics
         optical_roll_deg: 0.0
-        basis: molmoact2_yam_sim_contract
+        basis: yam_simulation_camera_contract_v1
       projection:
         model: pinhole
         backend: native
@@ -46,16 +46,16 @@ camera_rig:
         diagonal_fov_deg: 94.86822220812002
       mount:
         kind: robot_link
-        target: robot0/link6
+        target: robot0/wrist_camera_mount
         position: [0.0, 0.09, 0.06]
         orientation: [0.61237243, -0.35355339, -0.35355340, -0.61237244]
         pose_convention: sapien_robotics
         optical_roll_deg: 0.0
-        basis: molmoact2_yam_sim_contract
+        basis: yam_simulation_camera_contract_v1
         calibration_correction:
           translation_m: [0.0003368883833682653, -0.003866168248125935, 0.005781196674983154]
           rotation_rotvec_deg: [-1.5213745097970042, 0.2893656817085859, 0.672802376740453]
-          source: bimanual_yam_matched_frames_v1
+          source: yam_hardware_calibration_v1
         hardware: &wrist_hardware
           enabled: true
           asset: Robots/yam/D405_proxy.usd
@@ -75,15 +75,15 @@ camera_rig:
       sensor: *wrist_sensor
       mount:
         kind: robot_link
-        target: robot1/link6
+        target: robot1/wrist_camera_mount
         position: [0.0, 0.09, 0.06]
         orientation: [0.61237243, -0.35355339, -0.35355340, -0.61237244]
         pose_convention: sapien_robotics
         optical_roll_deg: 0.0
-        basis: molmoact2_yam_sim_contract
+        basis: yam_simulation_camera_contract_v1
         calibration_correction:
           translation_m: [-0.0003081117949818329, -0.003900024586207093, 0.0057492578421972276]
           rotation_rotvec_deg: [-1.9193526354538613, 0.01345363932629845, -0.5723172103038849]
-          source: bimanual_yam_matched_frames_v1
+          source: yam_hardware_calibration_v1
         hardware: *wrist_hardware
       projection: *wrist_projection

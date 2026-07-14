@@ -6,10 +6,11 @@ from datetime import datetime
 from pathlib import Path
 import time
 
-from robodojo.core.models import EvaluationRequest, SmokeRecord, SmokeSummary, SweepRequest
+from robodojo.core.models import EvaluationRequest, SimulatorLaunchRequest, SmokeRecord, SmokeSummary, SweepRequest
 from robodojo.core.paths import RepositoryPaths
 from robodojo.core.storage import run_work_root
 from robodojo.orchestration.evaluation import run_evaluation
+from robodojo.sim.launcher import resolve_scene_config
 from robodojo.workflows.task_inventory import build_inventory
 
 
@@ -68,21 +69,36 @@ def run_sweep(paths: RepositoryPaths, request: SweepRequest) -> int:
     if request.resume and summary_path.is_file():
         prior = SmokeSummary.model_validate_json(summary_path.read_text(encoding="utf-8"))
         results.extend(prior.results)
-    passed = {row.task for row in results if row.status == "PASS"}
+    passed = {(row.task, row.scene_config) for row in results if row.status == "PASS"}
 
     for task in _selected_tasks(request):
-        if task in passed:
+        scene_config = resolve_scene_config(
+            paths,
+            SimulatorLaunchRequest(
+                task=task,
+                policy_name=request.policy_dir.name,
+                port=1,
+                env_config=request.env_config,
+                scene_config=request.scene_config,
+                additional_info="sweep",
+            ),
+        )
+        if (task, scene_config) in passed:
             continue
         started = time.monotonic()
         evaluation = EvaluationRequest(
-            **request.model_dump(exclude={"only", "tasks_file", "limit", "resume", "fail_fast", "run_id", "task"}),
+            **request.model_dump(
+                exclude={"only", "tasks_file", "limit", "resume", "fail_fast", "run_id", "task", "scene_config"}
+            ),
             task=task,
+            scene_config=scene_config,
         )
         code = run_evaluation(paths, evaluation)
         status = "DRY_RUN" if request.dry_run else ("PASS" if code == 0 else "FAIL")
         record = SmokeRecord(
             status=status,
             task=task,
+            scene_config=scene_config,
             exit_code=code,
             elapsed_sec=time.monotonic() - started,
             message="" if code == 0 else f"evaluation exited {code}",

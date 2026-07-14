@@ -7,16 +7,6 @@ import yaml
 
 from robodojo.core.paths import RepositoryPaths
 from robodojo.core.profiles import load_environment_profile
-from robodojo.sim.calibration.matched_replay import _control_from_manifest
-from robodojo.sim.calibration.wrist_camera import (
-    CorrectionBounds,
-    fit_bounded_mirrored_correction,
-    fit_yam_matched_manifest,
-    load_yam_matched_manifest,
-    pinhole_pose_jacobian,
-    pinhole_project,
-    yam_matched_manifest_status,
-)
 from robodojo.sim.environment.camera_manager.mount_registry import (
     align_hardware_frame_pose,
     apply_mount_calibration,
@@ -32,28 +22,23 @@ from robodojo.sim.environment.robot_manager.visual_calibration import (
 from robodojo.sim.environment.scene_manager.appearance import merge_fixture_appearance
 
 ROOT = Path(__file__).resolve().parents[1]
-MANIFEST = ROOT / "configs/reference/bimanual_yam_matched_frames.yml"
+CALIBRATION_SOURCE = "yam_hardware_calibration_v1"
 
 
-def test_molmo_scene_is_profile_isolated_and_clones_default_nonappearance_contract():
+def test_cloth_workspace_scene_is_independent_of_the_yam_profile():
     profile = load_environment_profile(RepositoryPaths.resolve(ROOT), "bimanual_yam")
-    assert profile.document.config.scene == "molmo_yam"
-    assert profile.matched_replay_manifest == MANIFEST
+    assert profile.document.config.scene == "default"
+    assert profile.matched_replay_manifest is None
 
     default = yaml.safe_load((ROOT / "configs/scene/default.yml").read_text())
-    molmo = yaml.safe_load((ROOT / "configs/scene/molmo_yam.yml").read_text())
-    comparable = deepcopy(molmo)
+    workspace = yaml.safe_load((ROOT / "configs/scene/molmo_yam.yml").read_text())
+    comparable = deepcopy(workspace)
     assert comparable["Table"].pop("replay_material_override") == "material_0122"
     assert comparable["Room"].pop("visual_color") == [0.75, 0.75, 0.72]
     assert comparable == default
-    assert "visual_color" not in default["Table"] and "visual_color" not in default["Room"]
-    assert molmo["Table"]["default"] == "material_0122"
-    assert "visual_color" not in molmo["Table"]
-    assert min(molmo["Room"]["visual_color"]) >= 0.7
-    assert molmo["Background"] == {"intensity": 1000, "default": "brown_photostudio_02_4k.hdr"}
+    assert workspace["Table"]["default"] == "material_0122"
+    assert min(workspace["Room"]["visual_color"]) >= 0.7
 
-
-def test_active_scene_appearance_overlays_replayed_fixture_without_changing_geometry():
     replayed = {
         "default": "write_material",
         "default_pos": [0.0, -0.05, 0.74],
@@ -61,25 +46,66 @@ def test_active_scene_appearance_overlays_replayed_fixture_without_changing_geom
         "collision": True,
         "visual_color": [1.0, 1.0, 1.0],
     }
-    molmo = merge_fixture_appearance(replayed, {"replay_material_override": "material_0122"})
-    assert molmo["replay_material_override"] == "material_0122"
-    assert "visual_color" not in molmo
-    assert {key: value for key, value in molmo.items() if key != "replay_material_override"} == {
-        key: value for key, value in replayed.items() if key != "visual_color"
-    }
+    merged = merge_fixture_appearance(replayed, workspace["Table"])
+    assert merged["replay_material_override"] == "material_0122"
+    assert "visual_color" not in merged
+    assert merged["collision"] is True
 
-    default = merge_fixture_appearance(replayed, {})
-    assert "visual_color" not in default
-    assert "replay_material_override" not in default
-    assert default["default"] == "write_material"
-    assert default["default_pos"] == replayed["default_pos"]
-    assert default["scale"] == replayed["scale"]
-    assert default["collision"] is True
+
+def test_final_wrist_camera_values_are_embodiment_owned():
+    config = yaml.safe_load((ROOT / "configs/camera/bimanual_yam.yml").read_text())
+    cameras = config["camera_rig"]["cameras"]
+    expected = {
+        "cam_left_wrist": {
+            "target": "robot0/wrist_camera_mount",
+            "translation_m": [0.0003368883833682653, -0.003866168248125935, 0.005781196674983154],
+            "rotation_rotvec_deg": [-1.5213745097970042, 0.2893656817085859, 0.672802376740453],
+        },
+        "cam_right_wrist": {
+            "target": "robot1/wrist_camera_mount",
+            "translation_m": [-0.0003081117949818329, -0.003900024586207093, 0.0057492578421972276],
+            "rotation_rotvec_deg": [-1.9193526354538613, 0.01345363932629845, -0.5723172103038849],
+        },
+    }
+    for name, values in expected.items():
+        mount = cameras[name]["mount"]
+        assert mount["target"] == values["target"]
+        assert mount["basis"] == "yam_simulation_camera_contract_v1"
+        assert mount["calibration_correction"] == {
+            "translation_m": values["translation_m"],
+            "rotation_rotvec_deg": values["rotation_rotvec_deg"],
+            "source": CALIBRATION_SOURCE,
+        }
+
+    reference = yaml.safe_load((ROOT / "configs/reference/bimanual_yam.yml").read_text())
+    calibration = reference["camera_contract"]["hardware_calibration"]
+    provenance = reference["sources"]["historical_hardware_calibration"]
+    assert provenance["usage"] == "provenance_only_final_values_retained"
+    assert set(provenance["datasets"]) == {
+        "allenai/18122025-foldclo-01",
+        "allenai/18122025-foldclo-13",
+        "allenai/24122025-foldclo-05",
+    }
+    assert calibration["source"] == CALIBRATION_SOURCE
+    assert calibration["wrist_extrinsic_corrections"] == {
+        "left": {
+            "translation_m": expected["cam_left_wrist"]["translation_m"],
+            "rotation_rotvec_deg": expected["cam_left_wrist"]["rotation_rotvec_deg"],
+        },
+        "right": {
+            "translation_m": expected["cam_right_wrist"]["translation_m"],
+            "rotation_rotvec_deg": expected["cam_right_wrist"]["rotation_rotvec_deg"],
+        },
+    }
+    assert "policy_checkpoint" not in reference["sources"]
+    assert "predicted_horizon" not in reference["state_action_contract"]
+    assert "executed_horizon" not in reference["state_action_contract"]
+    assert "joint_convention_bridge" not in reference["state_action_contract"]
+    assert "policy_mapping" not in reference["camera_contract"]
 
 
 def test_d405_proxy_is_wrist_only_and_preserves_normalized_optical_pose():
-    config = yaml.safe_load((ROOT / "configs/camera/bimanual_yam.yml").read_text())
-    rig = normalize_camera_rig(config)
+    rig = normalize_camera_rig(yaml.safe_load((ROOT / "configs/camera/bimanual_yam.yml").read_text()))
     top, left, right = rig.cameras
     assert "hardware" not in top.mount
     for wrist in (left, right):
@@ -101,100 +127,44 @@ def test_d405_proxy_is_wrist_only_and_preserves_normalized_optical_pose():
         assert abs(float(np.dot(orientation, target_orientation))) == pytest.approx(1.0)
 
 
-def test_released_frame_manifest_is_pinned_and_fail_closed_until_fit_is_accepted():
-    manifest = load_yam_matched_manifest(MANIFEST)
-    status = yam_matched_manifest_status(manifest)
-    assert status["status"] == "complete"
-    assert status["selected_frames"] == 24
-    assert status["expected_frames"] == 24
-    assert status["fit_enabled"] is True
-    assert [dataset["revision"] for dataset in manifest["datasets"].values()] == [
-        "605ebe5de5fffa11ade4ed17f3ad66cd2cf6dac9",
-        "a84f36156e064c4ad70592743639cbfe233000ca",
-        "a57ba8d100cbf4d085e2f84da937f5eba4ecd7f4",
-    ]
-    assert [dataset["split"] for dataset in manifest["datasets"].values()] == [
-        "training",
-        "training",
-        "held_out",
-    ]
-    artifact = ROOT / "configs/reference/bimanual_yam_landmark_annotations.json"
-    assert manifest["annotation_artifact"]["sha256"] == (
-        "29b71657dd5564d0d209ac482d383c76b1e56fa99679c07d9357d1bce35667fa"
-    )
-    assert len(manifest["selection_contract"]["selected_sample_ids"]) == 24
-    assert sum(
-        len(frame["wrist_annotations"][side]["landmarks"])
-        for frame in manifest["selection_contract"]["frames"]
-        for side in ("left", "right")
-    ) == 192
-    assert artifact.is_file()
-    assert load_yam_matched_manifest(MANIFEST, require_complete=True)["status"] == "complete"
-
-
-def test_matched_frame_manifest_fails_closed_without_landmark_artifact(tmp_path: Path):
-    document = yaml.safe_load(MANIFEST.read_text())
-    document["annotation_artifact"]["path"] = "absent.json"
-    local_manifest = tmp_path / MANIFEST.name
-    local_manifest.write_text(yaml.safe_dump(document))
-    with pytest.raises(ValueError, match="landmark artifact is absent"):
-        load_yam_matched_manifest(local_manifest)
-
-
-def test_annotated_fit_is_deterministic_and_matches_persisted_runtime_application():
-    manifest = load_yam_matched_manifest(MANIFEST)
-    camera_config = yaml.safe_load((ROOT / "configs/camera/bimanual_yam.yml").read_text())
-    fit = fit_yam_matched_manifest(manifest, camera_config)
-    persisted = manifest["fit_contract"]["fit_result"]
-    assert fit.held_out_corrected_median_px == pytest.approx(persisted["held_out"]["corrected_median_px"])
-    assert fit.held_out_corrected_median_px <= 8.0
-    assert fit.held_out_improvement_fraction >= 0.30
-    for side, metrics in fit.held_out_by_side.items():
-        assert metrics == pytest.approx(persisted["held_out"]["by_side"][side])
-    assert all(metrics["corrected_median_px"] <= 8.0 for metrics in fit.held_out_by_side.values())
-    assert all(metrics["improvement_fraction"] >= 0.30 for metrics in fit.held_out_by_side.values())
-    for name, norms in fit.correction.to_dict()["norms"].items():
-        assert norms == pytest.approx(persisted["norms"][name])
-    left_mount = camera_config["camera_rig"]["cameras"]["cam_left_wrist"]["mount"]
-    right_mount = camera_config["camera_rig"]["cameras"]["cam_right_wrist"]["mount"]
-    assert left_mount["position"] == [0.0, 0.09, 0.06]
-    assert right_mount["position"] == [0.0, 0.09, 0.06]
-    assert left_mount["calibration_correction"]["translation_m"] == pytest.approx(fit.correction.left[:3])
-    mirror = np.diag([-1.0, 1.0, 1.0])
-    parameter_mirror = np.diag([-1.0, 1.0, 1.0, 1.0, -1.0, -1.0])
-    assert right_mount["calibration_correction"]["translation_m"] == pytest.approx(
-        (parameter_mirror @ fit.correction.right_mirrored)[:3]
-    )
-    assert manifest["fit_contract"]["mirror_matrix"] == mirror.tolist()
-    refinement = manifest["fit_contract"]["geometry_gate_refinement"]
-    assert refinement["camera_parameter_offsets"]["left"] == [0.0, 0.0, 0.0, 0.8, -0.25, 0.0]
-    assert refinement["camera_parameter_offsets"]["right_mirrored"] == [0.0] * 6
-    assert refinement["reset_cloth_visibility"]["baseline_left_fraction"] < 0.25
-    assert refinement["reset_cloth_visibility"]["refined_left_fraction"] >= 0.25
-    assert fit.correction.left_residual_translation_m <= 0.002 + 1e-12
-    assert fit.correction.left_residual_rotation_deg <= 0.5 + 1e-12
-
-
-def test_visual_only_clamp_application_is_bounded_mirrored_and_changes_no_physics_contract():
+def test_final_jaw_transforms_remain_visual_only_and_mirrored():
     robot_config = yaml.safe_load((ROOT / "configs/robot/dual_yam.yml").read_text())
     parameter_mirror = np.diag([-1.0, 1.0, 1.0, 1.0, -1.0, -1.0])
-    for robot in robot_config["robots"]:
+    expected_left = [
+        [
+            0.0014766420522317357,
+            0.00025120446006139137,
+            -0.002599312326141951,
+            -0.15068164338723466,
+            0.4066846516683395,
+            0.9010564002567725,
+        ],
+        [
+            0.00204980967513032,
+            0.0014503406143189645,
+            -0.0016415822849309197,
+            -0.4996359255700045,
+            0.7081368370462536,
+            0.4989049627914445,
+        ],
+    ]
+    for robot, expected in zip(robot_config["robots"], expected_left, strict=True):
         calibration = validate_visual_calibration(robot["visual_calibration"])
+        assert calibration["frame"] == "gripper/wrist_camera_mount"
+        assert calibration["source"] == CALIBRATION_SOURCE
         left = np.asarray(calibration["visuals"]["tip_left/visuals"])
         right = np.asarray(calibration["visuals"]["tip_right/visuals"])
+        assert left == pytest.approx(expected)
         assert right == pytest.approx(parameter_mirror @ left)
         assert np.linalg.norm(left[:3]) <= 0.003 + 1e-12
         assert np.linalg.norm(left[3:]) <= 1.0 + 1e-12
         assert "collision" not in calibration and "rigid_body" not in calibration
 
-    tip_world = np.eye(4)
-    tip_world[:3, 3] = [0.1, 0.2, 0.3]
-    frame_world = np.eye(4)
-    original = np.eye(4)
-    correction = [0.001, 0.0, 0.0, 0.0, 0.0, 0.5]
-    local = visual_only_local_matrix(tip_world, frame_world, original, correction)
-    expected_world = correction_matrix(correction) @ tip_world
-    assert tip_world @ local == pytest.approx(expected_world)
+    reference = yaml.safe_load((ROOT / "configs/reference/bimanual_yam.yml").read_text())
+    recorded = reference["camera_contract"]["hardware_calibration"]["visual_only_jaw_transforms"]
+    for index, arm in enumerate(("left_arm", "right_arm")):
+        assert recorded[arm]["tip_left"] == expected_left[index]
+        assert recorded[arm]["tip_right"] == pytest.approx(parameter_mirror @ expected_left[index])
 
     calibration = robot_config["robots"][0]["visual_calibration"]
     collision_path = "tip_left/collisions"
@@ -204,91 +174,15 @@ def test_visual_only_clamp_application_is_bounded_mirrored_and_changes_no_physic
         collision_path: np.diag([1.0, 1.0, 1.0, 2.0]),
     }
     collision_before = transforms[collision_path].copy()
-    contexts = {
-        path: (np.eye(4), transforms[path].copy()) for path in calibration["visuals"]
-    }
+    contexts = {path: (np.eye(4), transforms[path].copy()) for path in calibration["visuals"]}
     transforms.update(plan_visual_calibration_matrices(calibration, np.eye(4), contexts))
     assert transforms[collision_path] == pytest.approx(collision_before)
     assert set(plan_visual_calibration_matrices(calibration, np.eye(4), contexts)) == set(
         calibration["visuals"]
     )
 
-
-def test_yam_replay_adapter_preserves_left_first_order_and_profile_sign_bridge():
-    manifest = load_yam_matched_manifest(MANIFEST)
-    state = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1.0, -0.1, -0.2, -0.3, -0.4, -0.5, -0.6, 0.25]
-    control = _control_from_manifest(manifest, state).control_info_dict
-    assert control["left_arm_joint_state"]["position"] == pytest.approx([0.1, 0.2, 0.3, 0.4, -0.5, 0.6])
-    assert control["right_arm_joint_state"]["position"] == pytest.approx([-0.1, -0.2, -0.3, -0.4, 0.5, -0.6])
-    assert control["left_ee_joint_state"]["position"] == pytest.approx([-0.0475])
-    assert control["right_ee_joint_state"]["position"] == pytest.approx([-0.011875])
-
-
-def test_pinhole_projection_and_runtime_jacobian_use_usd_camera_axes():
-    points = np.asarray(
-        [[0.0, 0.0, -1.0], [0.1, 0.0, -1.0], [0.0, 0.1, -1.0], [0.1, 0.1, -1.2]]
-    )
-    intrinsics = np.asarray([100.0, 100.0, 50.0, 40.0])
-    pixels = pinhole_project(points, np.zeros(3), np.asarray([1.0, 0.0, 0.0, 0.0]), intrinsics)
-    assert pixels[0] == pytest.approx([50.0, 40.0])
-    assert pixels[1, 0] > 50.0
-    assert pixels[2, 1] < 40.0
-    jacobian = pinhole_pose_jacobian(
-        points, np.zeros(3), np.asarray([1.0, 0.0, 0.0, 0.0]), intrinsics
-    )
-    assert jacobian.shape == (8, 6)
-    assert np.linalg.matrix_rank(jacobian) == 6
-
-
-def _bounds() -> CorrectionBounds:
-    return CorrectionBounds(
-        shared_translation_m=0.005,
-        shared_rotation_deg=2.0,
-        per_arm_residual_translation_m=0.002,
-        per_arm_residual_rotation_deg=0.5,
-        visual_clamp_translation_m=0.003,
-        visual_clamp_rotation_deg=1.0,
-    )
-
-
-def test_bounded_mirrored_fit_is_deterministic_and_rejects_out_of_contract_results():
-    mirror = np.diag([-1.0, 1.0, 1.0])
-    parameter_mirror = np.diag([-1.0, 1.0, 1.0, 1.0, -1.0, -1.0])
-    desired = np.asarray([0.001, -0.0005, 0.00025, 0.2, -0.1, 0.05])
-    identity = np.eye(6)
-    fit = fit_bounded_mirrored_correction(
-        identity,
-        desired,
-        identity,
-        parameter_mirror @ desired,
-        mirror,
-        _bounds(),
-    )
-    assert fit.shared == pytest.approx(desired)
-    assert fit.left == pytest.approx(desired)
-    assert fit.right_mirrored == pytest.approx(desired)
-
-    too_large = desired.copy()
-    too_large[0] = 0.006
-    bounded = fit_bounded_mirrored_correction(
-        identity,
-        too_large,
-        identity,
-        parameter_mirror @ too_large,
-        mirror,
-        _bounds(),
-    )
-    assert np.linalg.norm(bounded.shared[:3]) <= _bounds().shared_translation_m + 1e-9
-
-    left = np.asarray([0.003, 0, 0, 0, 0, 0], dtype=float)
-    right_mirrored = -left
-    asymmetric = fit_bounded_mirrored_correction(
-        identity,
-        left,
-        identity,
-        parameter_mirror @ right_mirrored,
-        mirror,
-        _bounds(),
-    )
-    assert asymmetric.left_residual_translation_m <= _bounds().per_arm_residual_translation_m + 1e-9
-    assert asymmetric.right_residual_translation_m <= _bounds().per_arm_residual_translation_m + 1e-9
+    tip_world = np.eye(4)
+    tip_world[:3, 3] = [0.1, 0.2, 0.3]
+    correction = [0.001, 0.0, 0.0, 0.0, 0.0, 0.5]
+    local = visual_only_local_matrix(tip_world, np.eye(4), np.eye(4), correction)
+    assert tip_world @ local == pytest.approx(correction_matrix(correction) @ tip_world)
