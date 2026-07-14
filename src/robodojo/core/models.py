@@ -6,7 +6,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 NonNegativeInt = Annotated[int, Field(ge=0)]
 Port = Annotated[int, Field(ge=1, le=65535)]
@@ -43,6 +43,7 @@ class EvaluationRequest(StrictModel):
     export_scene_only: bool = False
     export_scene_dir: Path | None = None
     layout_id: NonNegativeInt = 0
+    publish: bool = False
     dry_run: bool = False
 
     @field_validator("task", "checkpoint", "policy_env", "dataset", "env_config", "action_type")
@@ -65,6 +66,12 @@ class EvaluationRequest(StrictModel):
         if isinstance(value, int) and value < 1:
             raise ValueError("must be positive or 'native'")
         return value
+
+    @model_validator(mode="after")
+    def publish_requires_evaluation_result(self) -> EvaluationRequest:
+        if self.publish and self.export_scene_only:
+            raise ValueError("--publish cannot be combined with --export-scene-only")
+        return self
 
 
 class PolicyServerLaunchRequest(StrictModel):

@@ -24,6 +24,7 @@ SEED ?= 0
 ACTION_TYPE ?= ee
 EXPERT_NUM ?= 100
 EVAL_NUM ?= 1
+PUBLISH ?= true
 POLICY_GPU ?= 0
 ENV_GPU ?= 0
 POLICY_DIR ?=
@@ -39,6 +40,15 @@ STORAGE_RELATIVE ?=
 IMAGE ?= robodojo:cuda12.8
 ONLY ?=
 ARGS ?=
+
+PUBLISH_VALUE := $(strip $(PUBLISH))
+ifeq ($(PUBLISH_VALUE),true)
+PUBLISH_FLAG := --publish
+else ifeq ($(PUBLISH_VALUE),false)
+PUBLISH_FLAG :=
+else
+$(error PUBLISH must be true or false, got '$(PUBLISH)')
+endif
 
 define require
 $(if $(strip $($(1))),,$(error $(1) is required. Pass it as `make $@ $(1)=...` or set it in .env))
@@ -60,6 +70,7 @@ EVAL_FLAGS = \
 	--expert-num "$(EXPERT_NUM)" \
 	--env-gpu "$(ENV_GPU)" \
 	--eval-num "$(EVAL_NUM)" \
+	$(PUBLISH_FLAG) \
 	$(if $(strip $(SCENE)),--scene "$(SCENE)")
 
 .PHONY: help
@@ -70,12 +81,13 @@ help: ## Show targets and common configuration variables
 		'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_.-]+:.*## / {printf "  %-24s %s\n", $$1, $$2}' \
 		"$(SELF)"
 	@printf \
-		'\nTASK=%s ENV_CFG=%s SCENE=%s SEED=%s EVAL_NUM=%s\n' \
+		'\nTASK=%s ENV_CFG=%s SCENE=%s SEED=%s EVAL_NUM=%s PUBLISH=%s\n' \
 		"$(TASK)" \
 		"$(ENV_CFG)" \
 		"$(SCENE)" \
 		"$(SEED)" \
-		"$(EVAL_NUM)"
+		"$(EVAL_NUM)" \
+		"$(PUBLISH)"
 
 .PHONY: tasks
 tasks: ## List canonical tasks
@@ -195,7 +207,7 @@ doctor: ## Validate installation and configuration
 		$(ARGS)
 
 .PHONY: eval
-eval: ## Run local server + simulator evaluation
+eval: ## Run local evaluation and publish when PUBLISH=true
 	$(call require,POLICY_DIR)
 	$(call require,POLICY_ENV)
 	$(call require,CKPT)
@@ -205,7 +217,7 @@ eval: ## Run local server + simulator evaluation
 		$(ARGS)
 
 .PHONY: eval-dry-run
-eval-dry-run: ## Print resolved local evaluation commands
+eval-dry-run: ## Print evaluation commands without running or publishing
 	$(call require,POLICY_DIR)
 	$(call require,POLICY_ENV)
 	$(call require,CKPT)

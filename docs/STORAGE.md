@@ -35,7 +35,18 @@ export ROBODOJO_S3_URI=s3://your-bucket/robodojo
 export AWS_PROFILE=robodojo-runtime
 ```
 
-S3 is not mounted and normal commands never perform an implicit bucket sync.
+S3 is not mounted, and setting `ROBODOJO_S3_URI` alone never triggers a bucket
+sync. Direct CLI evaluations stay local unless publication is explicitly
+requested:
+
+```bash
+robodojo eval --publish <other-eval-options>
+```
+
+The Make workflow opts in by default with `PUBLISH=true`. Disable publication
+for one run with `make eval PUBLISH=false`; only the `eval` target receives this
+default, not client or sweep commands.
+
 Inspect the writable local root and optional remote access with:
 
 ```bash
@@ -51,10 +62,12 @@ robodojo storage publish-checkpoint SmolVLA run-10000 /local/checkpoints/run-100
 robodojo storage publish .robodojo/datasets/example datasets/example
 ```
 
-Successful evaluations automatically publish their completed timestamped run
-when `ROBODOJO_S3_URI` is set. Payload files are uploaded first, followed by
-`_MANIFEST.json`, `_result.json` when present, and `_COMPLETE.json` last.
-Completed remote destinations are immutable unless `--replace` is explicit.
+With `--publish`, a successful evaluation publishes its completed timestamped
+run. RoboDojo validates the S3 prefix and AWS CLI before starting the expensive
+evaluation; an upload failure returns nonzero but leaves the local result in
+place. Payload files are uploaded first, followed by `_MANIFEST.json`,
+`_result.json` when present, and `_COMPLETE.json` last. Completed remote
+destinations are immutable unless `--replace` is explicit.
 
 Restore exactly one manifested payload into its canonical local location:
 

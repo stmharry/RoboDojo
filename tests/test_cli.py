@@ -3,11 +3,13 @@ from pathlib import Path
 import subprocess
 import sys
 
+from pydantic import ValidationError
 import pytest
+from typer.main import get_command
 from typer.testing import CliRunner
 
 from robodojo.cli import app
-from robodojo.core.models import PolicyServerLaunchRequest, SimulatorLaunchRequest
+from robodojo.core.models import EvaluationRequest, PolicyServerLaunchRequest, SimulatorLaunchRequest
 from robodojo.core.paths import RepositoryPaths, discover_repository_root
 from robodojo.core.settings import RuntimeSettings
 from robodojo.policy import adapter as policy_adapter
@@ -25,6 +27,82 @@ def test_cli_exposes_the_unified_command_surface():
     for command in ("eval", "server", "client", "smoke", "storage", "assets", "data", "docker"):
         assert command in result.stdout
     assert "upstream" not in result.stdout
+
+
+def test_every_public_command_and_parameter_has_human_readable_help():
+    root = get_command(app)
+    visited: list[tuple[str, ...]] = []
+
+    def visit(command, path: tuple[str, ...]) -> None:
+        assert command.help and command.help.strip(), f"missing command help: {' '.join(path) or 'robodojo'}"
+        for parameter in command.params:
+            if not parameter.hidden:
+                assert getattr(parameter, "help", None), (
+                    f"missing parameter help: {' '.join(path) or 'robodojo'} {parameter.name}"
+                )
+        visited.append(path)
+        for name, child in getattr(command, "commands", {}).items():
+            if not child.hidden:
+                visit(child, (*path, name))
+
+    visit(root, ())
+
+    for path in visited:
+        result = runner.invoke(app, [*path, "--help"])
+        assert result.exit_code == 0, f"help failed for {' '.join(path) or 'robodojo'}: {result.output}"
+
+
+def test_eval_help_explains_publication_and_evaluation_inputs():
+    result = runner.invoke(app, ["eval", "--help"])
+
+    assert result.exit_code == 0
+    assert "--publish" in result.stdout
+    assert "ROBODOJO_S3_URI" in result.stdout
+    assert "Checkpoint name or path" in result.stdout
+    assert "positive integer" in result.stdout
+
+
+def test_publish_is_incompatible_with_scene_only_export(tmp_path):
+    with pytest.raises(ValidationError, match="--publish cannot be combined with --export-scene-only"):
+        EvaluationRequest(
+            policy_dir=tmp_path,
+            task="stack_bowls",
+            checkpoint="test",
+            policy_env="test",
+            publish=True,
+            export_scene_only=True,
+        )
+
+
+def test_make_eval_publishes_by_default_and_allows_local_override():
+    common = [
+        "make",
+        "-n",
+        "eval",
+        "POLICY_DIR=XPolicyLab/policy/demo_policy",
+        "POLICY_ENV=base",
+        "CKPT=demo",
+    ]
+    default = subprocess.run(common, cwd=ROOT, check=True, capture_output=True, text=True)
+    local_only = subprocess.run(
+        [*common, "PUBLISH=false"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    invalid = subprocess.run(
+        ["make", "-n", "help", "PUBLISH=maybe"],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "--publish" in default.stdout
+    assert "--publish" not in local_only.stdout
+    assert invalid.returncode != 0
+    assert "PUBLISH must be true or false" in invalid.stderr
 
 
 def test_task_inventory_reads_the_simulator_task_package():

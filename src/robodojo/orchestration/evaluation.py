@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 from datetime import datetime
+import logging
 import os
 from pathlib import Path
+import shutil
+import subprocess
 
 from robodojo.core.models import EvaluationRequest, PolicyServerLaunchRequest, SimulatorLaunchRequest
 from robodojo.core.paths import RepositoryPaths
@@ -14,6 +17,7 @@ from robodojo.policy.adapter import policy_server_command
 from robodojo.sim.launcher import run_simulator, simulator_command
 
 SCENE_VISUAL_AUDIT_ENV = "ROBODOJO_SCENE_VISUAL_AUDIT"
+logger = logging.getLogger(__name__)
 
 
 def _env_flag(name: str) -> bool:
@@ -28,21 +32,37 @@ def run_simulator_session(
     paths: RepositoryPaths,
     request: SimulatorLaunchRequest,
     environment: dict[str, str] | None = None,
+    *,
+    publish: bool = False,
 ) -> int:
-    """Run a simulator client and publish its completed evaluation when configured."""
+    """Run a simulator client and optionally publish its completed evaluation."""
     launch_env = dict(environment or {})
     if not request.dry_run:
         launch_env.setdefault("ROBODOJO_RUN_ID", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
     code = run_simulator(paths, request, launch_env)
     if (
         code == 0
+        and publish
         and not request.dry_run
         and launch_env.get("ROBODOJO_EXPORT_SCENE_ONLY", "").lower() != "true"
-        and s3_uri() is not None
     ):
         from robodojo.workflows.storage import main as storage_main
 
-        storage_main(["publish-eval", ".", "--run-id", launch_env["ROBODOJO_RUN_ID"]])
+        try:
+            publish_code = storage_main(["publish-eval", ".", "--run-id", launch_env["ROBODOJO_RUN_ID"]])
+        except SystemExit as exc:
+            logger.error("evaluation completed, but S3 publication failed: %s", exc)
+            return exc.code if isinstance(exc.code, int) and exc.code != 0 else 1
+        except subprocess.CalledProcessError as exc:
+            detail = (exc.stderr or exc.stdout or str(exc)).strip()
+            logger.error("evaluation completed, but S3 publication failed: %s", detail)
+            return exc.returncode or 1
+        except OSError as exc:
+            logger.error("evaluation completed, but S3 publication failed: %s", exc)
+            return 1
+        if publish_code != 0:
+            logger.error("evaluation completed, but S3 publication exited with status %s", publish_code)
+            return publish_code
     return code
 
 
@@ -51,6 +71,14 @@ def run_evaluation(paths: RepositoryPaths, request: EvaluationRequest) -> int:
     visual_audit = _env_flag(SCENE_VISUAL_AUDIT_ENV)
     if visual_audit and not request.export_scene_only:
         raise ValueError(f"{SCENE_VISUAL_AUDIT_ENV}=1 is valid only with --export-scene-only")
+    if request.publish and not request.dry_run:
+        remote = s3_uri()
+        if remote is None or not remote.startswith("s3://"):
+            logger.error("--publish requires ROBODOJO_S3_URI to name a dedicated s3:// prefix")
+            return 2
+        if shutil.which("aws") is None:
+            logger.error("--publish requires the AWS CLI to be installed and available on PATH")
+            return 2
     policy_dir = request.policy_dir.expanduser().resolve()
     policy_name = _policy_name(policy_dir)
     label = checkpoint_label(request.checkpoint, request.checkpoint_label)
@@ -90,7 +118,7 @@ def run_evaluation(paths: RepositoryPaths, request: EvaluationRequest) -> int:
         if request.dry_run:
             print(format_command(simulator_argv, simulator_env))
             return 0
-        return run_simulator_session(paths, simulator_request, simulator_env)
+        return run_simulator_session(paths, simulator_request, simulator_env, publish=request.publish)
 
     policy_request = PolicyServerLaunchRequest(
         policy_dir=policy_dir,
@@ -116,6 +144,6 @@ def run_evaluation(paths: RepositoryPaths, request: EvaluationRequest) -> int:
     policy_process = start(policy_argv, cwd=policy_dir, env=policy_env)
     try:
         wait_for_port(policy_process, "127.0.0.1", port, timeout=600)
-        return run_simulator_session(paths, simulator_request, simulator_env)
+        return run_simulator_session(paths, simulator_request, simulator_env, publish=request.publish)
     finally:
         terminate_process_group(policy_process)

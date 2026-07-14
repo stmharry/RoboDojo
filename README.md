@@ -95,7 +95,9 @@ path, or policy-specific Conda environment.
 
 Large assets, datasets, model weights, and runs live below one writable local
 root, `.robodojo/` by default. S3 is an optional explicit publication and
-restore target; it is never mounted by the application. See
+restore target; it is never mounted by the application. Direct CLI evaluations
+publish only with `robodojo eval --publish`, while `make eval` opts in by
+default and accepts `PUBLISH=false` for a local-only run. See
 [Local storage and S3 publication](docs/STORAGE.md) for the contract.
 
 ## 🔌 Policy Integration
