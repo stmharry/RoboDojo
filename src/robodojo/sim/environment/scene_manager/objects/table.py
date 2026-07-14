@@ -259,11 +259,21 @@ class Table(SingleGeometryPrim, SingleRigidPrim):
             lambda path: not is_prim_path_valid(path),
         )
         material = PreviewSurface(prim_path=material_path, color=color)
-        omni.kit.commands.execute(
-            "BindMaterialCommand",
-            prim_path=self.prim_path,
-            material_path=material_path,
-            strength=UsdShade.Tokens.strongerThanDescendants,
-        )
+        usd_material = UsdShade.Material(self.stage.GetPrimAtPath(material_path))
+        renderable_paths = []
+        for prim in Usd.PrimRange(self.prim):
+            if not prim.IsA(UsdGeom.Gprim):
+                continue
+            UsdShade.MaterialBindingAPI.Apply(prim).Bind(
+                usd_material,
+                bindingStrength=UsdShade.Tokens.strongerThanDescendants,
+            )
+            UsdGeom.Gprim(prim).CreateDisplayColorPrimvar(UsdGeom.Tokens.constant).Set(
+                [Gf.Vec3f(*[float(value) for value in color])]
+            )
+            renderable_paths.append(str(prim.GetPath()))
+        if not renderable_paths:
+            raise RuntimeError(f"table visual_color found no renderable prims below {self.prim_path}")
         self.visual_material_path = material_path
         self.visual_material = material
+        self.visual_color_renderable_paths = renderable_paths

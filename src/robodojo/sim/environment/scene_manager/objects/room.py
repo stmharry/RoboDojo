@@ -8,8 +8,7 @@ from isaacsim.core.utils.prims import is_prim_path_valid
 from isaacsim.core.utils.stage import add_reference_to_stage
 from isaacsim.core.utils.string import find_unique_string_name
 import numpy as np
-import omni.kit.commands
-from pxr import UsdShade
+from pxr import Gf, Usd, UsdGeom, UsdShade
 
 
 class Room(SingleGeometryPrim):
@@ -67,10 +66,21 @@ class Room(SingleGeometryPrim):
             lambda path: not is_prim_path_valid(path),
         )
         self.visual_material = PreviewSurface(prim_path=material_path, color=color)
-        omni.kit.commands.execute(
-            "BindMaterialCommand",
-            prim_path=self.prim_path,
-            material_path=material_path,
-            strength=UsdShade.Tokens.strongerThanDescendants,
-        )
+        stage = self.prim.GetStage()
+        usd_material = UsdShade.Material(stage.GetPrimAtPath(material_path))
+        renderable_paths = []
+        for prim in Usd.PrimRange(self.prim):
+            if not prim.IsA(UsdGeom.Gprim):
+                continue
+            UsdShade.MaterialBindingAPI.Apply(prim).Bind(
+                usd_material,
+                bindingStrength=UsdShade.Tokens.strongerThanDescendants,
+            )
+            UsdGeom.Gprim(prim).CreateDisplayColorPrimvar(UsdGeom.Tokens.constant).Set(
+                [Gf.Vec3f(*[float(value) for value in color])]
+            )
+            renderable_paths.append(str(prim.GetPath()))
+        if not renderable_paths:
+            raise RuntimeError(f"room visual_color found no renderable prims below {self.prim_path}")
         self.visual_material_path = material_path
+        self.visual_color_renderable_paths = renderable_paths
