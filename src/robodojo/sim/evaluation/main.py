@@ -19,7 +19,10 @@ configure_logging()
 
 MAX_INPROC_RESTARTS = 3
 
-parser = argparse.ArgumentParser()
+# AppLauncher inspects known arguments before registering its own --device
+# option. Disable prefix matching so argparse does not mistake that option for
+# RoboDojo's upstream-compatible --device_id during the inspection pass.
+parser = argparse.ArgumentParser(allow_abbrev=False)
 parser.add_argument("--task_name", type=str)
 parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to spawn.")
 parser.add_argument(
@@ -369,6 +372,9 @@ def main():
             "deploy_cfg": deploy_cfg,
         }
     )
+    # TaskEnv defaults a missing sim.device to CPU. Use AppLauncher's resolved
+    # process-local device so the environment and Kit select the same GPU.
+    OmegaConf.update(env_cfg, "sim.device", args_cli.device, force_add=True)
     capped_num_envs = resolve_random_task_num_envs(task_name, num_envs, env_cfg.sim)
     if capped_num_envs != num_envs:
         logger.info("[main] Random task %s: num_envs capped %s -> %s ", task_name, num_envs, capped_num_envs)

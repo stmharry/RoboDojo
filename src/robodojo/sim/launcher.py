@@ -81,6 +81,9 @@ def simulator_command(paths: RepositoryPaths, request: SimulatorLaunchRequest) -
     """Build the simulator command while preserving upstream option names."""
     num_envs, protocol, scene_config = _resolved_simulator_config(paths, request)
     server_url = request.policy_server_url or f"ws://{request.host}:{request.port}"
+    # CUDA_VISIBLE_DEVICES preserves the upstream physical device_id while
+    # exposing that selected GPU to Isaac Lab as the process-local cuda:0.
+    logical_device = "cuda:0"
     kit_args = " --enable isaacsim.replicator.behavior --enable isaacsim.sensors.camera"
     argv = [
         sys.executable,
@@ -98,6 +101,8 @@ def simulator_command(paths: RepositoryPaths, request: SimulatorLaunchRequest) -
         "--enable_cameras",
         "--kit_args",
         kit_args,
+        "--device",
+        logical_device,
         "--device_id",
         str(request.env_gpu),
         "--policy_name",

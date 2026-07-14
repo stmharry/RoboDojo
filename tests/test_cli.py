@@ -304,12 +304,24 @@ def test_simulator_command_uses_the_domain_module_path():
         task="stack_bowls",
         policy_name="TestPolicy",
         port=19000,
+        env_gpu=1,
         additional_info="ckpt_name=test,action_type=ee",
     )
     command, environment = simulator_command(RepositoryPaths.resolve(ROOT), request)
     assert command[command.index("-m") + 1] == "robodojo.sim.evaluation.main"
     assert command[command.index("--policy_server_url") + 1] == "ws://127.0.0.1:19000"
-    assert environment["CUDA_VISIBLE_DEVICES"] == "0"
+    assert command[command.index("--device") + 1] == "cuda:0"
+    assert command[command.index("--device_id") + 1] == "1"
+    assert environment["CUDA_VISIBLE_DEVICES"] == "1"
+
+
+def test_simulator_entrypoint_propagates_app_device_before_environment_creation():
+    source = (ROOT / "src/robodojo/sim/evaluation/main.py").read_text(encoding="utf-8")
+    assert "argparse.ArgumentParser(allow_abbrev=False)" in source
+    propagation = source.index('OmegaConf.update(env_cfg, "sim.device", args_cli.device, force_add=True)')
+    creation = source.index("env = create_eval_env(", propagation)
+
+    assert propagation < creation
 
 
 def test_standard_and_openarm_profiles_keep_intended_parallelism():
