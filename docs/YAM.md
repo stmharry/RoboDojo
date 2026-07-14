@@ -39,8 +39,9 @@ wood-grain detail. Runtime visual audit must verify the table is no longer
 near-white and the room's cabinet materials do not show through.
 
 Both wrist mounts render the generated `D405_proxy.usd` housing with collision
-and physics disabled. Its identity `OpticalFrame` preserves the configured
-camera pose exactly. No housing is attached to the top camera.
+and physics disabled. The `D405` default prim publishes an identity
+`OpticalFrame` child so a referenced holder retains the named frame and the
+configured camera pose exactly. No housing is attached to the top camera.
 
 ## Matched-frame wrist calibration
 

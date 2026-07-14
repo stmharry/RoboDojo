@@ -123,8 +123,8 @@ def _visual_proxy_contracts(build_manifest: dict, appearance: dict) -> dict:
     output = source.get("output")
     if not isinstance(output, str) or Path(output).name != output or Path(output).suffix.lower() != ".usd":
         raise ValueError(f"invalid D405 visual proxy output: {output!r}")
-    if source.get("default_prim") != "OpticalFrame" or source.get("optical_frame") != "OpticalFrame":
-        raise ValueError("D405 visual proxy must use OpticalFrame as its identity default prim")
+    if source.get("default_prim") != "D405" or source.get("optical_frame") != "OpticalFrame":
+        raise ValueError("D405 visual proxy must publish an identity OpticalFrame below its D405 default prim")
     if source.get("physical") is not False:
         raise ValueError("D405 visual proxy must be explicitly non-physical")
     provenance_source = source.get("provenance_source")
@@ -288,16 +288,17 @@ def _author_preview_appearance(stage, appearance: dict, validated_visual_paths: 
 
 
 def _author_d405_visual_proxy(output_root: Path, contract: dict, appearance: dict) -> dict:
-    """Author a deterministic D405 render proxy rooted at its optical plane."""
+    """Author a deterministic D405 proxy with a named identity optical frame."""
 
     from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.SetStageMetersPerUnit(stage, 1.0)
     UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.y)
-    optical_frame = UsdGeom.Xform.Define(stage, "/OpticalFrame")
-    stage.SetDefaultPrim(optical_frame.GetPrim())
-    looks_path = Sdf.Path("/OpticalFrame/Looks")
+    root = UsdGeom.Xform.Define(stage, "/D405")
+    stage.SetDefaultPrim(root.GetPrim())
+    optical_frame = UsdGeom.Xform.Define(stage, "/D405/OpticalFrame")
+    looks_path = Sdf.Path("/D405/Looks")
     UsdGeom.Scope.Define(stage, looks_path)
     materials = {}
     for role, material_name in sorted(contract["materials"].items()):
@@ -325,14 +326,14 @@ def _author_d405_visual_proxy(output_root: Path, contract: dict, appearance: dic
         visual_paths.append(str(prim.GetPath()))
 
     width, height, depth = contract["dimensions_m"]
-    housing = UsdGeom.Cube.Define(stage, "/OpticalFrame/Housing")
+    housing = UsdGeom.Cube.Define(stage, "/D405/Housing")
     housing.CreateSizeAttr(1.0)
     housing_xform = UsdGeom.Xformable(housing.GetPrim())
     housing_xform.AddTranslateOp(UsdGeom.XformOp.PrecisionDouble).Set(Gf.Vec3d(0.0, 0.0, depth / 2.0))
     housing_xform.AddScaleOp(UsdGeom.XformOp.PrecisionDouble).Set(Gf.Vec3d(width, height, depth))
     bind_visual(housing, "housing")
 
-    front = UsdGeom.Cube.Define(stage, "/OpticalFrame/FrontPanel")
+    front = UsdGeom.Cube.Define(stage, "/D405/FrontPanel")
     front.CreateSizeAttr(1.0)
     front_xform = UsdGeom.Xformable(front.GetPrim())
     front_xform.AddTranslateOp(UsdGeom.XformOp.PrecisionDouble).Set(Gf.Vec3d(0.0, 0.0, 0.00025))
@@ -340,7 +341,7 @@ def _author_d405_visual_proxy(output_root: Path, contract: dict, appearance: dic
     bind_visual(front, "detail")
 
     for side, x_position in (("Left", -0.011), ("Right", 0.011)):
-        lens = UsdGeom.Cylinder.Define(stage, f"/OpticalFrame/{side}Lens")
+        lens = UsdGeom.Cylinder.Define(stage, f"/D405/{side}Lens")
         lens.CreateAxisAttr(UsdGeom.Tokens.z)
         lens.CreateRadiusAttr(0.004)
         lens.CreateHeightAttr(0.0002)
@@ -365,8 +366,11 @@ def _author_d405_visual_proxy(output_root: Path, contract: dict, appearance: dic
     output = output_root / contract["output"]
     stage.GetRootLayer().Export(str(output), args={"format": "usda"})
     reopened = Usd.Stage.Open(str(output), load=Usd.Stage.LoadAll)
-    if reopened is None or str(reopened.GetDefaultPrim().GetPath()) != "/OpticalFrame":
+    if reopened is None or str(reopened.GetDefaultPrim().GetPath()) != "/D405":
         raise RuntimeError(f"could not reopen generated D405 visual proxy: {output}")
+    reopened_optical_frame = reopened.GetPrimAtPath("/D405/OpticalFrame")
+    if not reopened_optical_frame.IsValid() or UsdGeom.Xformable(reopened_optical_frame).GetOrderedXformOps():
+        raise RuntimeError("saved D405 proxy must publish an identity OpticalFrame child")
     for prim in reopened.Traverse():
         if (
             prim.HasAPI(UsdPhysics.RigidBodyAPI)

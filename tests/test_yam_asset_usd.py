@@ -151,19 +151,21 @@ def test_d405_proxy_is_deterministic_identity_optical_frame_without_physics(tmp_
 
     assert first == second
     assert (tmp_path / "D405_proxy.usd").read_bytes() == first_bytes
-    assert first["sha256"] == "922933e787762834aa9c87108ef6369ba7862b3b343a56e6afcbf62b845e321b"
-    assert first["contract_sha256"] == "354029e2cc6cb4ae23f99bdf71140f8293ec2ca8bad5f705fc80e3b6f8050cd4"
+    assert first["sha256"] == "9023afd80b23366f330a91944192fc0f70440bc5f1e693f039fc1944e3e7c74b"
+    assert first["contract_sha256"] == "3c15307252439ebc8635cf0117371adc5d520a21b394e76f94cf12932395920d"
     assert first["visual_paths"] == [
-        "/OpticalFrame/FrontPanel",
-        "/OpticalFrame/Housing",
-        "/OpticalFrame/LeftLens",
-        "/OpticalFrame/RightLens",
+        "/D405/FrontPanel",
+        "/D405/Housing",
+        "/D405/LeftLens",
+        "/D405/RightLens",
     ]
 
     stage = Usd.Stage.Open(str(tmp_path / "D405_proxy.usd"), load=Usd.Stage.LoadAll)
-    assert stage and str(stage.GetDefaultPrim().GetPath()) == "/OpticalFrame"
-    assert not UsdGeom.Xformable(stage.GetDefaultPrim()).GetOrderedXformOps()
-    housing_ops = UsdGeom.Xformable(stage.GetPrimAtPath("/OpticalFrame/Housing")).GetOrderedXformOps()
+    assert stage and str(stage.GetDefaultPrim().GetPath()) == "/D405"
+    optical_frame = stage.GetPrimAtPath("/D405/OpticalFrame")
+    assert optical_frame.IsValid()
+    assert not UsdGeom.Xformable(optical_frame).GetOrderedXformOps()
+    housing_ops = UsdGeom.Xformable(stage.GetPrimAtPath("/D405/Housing")).GetOrderedXformOps()
     assert tuple(housing_ops[0].Get()) == pytest.approx((0.0, 0.0, 0.0115))
     assert tuple(housing_ops[1].Get()) == pytest.approx((0.042, 0.042, 0.023))
     for prim in stage.Traverse():
@@ -171,3 +173,9 @@ def test_d405_proxy_is_deterministic_identity_optical_frame_without_physics(tmp_
         assert not prim.HasAPI(UsdPhysics.CollisionAPI)
         assert not prim.HasAPI(UsdPhysics.MassAPI)
         assert not prim.IsA(UsdPhysics.Joint)
+
+    referenced = Usd.Stage.CreateInMemory()
+    referenced.DefinePrim("/Holder", "Xform").GetReferences().AddReference(
+        str(tmp_path / "D405_proxy.usd")
+    )
+    assert referenced.GetPrimAtPath("/Holder/OpticalFrame").IsValid()

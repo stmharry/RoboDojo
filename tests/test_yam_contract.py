@@ -200,12 +200,12 @@ def test_yam_tooling_and_policy_reference_are_revision_pinned():
     }
     visual_proxies = _visual_proxy_contracts(tooling, appearance)
     assert visual_proxies["d405"]["output"] == "D405_proxy.usd"
-    assert visual_proxies["d405"]["default_prim"] == "OpticalFrame"
+    assert visual_proxies["d405"]["default_prim"] == "D405"
     assert visual_proxies["d405"]["dimensions_m"] == [0.042, 0.042, 0.023]
     assert visual_proxies["d405"]["materials"] == {"housing": "light_gray", "detail": "charcoal"}
     assert visual_proxies["d405"]["physical"] is False
     assert visual_proxies["d405"]["contract_sha256"] == (
-        "354029e2cc6cb4ae23f99bdf71140f8293ec2ca8bad5f705fc80e3b6f8050cd4"
+        "3c15307252439ebc8635cf0117371adc5d520a21b394e76f94cf12932395920d"
     )
     assert "author_nonphysical_d405_visual_proxy" in tooling["asset"]["transformations"]
     assert _fixed_camera_frame_contract(tooling) == [

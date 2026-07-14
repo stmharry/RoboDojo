@@ -62,7 +62,7 @@ asset:
   visual_proxies:
     d405:
       output: D405_proxy.usd
-      default_prim: OpticalFrame
+      default_prim: D405
       optical_frame: OpticalFrame
       provenance_source: realsense_d405
       dimensions_m: [0.042, 0.042, 0.023]
