@@ -51,10 +51,14 @@ configs/                     environment, task, robot, scene, simulator, and cam
 scripts/eval_policy.sh       private XPolicyLab compatibility shim
 docker/                      container evaluation support
 XPolicyLab/                  policy servers and adapters (submodule)
-third_party/                 IsaacLab and curobo (submodules)
+third_party/curobo/          cuRobo Warp compatibility fork (submodule)
 Assets/                      downloaded assets; not tracked by Git
 eval_result/                 runtime evaluation output
 ```
+
+IsaacLab is an official release dependency resolved and pinned by the root uv
+project. cuRobo remains a narrow compatibility submodule because Isaac Sim's
+bundled Warp 1.8 requires source-level overload-registration fixes.
 
 RoboDojo owns `src/robodojo/`, root configuration, task definitions, the Typer
 CLI, and root install/assets/storage workflows. XPolicyLab owns policy code,

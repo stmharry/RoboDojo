@@ -120,20 +120,19 @@ EOF
 WORKDIR /workspace/RoboDojo
 
 # ── Locked uv environment ─────────────────────────────────────────────────────
-# Copy dependency metadata and local editable sources before application code so
-# the expensive Isaac Sim/IsaacLab/CuRobo layer remains cached across source edits.
+# Copy dependency metadata, the root package, and the cuRobo compatibility fork
+# before application code so the simulator dependency layer remains cached.
 COPY pyproject.toml uv.lock README.md LICENSE /workspace/RoboDojo/
 COPY src/ /workspace/RoboDojo/src/
-COPY third_party/ /workspace/RoboDojo/third_party/
+COPY third_party/curobo/ /workspace/RoboDojo/third_party/curobo/
 # Submodule .git files point outside the Docker context. Remove them before uv
-# asks setuptools-scm to build the local editable CuRobo package.
-RUN find /workspace/RoboDojo/third_party -name .git -prune -exec rm -rf {} + 2>/dev/null; true
+# asks setuptools-scm to build the local editable cuRobo package.
+RUN find /workspace/RoboDojo/third_party/curobo -name .git -prune -exec rm -rf {} + 2>/dev/null; true
 RUN uv python install 3.11 && uv sync --extra sim --locked --no-dev --no-cache
 
 # ── RoboDojo source + XPolicyLab client/adapter code ─────────────────────────
-# Explicit copies (not `COPY .`) so we do not clobber the compiled artifacts
-# already built under third_party/. Heavy policy source, weights, checkpoints,
-# assets, and runtime outputs are excluded via .dockerignore.
+# Explicit copies keep heavy policy source, weights, checkpoints, assets, and
+# runtime outputs out of the image via .dockerignore.
 COPY configs/ /workspace/RoboDojo/configs/
 COPY scripts/eval_policy.sh /workspace/RoboDojo/scripts/eval_policy.sh
 COPY XPolicyLab/ /workspace/RoboDojo/XPolicyLab/
@@ -144,7 +143,7 @@ SHELL ["/bin/bash", "-c"]
 # (libusd_usdBakeMtlx.so, libMaterialXRender*.so). Without it they fail to load at
 # startup ("libXt.so.6: cannot open shared object file"). Its deps libsm6/libice6
 # are already installed above. Kept as a late layer so the expensive
-# IsaacLab/curobo build layers stay cached.
+# simulator dependency layers stay cached.
 RUN apt-get update && apt-get install -y --no-install-recommends libxt6 \
     && rm -rf /var/lib/apt/lists/*
 # Force a SINGLE Vulkan ICD. This image bakes /usr/share/vulkan/icd.d/nvidia_icd.json

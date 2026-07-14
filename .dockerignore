@@ -28,10 +28,10 @@ docker/smoke_logs/
 build/
 dist/
 
-# ── Vendored submodule build artifacts (rebuilt inside the image) ─────
-third_party/**/*.so
-third_party/**/build/
-third_party/**/*.egg-info/
+# ── cuRobo compatibility submodule build artifacts ───────────────────
+third_party/curobo/**/*.so
+third_party/curobo/**/build/
+third_party/curobo/**/*.egg-info/
 
 # ── Policy model weights / checkpoints (policy runtime lives outside) ─
 **/checkpoints/

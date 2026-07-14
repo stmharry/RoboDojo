@@ -53,6 +53,7 @@ src/robodojo/orchestration/ coordinated policy/simulator evaluation lifecycle
 src/robodojo/workflows/     install, download, storage, result, and Docker workflows
 configs/                    environment, task, simulator, scene, robot, and camera YAML
 XPolicyLab/                 policy implementations and server adapters (submodule)
+third_party/curobo/         cuRobo Warp compatibility fork (submodule)
 scripts/eval_policy.sh      private compatibility shim for XPolicyLab
 ```
 
@@ -64,7 +65,9 @@ task names, schemas, and XPolicyLab's `env_cfg_type` values remain unchanged.
 ## 🚀 Local Setup
 
 RoboDojo uses a locked [uv](https://docs.astral.sh/uv/) environment with Python
-3.11. Install `uv` first, then initialize submodules and the simulator extra:
+3.11. IsaacLab is pinned to its official release by uv. XPolicyLab and the
+cuRobo Warp-compatibility fork remain submodules. Install `uv` first, then set
+up the submodules and simulator extra:
 
 ```bash
 uv run --locked robodojo install

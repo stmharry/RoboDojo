@@ -27,12 +27,7 @@ sim = [
     "h5py>=3.8",
     "huggingface-hub",
     "ipython<9",
-    "isaaclab",
-    "isaaclab-assets",
-    "isaaclab-contrib",
-    "isaaclab-mimic",
-    "isaaclab-rl",
-    "isaaclab-tasks",
+    "isaaclab==2.3.2.post1",
     "isaacsim[all,extscache]==5.1.0",
     "matplotlib",
     "msgpack-numpy>=0.4.8",
@@ -75,8 +70,8 @@ dev = [
 package = true
 environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
 # Preserve legacy runtime repins whose index metadata conflicts with either the
-# installed Isaac Sim wheel metadata or the vendored IsaacLab metadata. The
-# previous staged installer restored both after installing IsaacLab/CuRobo.
+# installed Isaac Sim or IsaacLab wheel metadata. The previous staged installer
+# restored these versions after installing the simulator dependencies.
 override-dependencies = [
     "filelock==3.13.1",
     "fsspec==2024.6.1",
@@ -88,12 +83,8 @@ override-dependencies = [
 torch = { index = "pytorch-cu128" }
 torchvision = { index = "pytorch-cu128" }
 torchaudio = { index = "pytorch-cu128" }
-isaaclab = { path = "third_party/IsaacLab/source/isaaclab", editable = true }
-isaaclab-assets = { path = "third_party/IsaacLab/source/isaaclab_assets", editable = true }
-isaaclab-contrib = { path = "third_party/IsaacLab/source/isaaclab_contrib", editable = true }
-isaaclab-mimic = { path = "third_party/IsaacLab/source/isaaclab_mimic", editable = true }
-isaaclab-rl = { path = "third_party/IsaacLab/source/isaaclab_rl", editable = true }
-isaaclab-tasks = { path = "third_party/IsaacLab/source/isaaclab_tasks", editable = true }
+# Isaac Sim bundles Warp 1.8, which requires the source-level overload
+# registration fixes carried by the configured cuRobo compatibility fork.
 nvidia-curobo = { path = "third_party/curobo", editable = true }
 
 [[tool.uv.index]]
