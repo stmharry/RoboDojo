@@ -68,55 +68,25 @@
       }
     ]
   },
-  "Articulation": {
-    "moonlake_magnetic_gift_box": [
-      {
-        "category": "moonlake_magnetic_gift_box",
-        "category_idx": 0,
-        "group": null,
-        "xlim": [-0.12, -0.12],
-        "ylim": [0.08, 0.08],
-        "zlim": null,
-        "qpos": [1.0, 0.0, 0.0, 0.0],
-        "rotate_deg": 0,
-        "rotate_rand": false,
-        "relative_plane": "Table",
-        "place_tag": null,
-        "margin": 0.01,
-        "check_mode": "bbox",
-        "need_check_stable": false,
-        "label": "container",
-        "default_pos": [-0.12, 0.08, 0.75],
-        "default_ori": [1.0, 0.0, 0.0, 0.0],
-        "scale": [1.0, 1.0, 1.0],
-        "physics": {"type": "articulation", "mass": 0.32},
-        "visual": {}
-      }
-    ]
-  },
   "Rigid": {
-    "moonlake_abc_block": [
+    "ball": [
       {
-        "category": "moonlake_abc_block",
-        "category_idx": 0,
-        "group": null,
-        "xlim": [0.22, 0.22],
-        "ylim": [-0.1, -0.1],
-        "zlim": null,
-        "qpos": [1.0, 0.0, 0.0, 0.0],
-        "rotate_deg": 0,
-        "rotate_rand": false,
-        "relative_plane": "Table",
-        "place_tag": null,
-        "margin": 0.01,
-        "check_mode": "bbox",
-        "need_check_stable": false,
-        "label": "target",
-        "default_pos": [0.22, -0.1, 0.75],
-        "default_ori": [1.0, 0.0, 0.0, 0.0],
+        "category_idx": 1,
+        "physics": {"type": "rigid"},
         "scale": [1.0, 1.0, 1.0],
-        "physics": {"type": "rigid", "mass": 0.018},
-        "visual": {}
+        "type": "cluttered",
+        "clutter_idx": 0,
+        "yaml_path": "Clutter/clutter.yml",
+        "relative_plane": "Table",
+        "default_pos": [0.22, -0.1, 0.7533537298662597],
+        "default_ori": [
+          0.959055682083492,
+          -0.08378034247114842,
+          0.20092118888373203,
+          0.18117320093306527
+        ],
+        "label": "target",
+        "visual": {"color": [0.35, 0.65, 0.08]}
       }
     ]
   }

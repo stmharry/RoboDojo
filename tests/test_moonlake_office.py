@@ -119,7 +119,11 @@ def test_moonlake_layout_bundle_is_fixed_reachable_and_fixture_scoped():
     )
 
     expected = {
-        "general_pickup": {"indices": [0], "labels": ["target"], "xy": [(0.22, -0.1)]},
+        "general_pickup": {
+            "indices": [1],
+            "labels": ["target"],
+            "xy": [(0.22, -0.1)],
+        },
         "stack_blocks": {
             "indices": [5, 8, 11],
             "labels": ["block_0", "block_1", "block_2"],
@@ -145,13 +149,17 @@ def test_moonlake_layout_bundle_is_fixed_reachable_and_fixture_scoped():
         assert [instance["category_idx"] for instance in objects] == expected[task]["indices"]
         assert [instance["label"] for instance in objects] == expected[task]["labels"]
         assert [tuple(instance["default_pos"][:2]) for instance in objects] == expected[task]["xy"]
-        assert all(instance["default_ori"] == [1.0, 0.0, 0.0, 0.0] for instance in objects)
+        if task != "general_pickup":
+            assert all(instance["default_ori"] == [1.0, 0.0, 0.0, 0.0] for instance in objects)
         assert all(-0.6 < instance["default_pos"][0] < 0.6 for instance in objects)
         assert all(-0.35 < instance["default_pos"][1] < 0.35 for instance in objects)
         if task == "general_pickup":
-            [container] = layout["Articulation"]["moonlake_magnetic_gift_box"]
-            assert container["label"] == "container"
-            assert container["default_pos"] == [-0.12, 0.08, 0.75]
+            assert "Articulation" not in layout
+            assert set(layout["Geometry"]) == {"moonlake_office_fixture"}
+            assert set(layout["Rigid"]) == {"ball"}
+            [ball] = objects
+            assert ball["default_pos"] == [0.22, -0.1, 0.7533537298662597]
+            assert ball["visual"]["color"] == [0.35, 0.65, 0.08]
         assert layout["Light"]["dome"]["Dome"]["intensity_range"] == [1000.0, 1000.0]
         assert layout["Light"]["key"]["Distant"] == {
             "intensity_range": [3000.0, 3000.0],

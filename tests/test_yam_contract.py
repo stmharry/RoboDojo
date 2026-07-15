@@ -89,7 +89,7 @@ def test_task_instruction_is_independent_of_environment_and_scene_profiles():
 def test_general_pickup_preserves_public_checkpoint_prompt_contract():
     assert STEP_LIMIT == 400
     assert instruction_templates("molmo_yam") == ["Put everything into the box."]
-    assert instruction_templates("moonlake_office") == ["Pack container"]
+    assert instruction_templates("moonlake_office") == ["Pick up the ball by 10 cm."]
     assert instruction_templates() == ["Pick up the <target> by 10 cm."]
 
     layout_manager = SimpleNamespace(get_label_descriptions=lambda **kwargs: [])

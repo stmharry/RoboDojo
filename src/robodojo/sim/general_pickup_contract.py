@@ -1,7 +1,7 @@
 STEP_LIMIT = 400
 
 MOLMO_YAM_INSTRUCTION = "Put everything into the box."
-MOONLAKE_OFFICE_INSTRUCTION = "Pack container"
+MOONLAKE_OFFICE_INSTRUCTION = "Pick up the ball by 10 cm."
 DEFAULT_INSTRUCTION = "Pick up the <target> by 10 cm."
 
 
