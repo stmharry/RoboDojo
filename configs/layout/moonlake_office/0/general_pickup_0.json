@@ -69,16 +69,13 @@
     ]
   },
   "Rigid": {
-    "ball": [
+    "block": [
       {
-        "category": "ball",
-        "category_idx": 1,
-        "group": null,
-        "type": "cluttered",
-        "clutter_idx": 0,
-        "yaml_path": "Clutter/clutter.yml",
-        "xlim": [0.22, 0.22],
-        "ylim": [-0.10, -0.10],
+        "category": "block",
+        "category_idx": 5,
+        "group": "size0",
+        "xlim": [0.18, 0.18],
+        "ylim": [-0.06, -0.06],
         "zlim": null,
         "qpos": [1.0, 0.0, 0.0, 0.0],
         "rotate_deg": 0,
@@ -89,11 +86,11 @@
         "check_mode": "bbox",
         "need_check_stable": false,
         "label": "target",
-        "default_pos": [0.22, -0.10, 0.7533537298662597],
+        "default_pos": [0.18, -0.06, 0.765],
         "default_ori": [1.0, 0.0, 0.0, 0.0],
         "scale": [1.0, 1.0, 1.0],
         "physics": {"type": "rigid"},
-        "visual": {"color": [0.35, 0.65, 0.08]}
+        "visual": {}
       }
     ]
   }

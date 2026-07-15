@@ -28,7 +28,10 @@ def test_moonlake_setup_owns_head_mount_and_dark_wrist_housings():
     assert cameras["cam_right_wrist"]["mount_kind"] == "robot_link"
     assert cameras["cam_left_wrist"].get("near_clip_m") is None
     assert cameras["cam_right_wrist"].get("near_clip_m") is None
-    assert cameras["cam_head"]["stream_resolution"] == [640, 360]
+    assert cameras["cam_head"]["stream_resolution"] == [640, 480]
+    assert cameras["cam_left_wrist"]["stream_resolution"] == [640, 480]
+    assert cameras["cam_right_wrist"]["stream_resolution"] == [640, 480]
+    assert cameras["cam_head"]["cy"] == pytest.approx(240.0)
     assert cameras["cam_head"]["fx"] == pytest.approx(462.1386898729645)
     assert cameras["cam_left_wrist"]["mount_hardware_asset"].endswith("D405_proxy_moonlake_office.usd")
 

@@ -26,6 +26,7 @@ from robodojo.sim.camera_template import (
     THIRD_VIEW,
     YAM_TOP,
     YAM_WRIST,
+    resolve_pinhole_lens,
 )
 from robodojo.sim.environment.camera_manager.mount_registry import (
     align_hardware_frame_pose,
@@ -430,12 +431,17 @@ class CameraManager:
                         visual_args_info["orientation"],
                         "usd",
                     )
-                    if args_info.get("focal_length") is not None:
-                        cur_camera.set_focal_length(args_info["focal_length"])
-                    if args_info.get("horizontal_aperture") is not None:
-                        cur_camera.set_horizontal_aperture(args_info["horizontal_aperture"], False)
-                    if args_info.get("vertical_aperture") is not None:
-                        cur_camera.set_vertical_aperture(args_info["vertical_aperture"], False)
+                    focal_length, horizontal_aperture, vertical_aperture = resolve_pinhole_lens(
+                        args_info,
+                        camera_config.camera,
+                        cur_camera_resolution,
+                    )
+                    if focal_length is not None:
+                        cur_camera.set_focal_length(focal_length)
+                    if horizontal_aperture is not None:
+                        cur_camera.set_horizontal_aperture(horizontal_aperture, False)
+                    if vertical_aperture is not None:
+                        cur_camera.set_vertical_aperture(vertical_aperture, False)
                     if args_info.get("clipping_range") is not None:
                         near_clip_override = camera_config.camera.get("near_clip_m")
                         near_clip = float(

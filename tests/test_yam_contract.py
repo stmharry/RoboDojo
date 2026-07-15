@@ -11,7 +11,7 @@ import yaml
 from robodojo.core.models import PreflightRequest
 from robodojo.core.paths import RepositoryPaths
 from robodojo.core.profiles import bind_policy_contract, load_environment_profile, load_scene_profile
-from robodojo.sim.camera_template import YAM_TOP, YAM_WRIST
+from robodojo.sim.camera_template import YAM_TOP, YAM_WRIST, resolve_pinhole_lens
 from robodojo.sim.environment.camera_manager.mount_registry import (
     apply_optical_roll,
     convert_mount_orientation,
@@ -88,13 +88,15 @@ def test_task_instruction_is_independent_of_environment_and_scene_profiles():
 
 def test_general_pickup_preserves_public_checkpoint_prompt_contract():
     assert STEP_LIMIT == 400
-    assert instruction_templates() == ["Put everything into the box."]
+    assert instruction_templates("molmo_yam") == ["Put everything into the box."]
+    assert instruction_templates("moonlake_office") == ["Pick up the letter block by 10 cm."]
+    assert instruction_templates() == ["Pick up the <target> by 10 cm."]
 
     layout_manager = SimpleNamespace(get_label_descriptions=lambda **kwargs: [])
 
     fake_env = SimpleNamespace(
         scene_manager=SimpleNamespace(layout_manager=layout_manager),
-        gen_instruction=lambda env_idx: instruction_templates(),
+        gen_instruction=lambda env_idx: instruction_templates("molmo_yam"),
     )
     manager = DescManager(num_envs=1, description_cfg={"seen": 1}, desc_type="seen")
     manager.initialize(fake_env)
@@ -202,6 +204,24 @@ def test_yam_camera_rig_matches_embodiment_contract_and_runtime_templates():
 
     assert 640 * YAM_TOP["focal_length"] / YAM_TOP["horizontal_aperture"] == pytest.approx(top.projection["fx"])
     assert 640 * YAM_WRIST["focal_length"] / YAM_WRIST["horizontal_aperture"] == pytest.approx(left.projection["fx"])
+
+
+def test_yam_setup_profiles_keep_their_source_camera_aspect_ratios():
+    molmo = normalize_camera_rig(
+        yaml.safe_load((ROOT / "configs/camera/bimanual_yam_molmoact2.yml").read_text())
+    )
+    moonlake = normalize_camera_rig(
+        yaml.safe_load((ROOT / "configs/camera/bimanual_yam_moonlake_office.yml").read_text())
+    )
+
+    assert {tuple(camera.sensor["stream_resolution"]) for camera in molmo.cameras} == {(640, 360)}
+    assert {tuple(camera.sensor["stream_resolution"]) for camera in moonlake.cameras} == {(640, 480)}
+
+    classic_lens = resolve_pinhole_lens(YAM_TOP, molmo.cameras[0].runtime_camera(), (640, 360))
+    moonlake_lens = resolve_pinhole_lens(YAM_TOP, moonlake.cameras[0].runtime_camera(), (640, 480))
+    assert classic_lens[1] == pytest.approx(moonlake_lens[1])
+    assert classic_lens[2] == pytest.approx(classic_lens[1] * 360 / 640)
+    assert moonlake_lens[2] == pytest.approx(moonlake_lens[1] * 480 / 640)
 
 
 def test_yam_tooling_and_embodiment_reference_are_revision_pinned():

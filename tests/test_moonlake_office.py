@@ -119,7 +119,7 @@ def test_moonlake_layout_bundle_is_fixed_reachable_and_fixture_scoped():
     )
 
     expected = {
-        "general_pickup": {"indices": [1], "labels": ["target"], "xy": [(0.22, -0.10)]},
+        "general_pickup": {"indices": [5], "labels": ["target"], "xy": [(0.18, -0.06)]},
         "stack_blocks": {
             "indices": [5, 8, 11],
             "labels": ["block_0", "block_1", "block_2"],

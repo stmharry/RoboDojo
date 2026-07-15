@@ -14,10 +14,10 @@ camera_rig:
       sensor:
         vendor: Intel
         model: RealSense_D435i
-        native_resolution: [640, 360]
-        stream_resolution: [640, 360]
+        native_resolution: [640, 480]
+        stream_resolution: [640, 480]
         fps: 30
-        diagonal_fov_deg: 76.9315478867301
+        diagonal_fov_deg: 81.75506480280897
       mount:
         kind: scene_fixture
         target: moonlake_office_fixture
@@ -32,7 +32,7 @@ camera_rig:
         model: pinhole
         backend: native
         cx: 320.0
-        cy: 180.0
+        cy: 240.0
         fx: 462.1386898729645
         fy: 462.1386898729645
         horizontal_fov_deg: 69.4
@@ -43,10 +43,10 @@ camera_rig:
       sensor: &wrist_sensor
         vendor: Intel
         model: RealSense_D405
-        native_resolution: [640, 360]
-        stream_resolution: [640, 360]
+        native_resolution: [640, 480]
+        stream_resolution: [640, 480]
         fps: 30
-        diagonal_fov_deg: 94.86822220812002
+        diagonal_fov_deg: 99.7366081859878
       mount:
         kind: robot_link
         target: robot0/wrist_camera_mount
@@ -68,7 +68,7 @@ camera_rig:
         model: pinhole
         backend: native
         cx: 320.0
-        cy: 180.0
+        cy: 240.0
         fx: 337.20964008990796
         fy: 337.20964008990796
         horizontal_fov_deg: 87.0

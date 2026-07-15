@@ -1,3 +1,30 @@
+from __future__ import annotations
+
+from typing import Any, Mapping
+
+
+def resolve_pinhole_lens(
+    template: Mapping[str, Any],
+    camera: Mapping[str, Any],
+    resolution: tuple[int, int],
+) -> tuple[float | None, float | None, float | None]:
+    """Resolve physical lens values without changing configured pixel intrinsics."""
+
+    focal_length = template.get("focal_length")
+    horizontal_aperture = template.get("horizontal_aperture")
+    vertical_aperture = template.get("vertical_aperture")
+    if focal_length is None:
+        return None, horizontal_aperture, vertical_aperture
+
+    focal_length = float(focal_length)
+    width, height = resolution
+    if camera.get("fx") is not None:
+        horizontal_aperture = width * focal_length / float(camera["fx"])
+    if camera.get("fy") is not None:
+        vertical_aperture = height * focal_length / float(camera["fy"])
+    return focal_length, horizontal_aperture, vertical_aperture
+
+
 GEMINI_345LG = {
     "resolution": (640, 480),
     "focal_length": 10.0,

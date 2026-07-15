@@ -21,7 +21,7 @@ class GeneralPickupCommon:
         self.reward_manager.check([self.reward_manager.is_lift(label="target", z_threshold=0.1)])
 
     def gen_instruction(self, env_idx):
-        return instruction_templates()
+        return instruction_templates(getattr(self, "scene_component", None))
 
 
 class general_pickup(GeneralPickupCommon, TaskEnv):
