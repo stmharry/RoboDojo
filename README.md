@@ -83,7 +83,8 @@ arguments or exported process variables. Make also loads an optional ignored
 `?=` assignments so explicit arguments and exported variables retain precedence;
 direct Python CLI commands do not load this file. Make supplies stable defaults
 for the RoboDojo dataset, joint actions, seed 0, automatic policy and simulator
-GPU selection, one evaluation episode, scene export, and publication.
+GPU selection, one evaluation episode, and `INFO` diagnostics. Scene export and
+publication are opt-in.
 
 For paired workflows, Python assigns the most-free GPU to the simulator and the
 next-most-free GPU to the policy, breaking ties by device index. Override either
@@ -116,7 +117,7 @@ diagnosis:
 make setup PRESET=pi05-bimanual_yam-molmo_yam-general_pickup
 make preflight PRESET=pi05-bimanual_yam-molmo_yam-general_pickup
 make preflight PRESET=pi05-bimanual_yam-molmo_yam-general_pickup DEEP=true
-make eval PRESET=pi05-bimanual_yam-molmo_yam-general_pickup PUBLISH=false
+make eval PRESET=pi05-bimanual_yam-molmo_yam-general_pickup
 ```
 
 Setup remains the consolidated mutation boundary. The setup phase of `make eval`
@@ -136,9 +137,11 @@ Large assets, datasets, model weights, and runs live below one writable local
 root, `.robodojo/` by default. S3 is an optional explicit publication and
 restore target; it is never mounted by the application. Direct CLI evaluations
 export only with `robodojo eval --export-scene` and publish only with
-`robodojo eval --publish`, while `make eval` opts in to both by default. Use
-`EXPORT_SCENE=false` to skip export or `PUBLISH=false` for a local-only run. See
-[Local storage and S3 publication](docs/STORAGE.md) for the contract.
+`robodojo eval --publish`. The Make workflow also stays local and skips scene
+export by default; opt in with `PUBLISH=true` and `EXPORT_SCENE=true` explicitly
+or as machine defaults in `.env`. `VERBOSITY` defaults to `INFO` and controls
+the global RoboDojo log level for Make-launched commands. See [Local storage and
+S3 publication](docs/STORAGE.md) for the contract.
 
 ## 🔌 Policy Integration
 

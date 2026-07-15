@@ -20,6 +20,7 @@ MAKE_VARIABLES = (
     "ENV_GPU",
     "POLICY_GPU",
     "EVAL_NUM",
+    "VERBOSITY",
     "PUBLISH",
     "EXPORT_SCENE",
     "DEEP",
@@ -340,6 +341,61 @@ def test_make_dotenv_is_optional(tmp_path: Path):
     assert len(presets.stdout.splitlines()) == len(PRESETS) + 1
 
 
+def test_make_workflow_dotenv_defaults_preserve_shell_and_argument_overrides(tmp_path: Path):
+    makefile, _ = make_probe(tmp_path)
+    (tmp_path / ".env").write_text(
+        "PUBLISH ?= true\n"
+        "EXPORT_SCENE ?= true\n"
+        "VERBOSITY ?= DEBUG\n",
+        encoding="utf-8",
+    )
+    environment = os.environ.copy()
+    for name in MAKE_VARIABLES:
+        environment.pop(name, None)
+
+    dotenv = subprocess.run(
+        ["make", "-f", str(makefile), "help"],
+        cwd=tmp_path,
+        env=environment,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    shell_environment = environment | {
+        "PUBLISH": "false",
+        "EXPORT_SCENE": "false",
+        "VERBOSITY": "WARNING",
+    }
+    shell = subprocess.run(
+        ["make", "-f", str(makefile), "help"],
+        cwd=tmp_path,
+        env=shell_environment,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    arguments = subprocess.run(
+        [
+            "make",
+            "-f",
+            str(makefile),
+            "help",
+            "PUBLISH=false",
+            "EXPORT_SCENE=false",
+            "VERBOSITY=INFO",
+        ],
+        cwd=tmp_path,
+        env=environment,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "PUBLISH=true EXPORT_SCENE=true VERBOSITY=DEBUG" in dotenv.stdout
+    assert "PUBLISH=false EXPORT_SCENE=false VERBOSITY=WARNING" in shell.stdout
+    assert "PUBLISH=false EXPORT_SCENE=false VERBOSITY=INFO" in arguments.stdout
+
+
 def test_make_requires_experiment_selection_without_a_preset():
     result = run_make("-n", "eval")
 
@@ -421,15 +477,15 @@ def test_make_eval_sequences_setup_once_and_preserves_mutation_free_dry_runs():
     dry_run = run_make("-n", "eval", *arguments, "DRY_RUN=true")
 
     assert normal.returncode == 0
-    assert normal.stdout.count("robodojo setup") == 1
-    assert normal.stdout.count("robodojo preflight") == 0
-    assert normal.stdout.count("robodojo eval") == 1
-    assert normal.stdout.index("robodojo setup") < normal.stdout.index("robodojo eval")
+    assert normal.stdout.count(" setup --policy-dir") == 1
+    assert normal.stdout.count(" preflight --policy-dir") == 0
+    assert normal.stdout.count(" eval --policy-dir") == 1
+    assert normal.stdout.index(" setup --policy-dir") < normal.stdout.index(" eval --policy-dir")
     assert normal.stdout.count("--eval-only-marker") == 1
     assert dry_run.returncode == 0
-    assert "robodojo setup" not in dry_run.stdout
-    assert "robodojo preflight" not in dry_run.stdout
-    assert dry_run.stdout.count("robodojo eval") == 1
+    assert " setup --policy-dir" not in dry_run.stdout
+    assert " preflight --policy-dir" not in dry_run.stdout
+    assert dry_run.stdout.count(" eval --policy-dir") == 1
     assert "--dry-run" in dry_run.stdout
 
 

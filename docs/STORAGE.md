@@ -9,6 +9,9 @@ defaults in the ignored repository `.env`:
 ROBODOJO_STORAGE_ROOT ?= /local/nvme/robodojo
 ROBODOJO_S3_URI ?= s3://your-bucket/robodojo
 AWS_PROFILE ?= robodojo-runtime
+PUBLISH ?= true
+EXPORT_SCENE ?= true
+VERBOSITY ?= DEBUG
 ```
 
 This file is parsed by Make, not by Python or a shell dotenv loader. The `?=`
@@ -52,9 +55,9 @@ requested:
 robodojo eval --publish <other-eval-options>
 ```
 
-The Make workflow opts in by default with `PUBLISH=true`. Disable publication
-for one run with `make eval PUBLISH=false`; only the `eval` target receives this
-default, not client or sweep commands.
+The Make workflow stays local by default. Opt in for one run with
+`make eval PUBLISH=true`, or keep the opt-in as a machine default in `.env`;
+only the `eval` target consumes this setting, not client or sweep commands.
 
 Inspect the writable local root and optional remote access with:
 

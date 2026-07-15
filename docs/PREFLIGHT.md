@@ -5,7 +5,7 @@ tracked preset and run the complete local workflow with one Make invocation:
 
 ```bash
 make presets
-make eval PRESET=pi05-bimanual_yam-molmo_yam-general_pickup PUBLISH=false
+make eval PRESET=pi05-bimanual_yam-molmo_yam-general_pickup
 ```
 
 The preset resolves the policy directory and environment, checkpoint,
@@ -13,12 +13,13 @@ environment, scene, and task. Explicit per-field Make assignments override the
 selected preset. Without `PRESET`, those required values can still come from
 Make arguments or exported process variables. The Makefile defaults to the
 RoboDojo dataset, joint actions, seed 0, automatic policy and simulator GPU
-selection, one episode, scene export, and publication. Override any default
-with a Make assignment such as `make eval PRESET=<name> EVAL_NUM=25` or disable
-the export with `EXPORT_SCENE=false`. Make also loads an optional ignored `.env`
-from the repository root. Entries use Make syntax and should use `?=` so Make
-arguments and exported process variables retain precedence. Direct `robodojo`
-commands continue to read the process environment only.
+selection, one episode, `INFO` verbosity, no scene export, and no publication.
+Override any default with a Make assignment such as
+`make eval PRESET=<name> EVAL_NUM=25`, `EXPORT_SCENE=true`, `PUBLISH=true`, or
+`VERBOSITY=DEBUG`. Make also loads an optional ignored `.env` from the repository
+root. Entries use Make syntax and should use `?=` so Make arguments and exported
+process variables retain precedence. Direct `robodojo` commands continue to
+read the process environment only.
 
 A normal `make eval` runs idempotent setup first and then calls the managed
 evaluation. The managed evaluation performs fast preflight exactly once before

@@ -15,9 +15,9 @@ SHELL := /bin/bash
 
 UV ?= uv
 UV_RUN_SIM ?= $(UV) run --extra sim --locked
-ROBODOJO_SETUP ?= $(UV) run --locked robodojo
-ROBODOJO_BASE ?= $(UV) run --locked --no-sync robodojo
-ROBODOJO_SIM ?= $(UV) run --extra sim --locked --no-sync robodojo
+ROBODOJO_SETUP ?= $(UV) run --locked robodojo --log-level "$(VERBOSITY)"
+ROBODOJO_BASE ?= $(UV) run --locked --no-sync robodojo --log-level "$(VERBOSITY)"
+ROBODOJO_SIM ?= $(UV) run --extra sim --locked --no-sync robodojo --log-level "$(VERBOSITY)"
 OMNI_KIT_ACCEPT_EULA ?= yes
 export ROBODOJO_STORAGE_ROOT ROBODOJO_S3_URI AWS_PROFILE ROBODOJO_LOG_LEVEL OMNI_KIT_ACCEPT_EULA
 
@@ -29,8 +29,9 @@ SEED ?= 0
 ENV_GPU ?= auto
 POLICY_GPU ?= auto
 EVAL_NUM ?= 1
-PUBLISH ?= true
-EXPORT_SCENE ?= true
+VERBOSITY ?= INFO
+PUBLISH ?= false
+EXPORT_SCENE ?= false
 DEEP ?= false
 DRY_RUN ?= false
 ONLY ?=
@@ -144,9 +145,10 @@ help: ## Show the supported local workflow
 		/^[a-zA-Z0-9_.-]+:.*## / {printf "  %-16s %s\n", $$1, $$2}' \
 		"$(SELF)"
 	@printf \
-		'\nConfigured experiment\n  PRESET=%s\n  POLICY_DIR=%s POLICY_ENV=%s CKPT=%s\n  TASK=%s ENV_CFG=%s SCENE=%s SEED=%s EVAL_NUM=%s PUBLISH=%s EXPORT_SCENE=%s\n  POLICY_GPU=%s ENV_GPU=%s\n' \
+		'\nConfigured experiment\n  PRESET=%s\n  POLICY_DIR=%s POLICY_ENV=%s CKPT=%s\n  TASK=%s ENV_CFG=%s SCENE=%s SEED=%s EVAL_NUM=%s\n  PUBLISH=%s EXPORT_SCENE=%s VERBOSITY=%s\n  POLICY_GPU=%s ENV_GPU=%s\n' \
 		"$(if $(SELECTED_PRESET),$(SELECTED_PRESET),custom)" "$(POLICY_DIR)" "$(POLICY_ENV)" "$(CKPT)" \
-		"$(TASK)" "$(ENV_CFG)" "$(SCENE)" "$(SEED)" "$(EVAL_NUM)" "$(PUBLISH)" "$(EXPORT_SCENE)" \
+		"$(TASK)" "$(ENV_CFG)" "$(SCENE)" "$(SEED)" "$(EVAL_NUM)" \
+		"$(PUBLISH)" "$(EXPORT_SCENE)" "$(VERBOSITY)" \
 		"$(POLICY_GPU)" "$(ENV_GPU)"
 
 presets: ## List tracked experiment presets
@@ -224,4 +226,4 @@ pre-commit: ## Run all pre-commit hooks
 	$(UV_RUN_SIM) pre-commit run --all-files $(ARGS)
 
 check: lint format-check test ## Run all non-mutating repository checks
-	$(UV) run --locked robodojo tasks --format json --check >/dev/null
+	$(UV) run --locked robodojo --log-level "$(VERBOSITY)" tasks --format json --check >/dev/null

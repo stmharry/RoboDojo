@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 
@@ -195,9 +196,13 @@ def test_publish_is_incompatible_with_scene_only_export(tmp_path):
         )
 
 
-def test_make_eval_defaults_to_publish_and_scene_export_with_overrides():
+def test_make_eval_defaults_to_local_info_with_opt_in_overrides(tmp_path):
+    makefile = tmp_path / "Makefile"
+    shutil.copy2(ROOT / "Makefile", makefile)
     common = [
         "make",
+        "-f",
+        str(makefile),
         "-n",
         "eval",
         "TASK=general_pickup",
@@ -206,53 +211,55 @@ def test_make_eval_defaults_to_publish_and_scene_export_with_overrides():
         "POLICY_ENV=base",
         "CKPT=demo",
     ]
-    default = subprocess.run(common, cwd=ROOT, check=True, capture_output=True, text=True)
-    local_only = subprocess.run(
-        [*common, "PUBLISH=false"],
-        cwd=ROOT,
+    default = subprocess.run(common, cwd=tmp_path, check=True, capture_output=True, text=True)
+    opted_in = subprocess.run(
+        [*common, "PUBLISH=true", "EXPORT_SCENE=true"],
+        cwd=tmp_path,
         check=True,
         capture_output=True,
         text=True,
     )
-    without_scene_export = subprocess.run(
-        [*common, "EXPORT_SCENE=false"],
-        cwd=ROOT,
+    debug = subprocess.run(
+        [*common, "VERBOSITY=DEBUG"],
+        cwd=tmp_path,
         check=True,
         capture_output=True,
         text=True,
     )
     invalid_publish = subprocess.run(
         [*common, "PUBLISH=maybe"],
-        cwd=ROOT,
+        cwd=tmp_path,
         check=False,
         capture_output=True,
         text=True,
     )
     invalid_scene_export = subprocess.run(
         [*common, "EXPORT_SCENE=maybe"],
-        cwd=ROOT,
+        cwd=tmp_path,
         check=False,
         capture_output=True,
         text=True,
     )
     invalid_gpu = subprocess.run(
-        ["make", "eval", *common[3:], "POLICY_GPU=AUTO"],
-        cwd=ROOT,
+        ["make", "-f", str(makefile), "eval", *common[5:], "POLICY_GPU=AUTO"],
+        cwd=tmp_path,
         check=False,
         capture_output=True,
         text=True,
     )
 
-    assert "--publish" in default.stdout
-    assert "--export-scene" in default.stdout
+    assert "--publish" not in default.stdout
+    assert "--export-scene" not in default.stdout
+    assert '--log-level "INFO"' in default.stdout
+    assert "--publish" in opted_in.stdout
+    assert "--export-scene" in opted_in.stdout
+    assert '--log-level "DEBUG"' in debug.stdout
     assert '--dataset "RoboDojo"' in default.stdout
     assert '--action-type "joint"' in default.stdout
     assert '--seed "0"' in default.stdout
     assert '--policy-gpu "auto"' in default.stdout
     assert '--env-gpu "auto"' in default.stdout
     assert '--eval-num "1"' in default.stdout
-    assert "--publish" not in local_only.stdout
-    assert "--export-scene" not in without_scene_export.stdout
     assert invalid_publish.returncode != 0
     assert "PUBLISH must be true or false" in invalid_publish.stderr
     assert invalid_scene_export.returncode != 0
@@ -292,9 +299,11 @@ def test_make_setup_and_preflight_forward_experiment_contract():
         text=True,
     )
 
-    assert "uv run --locked robodojo setup" in setup.stdout
+    assert "uv run --locked robodojo --log-level" in setup.stdout
+    assert " setup --policy-dir" in setup.stdout
     assert '--dataset "RoboDojo"' in setup.stdout
-    assert "--no-sync robodojo preflight" in deep.stdout
+    assert "--no-sync robodojo --log-level" in deep.stdout
+    assert " preflight --policy-dir" in deep.stdout
     assert '--scene "molmo_yam"' in deep.stdout
     assert '--env-gpu "1"' in deep.stdout
     assert "--deep" in deep.stdout
@@ -319,7 +328,15 @@ def test_make_dry_run_toggle_and_local_sweeps():
 
     rendered = {
         target: subprocess.run(
-            ["make", "-n", target, *experiment, "DRY_RUN=true", "PUBLISH=true"],
+            [
+                "make",
+                "-n",
+                target,
+                *experiment,
+                "DRY_RUN=true",
+                "PUBLISH=true",
+                "EXPORT_SCENE=true",
+            ],
             cwd=ROOT,
             check=True,
             capture_output=True,
