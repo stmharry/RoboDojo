@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 
 from robodojo.core.calibration import load_hardware_calibration
 from robodojo.core.layouts import resolve_layout_set
@@ -30,7 +31,7 @@ def run_doctor(
 
     def record(name: str, ok: bool, detail: str) -> None:
         checks.append((name, ok, detail))
-        print(f"[{'PASS' if ok else 'FAIL'}] {name}: {detail}")
+        sys.stdout.write(f"[{'PASS' if ok else 'FAIL'}] {name}: {detail}\n")
 
     record("uv", shutil.which("uv") is not None, shutil.which("uv") or "not installed")
     record("git", shutil.which("git") is not None, shutil.which("git") or "not installed")
@@ -104,5 +105,5 @@ def run_doctor(
         adapter = policy_dir.resolve() / "setup_eval_policy_server.sh"
         record("policy adapter", adapter.is_file(), str(adapter))
 
-    print(json.dumps({"passed": sum(ok for _, ok, _ in checks), "total": len(checks)}))
+    sys.stdout.write(json.dumps({"passed": sum(ok for _, ok, _ in checks), "total": len(checks)}) + "\n")
     return 0 if all(ok for _, ok, _ in checks) else 1

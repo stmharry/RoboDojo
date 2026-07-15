@@ -32,6 +32,7 @@ import json
 import os
 import re
 import statistics
+import sys
 
 from robodojo.core.storage import eval_root, summary_path
 
@@ -295,9 +296,9 @@ def main(argv=None):
     n_cells = sum(len(seeds) for tasks in data.values() for seeds in tasks.values())
     complete = sum(1 for p in data if policy_is_complete(p, data))
     tested = sum(1 for p in data if policy_progress(p, data)[0] > 0)
-    print(
+    sys.stdout.write(
         f"Wrote {len(data)} policy tables ({n_cells} filled cells, "
-        f"{tested} in overview, {complete} complete) to {output_md}"
+        f"{tested} in overview, {complete} complete) to {output_md}\n"
     )
 
 

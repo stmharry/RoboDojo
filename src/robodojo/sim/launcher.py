@@ -155,7 +155,7 @@ def run_simulator(
     if environment:
         env.update(environment)
     if request.dry_run:
-        print(format_command(argv, env))
+        sys.stdout.write(f"{format_command(argv, env)}\n")
         return 0
     env.setdefault("ROBODOJO_RUN_ID", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
     retries = int(os.environ.get("ROBODOJO_MAX_BASH_RETRIES", "10"))

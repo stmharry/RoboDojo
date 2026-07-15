@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 
 from robodojo.core.storage import (
@@ -132,7 +133,7 @@ def publish(source: Path, relative: str, *, replace: bool = False, dry_run: bool
         raise SystemExit(f"publish source is not a directory: {source}")
     destination = _destination(relative)
     if dry_run:
-        print(f"publish {source} -> {destination}")
+        sys.stdout.write(f"publish {source} -> {destination}\n")
         return
 
     bucket, key = _s3_location(destination)
@@ -220,7 +221,7 @@ def publish(source: Path, relative: str, *, replace: bool = False, dry_run: bool
         if result_path.is_file():
             _aws("s3", "cp", str(result_path), f"{destination}/_result.json", "--only-show-errors")
         _aws("s3", "cp", str(complete_path), f"{destination}/_COMPLETE.json", "--only-show-errors")
-    print(f"published {source} -> {destination}")
+    sys.stdout.write(f"published {source} -> {destination}\n")
 
 
 def _find_eval_run(run_id: str) -> Path:
@@ -280,7 +281,7 @@ def pull(relative: str, *, replace: bool = False, dry_run: bool = False) -> None
     source = _destination(relative)
     destination = storage_root() / relative_path
     if dry_run:
-        print(f"pull {source} -> {destination}")
+        sys.stdout.write(f"pull {source} -> {destination}\n")
         return
     destination_exists = destination.exists() or destination.is_symlink()
     if destination_exists and not replace:
@@ -330,7 +331,7 @@ def pull(relative: str, *, replace: bool = False, dry_run: bool = False) -> None
             backup.unlink()
         else:
             shutil.rmtree(backup, ignore_errors=True)
-    print(f"pulled {source} -> {destination}")
+    sys.stdout.write(f"pulled {source} -> {destination}\n")
 
 
 def doctor() -> None:
@@ -341,13 +342,13 @@ def doctor() -> None:
     replacement = root / ".storage-doctor.replaced"
     os.replace(probe, replacement)
     replacement.unlink()
-    print(f"local storage supports replace/delete: {root}")
+    sys.stdout.write(f"local storage supports replace/delete: {root}\n")
     if s3_uri() is not None:
         if shutil.which("aws") is None:
             raise SystemExit("aws CLI is not installed")
         bucket, key = _s3_location(_base_uri())
         _aws("s3api", "list-objects-v2", "--bucket", bucket, "--prefix", key, "--max-keys", "1")
-        print(f"S3 prefix accessible: {_base_uri()}")
+        sys.stdout.write(f"S3 prefix accessible: {_base_uri()}\n")
 
 
 def main(argv: list[str] | None = None) -> int:

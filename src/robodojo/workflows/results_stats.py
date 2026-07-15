@@ -26,11 +26,14 @@ from __future__ import annotations
 import argparse
 from collections import Counter, defaultdict
 import json
+import logging
 import os
 import re
 import sys
 
 from robodojo.core.storage import eval_root
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_ROOT = str(eval_root())
 
@@ -274,32 +277,32 @@ def print_report(result: dict, per_seed: bool) -> None:
     policies = result["policies"]
     aggregated = result["aggregated"]
 
-    print(f"Eval root: {result['root']}")
-    print(f"Policies: {', '.join(policies)}")
-    print()
+    sys.stdout.write(f"Eval root: {result['root']}\n")
+    sys.stdout.write(f"Policies: {', '.join(policies)}\n")
+    sys.stdout.write("\n")
 
     for task in result["tasks"]:
         task_data = aggregated.get(task, {})
         if not any(task_data.get(policy) for policy in policies):
             continue
 
-        print(f"## {task}")
+        sys.stdout.write(f"## {task}\n")
         for policy in policies:
             dist = task_data.get(policy, {})
             if not dist:
-                print(f"  {policy}: (no completed eval)")
+                sys.stdout.write(f"  {policy}: (no completed eval)\n")
                 continue
             total = sum(dist.values())
             detail = ", ".join(f"{count} x {score}" for score, count in dist.items())
-            print(f"  {policy} ({total} episodes): {detail}")
+            sys.stdout.write(f"  {policy} ({total} episodes): {detail}\n")
 
             if per_seed:
                 seed_data = result.get("per_seed", {}).get(task, {}).get(policy, {})
                 for seed, seed_dist in sorted(seed_data.items(), key=lambda x: int(x[0])):
                     seed_total = sum(seed_dist.values())
                     seed_detail = ", ".join(f"{count} x {score}" for score, count in seed_dist.items())
-                    print(f"    seed {seed} ({seed_total}): {seed_detail}")
-        print()
+                    sys.stdout.write(f"    seed {seed} ({seed_total}): {seed_detail}\n")
+        sys.stdout.write("\n")
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -340,7 +343,7 @@ def main(argv: list[str] | None = None) -> int:
     policies = [normalize_policy_name(name) for name in args.policies]
 
     if not os.path.isdir(args.root):
-        print(f"Eval result directory not found: {args.root}", file=sys.stderr)
+        logger.error("Eval result directory not found: %s", args.root)
         return 1
 
     result = collect_distributions(
@@ -357,7 +360,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.json_out:
         with open(args.json_out, "w") as fh:
             json.dump(result, fh, indent=2, ensure_ascii=False)
-        print(f"Wrote JSON to {args.json_out}")
+        sys.stdout.write(f"Wrote JSON to {args.json_out}\n")
 
     return 0
 

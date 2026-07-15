@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+import sys
 
 from robodojo.core.models import PolicyServerLaunchRequest
 from robodojo.core.processes import format_command, free_port, run
@@ -83,6 +84,6 @@ def run_policy_server(request: PolicyServerLaunchRequest) -> int:
     env = policy_launch_environment(request.checkpoint)
     logger.info("policy server: %s:%s", request.host, port)
     if request.dry_run:
-        print(format_command(argv, env))
+        sys.stdout.write(f"{format_command(argv, env)}\n")
         return 0
     return run(argv, cwd=request.policy_dir.expanduser().resolve(), env=env)

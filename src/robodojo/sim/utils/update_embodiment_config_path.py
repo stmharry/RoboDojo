@@ -8,7 +8,7 @@ from robodojo.core.storage import assets_root
 
 def print_color(message, color_code):
     NC = "\033[0m"
-    print(f"{color_code}{message}{NC}")
+    sys.stdout.write(f"{color_code}{message}{NC}\n")
 
 
 BLUE = "\033[0;34m"
@@ -39,7 +39,7 @@ def main():
     for tmp_file in config_files:
         count_total += 1
         target_file = tmp_file.replace("_tmp.yml", ".yml")
-        print(f"Processing [{count_total}]: {tmp_file} -> {target_file}")
+        sys.stdout.write(f"Processing [{count_total}]: {tmp_file} -> {target_file}\n")
 
         try:
             with open(tmp_file) as f:
@@ -64,16 +64,16 @@ def main():
             count_error += 1
 
     # Summary
-    print()
+    sys.stdout.write("\n")
     print_color("Processing complete!", BLUE)
-    print(f"Total processed: {count_total} files")
+    sys.stdout.write(f"Total processed: {count_total} files\n")
     print_color(f"Successfully updated: {count_updated} files", GREEN)
     if count_error > 0:
         print_color(f"Failed to process: {count_error} files", YELLOW)
 
-    print()
+    sys.stdout.write("\n")
     print_color("All template files have been processed!", GREEN)
-    print("To use in a new environment, run this script again")
+    sys.stdout.write("To use in a new environment, run this script again\n")
 
 
 if __name__ == "__main__":

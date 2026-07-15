@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 
 from robodojo.core.models import DataFormat
 from robodojo.core.paths import RepositoryPaths
@@ -35,7 +36,7 @@ def assets_ready() -> bool:
 
 def list_data() -> None:
     for kind, (directory, size, description) in DATASETS.items():
-        print(f"{kind.value:14} {size:7} {directory}: {description}")
+        sys.stdout.write(f"{kind.value:14} {size:7} {directory}: {description}\n")
 
 
 def _require_tools() -> None:

@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 
 from robodojo.core.models import EvaluationRequest, PolicyServerLaunchRequest, SimulatorLaunchRequest
 from robodojo.core.paths import RepositoryPaths
@@ -117,7 +118,7 @@ def run_evaluation(paths: RepositoryPaths, request: EvaluationRequest, *, prefli
 
     if request.export_scene_only:
         if request.dry_run:
-            print(format_command(simulator_argv, simulator_env))
+            sys.stdout.write(f"{format_command(simulator_argv, simulator_env)}\n")
             return 0
         return run_simulator_session(paths, simulator_request, simulator_env)
 
@@ -139,8 +140,8 @@ def run_evaluation(paths: RepositoryPaths, request: EvaluationRequest, *, prefli
     policy_env = policy_launch_environment(request.checkpoint)
     policy_env["ROBODOJO_CKPT_LABEL"] = label
     if request.dry_run:
-        print(format_command(policy_argv, policy_env))
-        print(format_command(simulator_argv, simulator_env))
+        sys.stdout.write(f"{format_command(policy_argv, policy_env)}\n")
+        sys.stdout.write(f"{format_command(simulator_argv, simulator_env)}\n")
         return 0
 
     policy_process = start(policy_argv, cwd=policy_dir, env=policy_env)

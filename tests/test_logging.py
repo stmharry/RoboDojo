@@ -1,11 +1,14 @@
 import ast
+import json
 import logging
 from pathlib import Path
+import sys
 
 import pytest
 
 from robodojo.core.logging import configure_logging, parse_log_level
 from robodojo.sim.utils.load_file import load_object_metadata
+from robodojo.workflows import results_stats, task_inventory
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "src" / "robodojo"
@@ -65,67 +68,67 @@ def test_migrated_diagnostic_uses_error_level(isolated_robodojo_logger, capsys, 
     assert captured.err.startswith("ERROR robodojo.sim.utils.load_file: decoding JSON from file")
 
 
-def _function_names(tree: ast.AST) -> dict[ast.AST, str | None]:
-    names: dict[ast.AST, str | None] = {}
+def test_debug_progress_is_opt_in(isolated_robodojo_logger, capsys):
+    logger = logging.getLogger("robodojo.sim.evaluation.eval_env")
+    configure_logging("INFO")
+    logger.debug("env%s step: %s / %s", 0, 1, 10)
+    assert capsys.readouterr().err == ""
 
-    class Visitor(ast.NodeVisitor):
-        def __init__(self):
-            self.function: str | None = None
-
-        def visit_FunctionDef(self, node):
-            prior = self.function
-            self.function = node.name
-            self.generic_visit(node)
-            self.function = prior
-
-        visit_AsyncFunctionDef = visit_FunctionDef
-
-        def visit_Call(self, node):
-            names[node] = self.function
-            self.generic_visit(node)
-
-    Visitor().visit(tree)
-    return names
+    configure_logging("DEBUG")
+    logger.debug("env%s step: %s / %s", 0, 1, 10)
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "DEBUG robodojo.sim.evaluation.eval_env: env0 step: 1 / 10\n"
 
 
-def test_print_calls_are_limited_to_approved_output_paths():
-    renderer_files = {
-        "sim/utils/update_embodiment_config_path.py",
-        "workflows/assets_openarm.py",
-        "workflows/doctor.py",
-        "workflows/results_stats.py",
-        "workflows/results_summary.py",
-        "workflows/storage.py",
-        "workflows/task_inventory.py",
-    }
-    dry_run_files = {
-        "orchestration/evaluation.py",
-        "policy/adapter.py",
-        "sim/launcher.py",
-    }
+def test_results_stats_missing_root_is_logged(isolated_robodojo_logger, capsys, tmp_path):
+    configure_logging("ERROR")
+    missing = tmp_path / "missing"
+
+    assert results_stats.main(["--root", str(missing)]) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == f"ERROR robodojo.workflows.results_stats: Eval result directory not found: {missing}\n"
+
+
+def test_task_inventory_check_keeps_json_clean_and_logs_errors(
+    isolated_robodojo_logger, capsys, monkeypatch
+):
+    inventory = {"tasks": [{"name": "broken_task", "runnable": False}]}
+    monkeypatch.setattr(task_inventory, "build_inventory", lambda: inventory)
+    monkeypatch.setattr(sys, "argv", ["task_inventory.py", "--format", "json", "--check"])
+    configure_logging("ERROR")
+
+    assert task_inventory.main() == 1
+    captured = capsys.readouterr()
+    assert json.loads(captured.out) == inventory
+    assert captured.err == "ERROR robodojo.workflows.task_inventory: Task is not runnable: broken_task\n"
+
+
+def test_package_has_no_print_calls():
     unexpected: list[str] = []
     for path in PACKAGE.rglob("*.py"):
         relative = path.relative_to(PACKAGE).as_posix()
         tree = ast.parse(path.read_text(encoding="utf-8"))
-        function_names = _function_names(tree)
         for node in ast.walk(tree):
-            if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "print"):
-                continue
-            approved = relative in renderer_files
-            if relative == "workflows/downloads.py":
-                approved = function_names[node] == "list_data"
-            elif relative == "sim/evaluation/eval_env.py":
-                approved = any(
-                    keyword.arg == "end" and isinstance(keyword.value, ast.Constant) and keyword.value.value == "\r"
-                    for keyword in node.keywords
-                )
-            elif relative in dry_run_files:
-                approved = bool(
-                    node.args
-                    and isinstance(node.args[0], ast.Call)
-                    and isinstance(node.args[0].func, ast.Name)
-                    and node.args[0].func.id == "format_command"
-                )
-            if not approved:
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "print":
                 unexpected.append(f"{relative}:{node.lineno}")
     assert unexpected == []
+
+
+def test_simulator_step_progress_uses_debug_logging():
+    path = PACKAGE / "sim/evaluation/eval_env.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "logger"
+        and node.func.attr == "debug"
+        and node.args
+        and isinstance(node.args[0], ast.Constant)
+        and node.args[0].value == "env%s step: %s / %s"
+    ]
+    assert len(calls) == 2

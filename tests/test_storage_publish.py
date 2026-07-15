@@ -25,6 +25,24 @@ def test_storage_cli_help_runs_through_typer():
     assert "pull" in result.stdout
 
 
+def test_storage_dry_runs_preserve_stdout(monkeypatch, tmp_path, capsys):
+    source = tmp_path / "source"
+    source.mkdir()
+    local = tmp_path / "local"
+    monkeypatch.setenv("ROBODOJO_STORAGE_ROOT", str(local))
+    monkeypatch.setenv("ROBODOJO_S3_URI", "s3://bucket/robodojo")
+
+    storage_cli.publish(source, "datasets/example", dry_run=True)
+    storage_cli.pull("datasets/example", dry_run=True)
+
+    captured = capsys.readouterr()
+    assert captured.out == (
+        f"publish {source.resolve()} -> s3://bucket/robodojo/datasets/example\n"
+        f"pull s3://bucket/robodojo/datasets/example -> {local / 'datasets/example'}\n"
+    )
+    assert captured.err == ""
+
+
 def test_publish_uses_canonical_destination_and_completion_is_last(monkeypatch, tmp_path):
     source = tmp_path / "source"
     source.mkdir()

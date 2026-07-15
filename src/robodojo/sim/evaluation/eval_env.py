@@ -426,10 +426,7 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
                 control_seq.extend(deepcopy(control_info) for _ in range(ticks))
 
             self.take_action_cnt[env_idx] += 1
-            print(
-                f"env{env_idx} step: \033[92m{self.take_action_cnt[env_idx]} / {self.step_lim}\033[0m",
-                end="\r",
-            )
+            logger.debug("env%s step: %s / %s", env_idx, self.take_action_cnt[env_idx], self.step_lim)
             self.robot_manager.control_manager.push([env_idx], [control_seq])
             while not self.have_empty([env_idx]):
                 self.step(env_idx_list=[env_idx])
@@ -458,10 +455,7 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
                     continue
 
                 self.take_action_cnt[env_idx] += 1
-                print(
-                    f"env{env_idx} step: \033[92m{self.take_action_cnt[env_idx]} / {self.step_lim}\033[0m",
-                    end="\r",
-                )
+                logger.debug("env%s step: %s / %s", env_idx, self.take_action_cnt[env_idx], self.step_lim)
                 control_info = dict()
                 if action_type == "joint":
                     control_info = self._joint_action_to_control_info(action)

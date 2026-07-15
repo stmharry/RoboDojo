@@ -6,7 +6,9 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import logging
 from pathlib import Path
+import sys
 from typing import Any
 
 from robodojo.core.paths import RepositoryPaths, discover_repository_root
@@ -16,6 +18,7 @@ ROOT_DIR = discover_repository_root()
 BENCHMARK = "RoboDojo"
 TASK_DIR = ROOT_DIR / "src" / "robodojo" / "sim" / "tasks"
 CONFIG_DIR = RepositoryPaths.resolve(ROOT_DIR).task_configs
+logger = logging.getLogger(__name__)
 
 
 def _module_classes(path: Path) -> set[str]:
@@ -70,26 +73,26 @@ def _print_plain(inventory: dict[str, Any], only_runnable: bool) -> None:
     for task in inventory["tasks"]:
         if only_runnable and not task["runnable"]:
             continue
-        print(task["name"])
+        sys.stdout.write(f"{task['name']}\n")
 
 
 def _print_markdown(inventory: dict[str, Any]) -> None:
-    print("| Task | Runnable | Config | Issue |")
-    print("| --- | --- | --- | --- |")
+    sys.stdout.write("| Task | Runnable | Config | Issue |\n")
+    sys.stdout.write("| --- | --- | --- | --- |\n")
     for task in inventory["tasks"]:
         issues = []
         if not task["class_exists"]:
             issues.append("missing exported class")
         if not task["config_exists"]:
             issues.append("missing config")
-        print(
+        sys.stdout.write(
             f"| `{task['name']}` | {'yes' if task['runnable'] else 'no'} | "
-            f"`{task['config'] or '-'}` | {', '.join(issues) or '-'} |"
+            f"`{task['config'] or '-'}` | {', '.join(issues) or '-'} |\n"
         )
     if inventory["config_only"]:
-        print("\nConfig-only entries:")
+        sys.stdout.write("\nConfig-only entries:\n")
         for name in inventory["config_only"]:
-            print(f"- `{name}`")
+            sys.stdout.write(f"- `{name}`\n")
 
 
 def main() -> int:
@@ -114,7 +117,7 @@ def main() -> int:
 
     inventory = build_inventory()
     if args.format == "json":
-        print(json.dumps(inventory, indent=2, sort_keys=True))
+        sys.stdout.write(json.dumps(inventory, indent=2, sort_keys=True) + "\n")
     elif args.format == "markdown":
         _print_markdown(inventory)
     else:
@@ -124,7 +127,7 @@ def main() -> int:
         broken = [task for task in inventory["tasks"] if not task["runnable"]]
         if broken:
             for task in broken:
-                print(f"[ERROR] Task is not runnable: {task['name']}")
+                logger.error("Task is not runnable: %s", task["name"])
             return 1
     return 0
 

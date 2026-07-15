@@ -5,6 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 import shutil
+import sys
 
 from isaacsim import SimulationApp
 import numpy as np
@@ -432,7 +433,7 @@ def main() -> None:
         "sources": {path.name: sha256(path) for path in sources},
     }
     (args.output_root / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
-    print(json.dumps(manifest, indent=2))
+    sys.stdout.write(json.dumps(manifest, indent=2) + "\n")
     simulation_app.close()
 
 
