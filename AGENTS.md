@@ -34,6 +34,12 @@ over replacements or local reinterpretations. In particular:
 - Treat the ability to rebase, cherry-pick, or port future upstream changes
   without broad rewrites as an architectural acceptance criterion.
 
+Use `make upstream-check` for the repeatable compatibility audit. It compares
+official heads with `upstream_sync.yml`, maps changed paths into this layout,
+and checks local parity at the reviewed revisions. Advance a reviewed commit
+only in the same change that ports or explicitly classifies every reported
+upstream change; the command does not copy, merge, or rewrite source files.
+
 The configured `XPolicyLab` submodule may point to a working fork. The official
 XPolicyLab repository remains the contract reference. Update the gitlink pin
 intentionally, and do not edit submodule contents as part of RoboDojo-owned

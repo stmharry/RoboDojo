@@ -24,6 +24,17 @@ class DataFormat(StrEnum):
     REAL = "real"
 
 
+class UpstreamProject(StrEnum):
+    ALL = "all"
+    ROBODOJO = "robodojo"
+    XPOLICYLAB = "xpolicylab"
+
+
+class UpstreamOutputFormat(StrEnum):
+    PLAIN = "plain"
+    JSON = "json"
+
+
 class EvaluationRequest(StrictModel):
     policy_dir: Path
     task: str
@@ -144,6 +155,17 @@ class EnvironmentConfigDocument(BaseModel):
     diagnostics: EnvironmentDiagnostics | None = None
     config: EnvironmentConfigReferences
     observation: dict[str, Any] = Field(default_factory=dict)
+    task_instruction_overrides: dict[str, list[str]] = Field(default_factory=dict)
+
+    @field_validator("task_instruction_overrides")
+    @classmethod
+    def non_empty_instruction_overrides(cls, value: dict[str, list[str]]) -> dict[str, list[str]]:
+        for task, templates in value.items():
+            if not task.strip():
+                raise ValueError("instruction override task names must not be empty")
+            if not templates or any(not template.strip() for template in templates):
+                raise ValueError(f"instruction override for {task} must contain non-empty templates")
+        return value
 
 
 class SmokeRecord(StrictModel):

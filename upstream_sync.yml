@@ -1,0 +1,96 @@
+schema_version: 1
+
+projects:
+  robodojo:
+    repository: https://github.com/RoboDojo-Benchmark/RoboDojo.git
+    ref: main
+    reviewed_commit: a38d84e64fcf9270b606a5865906c34b8f44b04f
+    mappings:
+      - {kind: exact, upstream: README.md, local: README.md, disposition: adapted, comparison: manual}
+      - {kind: exact, upstream: LICENSE, local: LICENSE, disposition: adapted, comparison: manual}
+      - {kind: exact, upstream: pyproject.toml, local: pyproject.toml, disposition: adapted, comparison: manual}
+      - {kind: exact, upstream: Dockerfile, local: Dockerfile, disposition: adapted, comparison: manual}
+      - {kind: exact, upstream: .dockerignore, local: .dockerignore, disposition: adapted, comparison: manual}
+      - {kind: exact, upstream: .gitignore, local: .gitignore, disposition: adapted, comparison: manual}
+      - {kind: exact, upstream: .gitmodules, local: .gitmodules, disposition: adapted, comparison: manual}
+      - {kind: exact, upstream: .pre-commit-config.yaml, local: .pre-commit-config.yaml, disposition: adapted, comparison: manual}
+      - {kind: exact, upstream: CLAUDE.md, local: AGENTS.md, disposition: replaced, comparison: manual}
+      - {kind: prefix, upstream: .github/, local: .github/, disposition: adapted, comparison: manual}
+      - {kind: exact, upstream: XPolicyLab, local: XPolicyLab, disposition: submodule-owned, comparison: manual}
+      - {kind: prefix, upstream: docker/, local: src/robodojo/workflows/docker.py, append_suffix: false, disposition: replaced, comparison: manual}
+      - {kind: exact, upstream: env/planner_manager/.gitignore, local: "", disposition: upstream-only, comparison: manual}
+      - {kind: exact, upstream: env/robot_manager/.gitignore, local: "", disposition: upstream-only, comparison: manual}
+      - {kind: prefix, upstream: env/, local: src/robodojo/sim/environment/, disposition: mirrored, comparison: python-api}
+      - {kind: exact, upstream: env_cfg/arx_x5.yml, local: configs/environment/arx_x5.yml, disposition: mirrored, comparison: yaml-semantic}
+      - {kind: exact, upstream: env_cfg/camera/template.py, local: src/robodojo/sim/camera_template.py, disposition: adapted, comparison: inventory}
+      - {kind: prefix, upstream: env_cfg/camera/, local: configs/camera/, disposition: mirrored, comparison: yaml-semantic}
+      - {kind: exact, upstream: env_cfg/robot/_robot_info.json, local: configs/robot/_robot_info.json, disposition: adapted, comparison: yaml-subset}
+      - {kind: prefix, upstream: env_cfg/robot/, local: configs/robot/, disposition: mirrored, comparison: yaml-semantic}
+      - {kind: prefix, upstream: env_cfg/scene/, local: configs/scene/, disposition: mirrored, comparison: yaml-semantic}
+      - {kind: prefix, upstream: env_cfg/sim/, local: configs/sim/, disposition: mirrored, comparison: yaml-semantic}
+      - {kind: exact, upstream: task/RoboDojo/task_registry.py, local: src/robodojo/sim/tasks_registry.py, disposition: adapted, comparison: python-api}
+      - {kind: prefix, upstream: task/RoboDojo/config/, local: configs/task/, disposition: mirrored, comparison: yaml-semantic}
+      - {kind: prefix, upstream: task/RoboDojo/tasks/, local: src/robodojo/sim/tasks/, disposition: mirrored, comparison: python-body}
+      - {kind: exact, upstream: src/__init__.py, local: src/robodojo/sim/__init__.py, disposition: adapted, comparison: manual}
+      - {kind: prefix, upstream: src/eval_client/, local: src/robodojo/sim/evaluation/, disposition: mirrored, comparison: python-api}
+      - {kind: exact, upstream: utils/update_embodiment_config_path.py, local: src/robodojo/sim/utils/update_embodiment_config_path.py, disposition: replaced, comparison: manual}
+      - {kind: prefix, upstream: utils/, local: src/robodojo/sim/utils/, disposition: mirrored, comparison: python-api}
+      - {kind: exact, upstream: scripts/eval_policy.sh, local: scripts/eval_policy.sh, disposition: adapted, comparison: manual}
+      - {kind: prefix, upstream: scripts/, local: src/robodojo/workflows/, append_suffix: false, disposition: replaced, comparison: manual}
+      - {kind: exact, upstream: third_party/IsaacLab, local: pyproject.toml, disposition: replaced, comparison: manual}
+      - {kind: exact, upstream: third_party/curobo, local: third_party/curobo, disposition: adapted, comparison: manual}
+
+  xpolicylab:
+    repository: https://github.com/XPolicyLab/XPolicyLab.git
+    ref: main
+    reviewed_commit: fe71eb54675cef495fea817a637386a4f4529153
+    local_fork:
+      path: XPolicyLab
+      reviewed_commit: 20b0af3963f33686fc04278beb2cdc593efdc86b
+    mappings:
+      - {kind: exact, upstream: .gitignore, local: XPolicyLab/.gitignore, disposition: submodule-owned, comparison: inventory}
+      - {kind: exact, upstream: LICENSE, local: XPolicyLab/LICENSE, disposition: submodule-owned, comparison: inventory}
+      - {kind: exact, upstream: README.md, local: XPolicyLab/README.md, disposition: submodule-owned, comparison: inventory}
+      - {kind: exact, upstream: XPolicyLab.py, local: XPolicyLab/XPolicyLab.py, disposition: submodule-owned, comparison: inventory}
+      - {kind: exact, upstream: __init__.py, local: XPolicyLab/__init__.py, disposition: submodule-owned, comparison: inventory}
+      - {kind: exact, upstream: debug_env_client.py, local: XPolicyLab/debug_env_client.py, disposition: submodule-owned, comparison: inventory}
+      - {kind: exact, upstream: model_template.py, local: XPolicyLab/model_template.py, disposition: submodule-owned, comparison: inventory}
+      - {kind: exact, upstream: pyproject.toml, local: XPolicyLab/pyproject.toml, disposition: submodule-owned, comparison: inventory}
+      - {kind: exact, upstream: setup_policy_server.py, local: XPolicyLab/setup_policy_server.py, disposition: submodule-owned, comparison: inventory}
+      - {kind: prefix, upstream: assets/, local: XPolicyLab/assets/, disposition: submodule-owned, comparison: inventory}
+      - {kind: prefix, upstream: client_server/, local: XPolicyLab/client_server/, disposition: submodule-owned, comparison: inventory}
+      - {kind: prefix, upstream: policy/, local: XPolicyLab/policy/, disposition: submodule-owned, comparison: inventory}
+      - {kind: prefix, upstream: scripts/, local: XPolicyLab/scripts/, disposition: submodule-owned, comparison: inventory}
+      - {kind: prefix, upstream: utils/, local: XPolicyLab/utils/, disposition: submodule-owned, comparison: inventory}
+
+intentional_divergences:
+  - id: typed-orchestration
+    upstream: scripts and shell-managed evaluation lifecycle
+    local: src/robodojo/cli.py, src/robodojo/orchestration, and scripts/eval_policy.sh
+    rationale: Keep fork-specific process management in a typed root adapter while preserving official launcher arguments and working directories.
+    tests: [tests/test_cli.py, tests/test_orchestration.py, tests/test_processes.py]
+  - id: canonical-config-layout
+    upstream: env_cfg and task/RoboDojo/config
+    local: configs/environment, configs/task, and the remaining configs domains
+    rationale: Separate configuration domains without changing official names, schemas, or task and scene meanings.
+    tests: [tests/test_profiles.py, tests/test_upstream_adoption.py]
+  - id: locked-simulator-environment
+    upstream: staged shell installer and IsaacLab gitlink
+    local: pyproject.toml, uv.lock, and third_party/curobo
+    rationale: Resolve official simulator releases through uv while retaining only the narrow Warp compatibility fork.
+    tests: [tests/test_uv_migration.py]
+  - id: additive-embodiments
+    upstream: ARX X5 simulator configuration
+    local: OpenArm and YAM profiles, robot adapters, camera rigs, calibration, and tooling
+    rationale: Add embodiments without changing the upstream ARX X5 task, observation, action, or configuration contracts.
+    tests: [tests/test_openarm_contract.py, tests/test_yam_contract.py]
+  - id: local-operations
+    upstream: benchmark evaluation and download scripts
+    local: storage, scene export, results, and Docker workflows
+    rationale: Add local operational workflows outside task, environment, policy, and transport contracts.
+    tests: [tests/test_scene_export.py, tests/test_storage_paths.py]
+  - id: policy-fork
+    upstream: official XPolicyLab main
+    local: configured stmharry/XPolicyLab descendant gitlink
+    rationale: Keep policy-specific OpenArm and YAM work in the policy-owned fork and require official history to remain its ancestor.
+    tests: [tests/test_upstream_sync.py, tests/test_orchestration.py]

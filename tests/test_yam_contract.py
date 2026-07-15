@@ -1,5 +1,6 @@
 import ast
 from pathlib import Path
+from types import SimpleNamespace
 import xml.etree.ElementTree as ET
 
 from omegaconf import OmegaConf
@@ -18,6 +19,7 @@ from robodojo.sim.environment.camera_manager.mount_registry import (
     robot_link_prim_path,
 )
 from robodojo.sim.environment.camera_manager.rig_spec import normalize_camera_rig
+from robodojo.sim.environment.description_manager.desc_manager import DescManager
 from robodojo.sim.utils.pipeline_utils import process_config
 from robodojo.workflows.assets_yam import (
     _appearance_contract,
@@ -39,10 +41,41 @@ def test_bimanual_yam_profile_preserves_30hz_component_graph():
         "camera": "bimanual_yam",
     }
     assert profile.document.observation["collect_freq"] == 30
+    assert profile.document.task_instruction_overrides == {
+        "fold_clothes": ["Fold the shirt neatly on the table using both arms."]
+    }
     assert profile.num_envs == 1
 
     robot_info = yaml.safe_load((ROOT / "configs/robot/_robot_info.json").read_text())["dual_yam"]
     assert robot_info == {"arm_dim": [6, 6], "ee_dim": [1, 1]}
+
+
+def test_yam_instruction_override_is_profile_scoped_and_preserves_default_task_text():
+    profile = load_environment_profile(RepositoryPaths.resolve(ROOT), "bimanual_yam")
+    override = "Fold the shirt neatly on the table using both arms."
+    layout_manager = SimpleNamespace(get_label_descriptions=lambda **kwargs: [])
+
+    class FakeEnv:
+        scene_manager = SimpleNamespace(layout_manager=layout_manager)
+
+        def __init__(self, task_name, eval_cfg):
+            self.task_name = task_name
+            self.eval_cfg = eval_cfg
+
+        def gen_instruction(self, env_idx):
+            return ["Fold the clothes neatly."]
+
+    yam_manager = DescManager(num_envs=1, description_cfg={"seen": 1}, desc_type="seen")
+    yam_manager.initialize(FakeEnv("fold_clothes", profile.payload))
+    assert yam_manager.templates == [[override]]
+
+    default_manager = DescManager(num_envs=1, description_cfg={"seen": 1}, desc_type="seen")
+    default_manager.initialize(FakeEnv("fold_clothes", {"task_instruction_overrides": {}}))
+    assert default_manager.templates == [["Fold the clothes neatly."]]
+
+    unrelated_manager = DescManager(num_envs=1, description_cfg={"seen": 1}, desc_type="seen")
+    unrelated_manager.initialize(FakeEnv("insert_key", profile.payload))
+    assert unrelated_manager.templates == [["Fold the clothes neatly."]]
 
 
 def test_fold_clothes_does_not_replace_yam_profile_components():

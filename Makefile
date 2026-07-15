@@ -128,7 +128,7 @@ SMOKE_FLAGS = $(SWEEP_POLICY_FLAGS) $(SWEEP_RUNTIME_FLAGS)
 BENCHMARK_FLAGS = $(SWEEP_POLICY_FLAGS) --eval-num "$(EVAL_NUM)" $(SWEEP_RUNTIME_FLAGS)
 
 ##@ General
-.PHONY: help tasks tasks-check
+.PHONY: help tasks tasks-check upstream-check
 
 help: ## Show targets and common configuration variables
 	@printf 'RoboDojo local workflow\n'
@@ -151,6 +151,9 @@ tasks: ## List canonical tasks
 
 tasks-check: ## Validate task code/config pairs
 	$(ROBODOJO_BASE) tasks --check $(ARGS)
+
+upstream-check: ## Check official upstream changes and mapped local parity
+	$(ROBODOJO_BASE) upstream check $(ARGS)
 
 ##@ Setup & data
 .PHONY: install sync assets assets-yam data-list data

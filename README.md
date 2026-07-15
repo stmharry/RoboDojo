@@ -113,6 +113,12 @@ should be additive and backward compatible; fork-specific behavior belongs in
 narrow local adapters rather than in redefined policy, configuration,
 observation, or action contracts.
 
+Run `make upstream-check` to compare both official repositories with the last
+reviewed revisions and validate the mapped local task, configuration, API, and
+submodule contracts. The command is intentionally read-only; see
+[Adopting official upstream changes](docs/UPSTREAM.md) for the review and
+baseline-advancement workflow.
+
 Policies live in [XPolicyLab](https://github.com/XPolicyLab/XPolicyLab/blob/main/README.md), which owns policy structure, dependencies, checkpoint layout, and server behavior. RoboDojo only assumes a policy directory provides:
 
 ```text

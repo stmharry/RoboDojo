@@ -41,7 +41,14 @@ class DescManager:
         self.env = env
         self.layout_manager = env.scene_manager.layout_manager
 
-        if hasattr(self.env, "gen_instruction"):
+        task_name = getattr(self.env, "task_name", None)
+        overrides = self.env.eval_cfg.get("task_instruction_overrides", {})
+        templates_override = overrides.get(task_name)
+        if templates_override is not None:
+            for env_idx in range(self.num_envs):
+                self.templates[env_idx] = list(templates_override)
+                self.get_random_description(env_idx=env_idx)
+        elif hasattr(self.env, "gen_instruction"):
             for env_idx in range(self.num_envs):
                 self.templates[env_idx] = self.env.gen_instruction(env_idx=env_idx)
                 self.get_random_description(env_idx=env_idx)

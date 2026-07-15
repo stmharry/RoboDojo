@@ -190,7 +190,7 @@ class FoldClothesCommon:
         )
 
     def gen_instruction(self, env_idx):
-        templates = ["Fold the shirt neatly on the table using both arms."]
+        templates = ["Fold the clothes neatly."]
         return templates
 
 
