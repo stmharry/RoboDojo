@@ -1,10 +1,8 @@
 config_name: openarm_wowrobo_v1_1
-layout_config_name: arx_x5
 hardware_calibration: openarm_wowrobo_v1_1
 
 config:
   sim: openarm_wowrobo_v1_1
-  scene: default
   robot: dual_openarm_wowrobo_v1_1
   camera: openarm_wowrobo_v1_1
 

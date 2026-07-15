@@ -61,6 +61,14 @@ class RepositoryPaths(BaseModel):
         return self.environment_configs / "task"
 
     @property
+    def scene_profiles(self) -> Path:
+        return self.environment_configs / "scene" / "profiles"
+
+    @property
+    def scene_components(self) -> Path:
+        return self.environment_configs / "scene" / "components"
+
+    @property
     def xpolicy_root(self) -> Path:
         return self.root / "XPolicyLab"
 

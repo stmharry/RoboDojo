@@ -124,7 +124,6 @@ class SweepRequest(EvaluationRequest):
 
 class EnvironmentConfigReferences(StrictModel):
     sim: str
-    scene: str
     robot: str
     camera: str
 
@@ -139,21 +138,43 @@ class EnvironmentConfigDocument(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     config_name: str
-    layout_config_name: str | None = None
     hardware_calibration: str | None = None
     diagnostics: EnvironmentDiagnostics | None = None
     config: EnvironmentConfigReferences
     observation: dict[str, Any] = Field(default_factory=dict)
-    task_instruction_overrides: dict[str, list[str]] = Field(default_factory=dict)
 
-    @field_validator("task_instruction_overrides")
+    @model_validator(mode="before")
     @classmethod
-    def non_empty_instruction_overrides(cls, value: dict[str, list[str]]) -> dict[str, list[str]]:
-        for task, templates in value.items():
-            if not task.strip():
-                raise ValueError("instruction override task names must not be empty")
-            if not templates or any(not template.strip() for template in templates):
-                raise ValueError(f"instruction override for {task} must contain non-empty templates")
+    def reject_scene_owned_fields(cls, value: Any) -> Any:
+        if isinstance(value, dict):
+            legacy = sorted({"layout_config_name", "task_instruction_overrides"}.intersection(value))
+            if legacy:
+                raise ValueError(f"scene/task-owned fields are not valid in environment profiles: {legacy}")
+        return value
+
+
+class SceneConfigDocument(StrictModel):
+    """Scene selection owns world composition, saved layouts, and their assets."""
+
+    config_name: str
+    component: str
+    layout_set: str
+    task_asset_preparers: dict[str, list[str]] = Field(default_factory=dict)
+
+    @field_validator("config_name", "component", "layout_set")
+    @classmethod
+    def safe_name(cls, value: str) -> str:
+        allowed = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
+        if not value or any(character not in allowed for character in value):
+            raise ValueError("must contain only letters, digits, and underscores")
+        return value
+
+    @field_validator("task_asset_preparers")
+    @classmethod
+    def valid_preparers(cls, value: dict[str, list[str]]) -> dict[str, list[str]]:
+        for task, preparers in value.items():
+            if not task.strip() or not preparers or any(not preparer.strip() for preparer in preparers):
+                raise ValueError("task asset preparers require non-empty task and preparer names")
         return value
 
 

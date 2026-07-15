@@ -2,7 +2,6 @@ config_name: arx_x5
 
 config:
   sim: sim_config
-  scene: default
   robot: dual_x5
   camera: camera_config
 

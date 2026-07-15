@@ -12,7 +12,7 @@ from robodojo.core.models import SimulatorLaunchRequest
 from robodojo.core.paths import RepositoryPaths
 from robodojo.core.profiles import load_environment_profile
 from robodojo.core.storage import assets_root
-from robodojo.sim.launcher import resolve_scene_config
+from robodojo.sim.launcher import resolve_scene_profile
 from robodojo.workflows.task_inventory import build_inventory
 
 
@@ -36,7 +36,7 @@ def run_doctor(
     try:
         profile = load_environment_profile(paths, env_config, validate_calibration=False)
         record("environment config", True, str(profile.path))
-        selected_scene = resolve_scene_config(
+        selected_scene = resolve_scene_profile(
             paths,
             SimulatorLaunchRequest(
                 task=task,
@@ -46,7 +46,6 @@ def run_doctor(
                 scene_config=scene_config,
                 additional_info="doctor",
             ),
-            profile=profile,
         )
         calibration = profile.document.hardware_calibration
         if calibration:
@@ -55,8 +54,10 @@ def run_doctor(
                 record("hardware calibration", True, calibration)
             except ValueError as exc:
                 record("hardware calibration", False, str(exc))
+        record("scene profile", True, str(selected_scene.path))
+        record("layout set", True, selected_scene.document.layout_set)
         component_paths = dict(profile.component_paths)
-        component_paths["scene"] = paths.environment_configs / "scene" / f"{selected_scene}.yml"
+        component_paths["scene"] = selected_scene.component_path
         for kind, referenced in component_paths.items():
             record(f"{kind} config", referenced.is_file(), str(referenced))
     except Exception as exc:

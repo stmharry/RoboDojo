@@ -1,13 +1,13 @@
 import numpy as np
 import pytest
 
-from robodojo.workflows.assets_molmoact2_yam import (
-    reshape_long_sleeves_for_molmoact2,
+from robodojo.workflows.assets_yam_scene import (
+    reshape_long_sleeves_for_yam_scene,
     update_garment_metadata,
 )
 
 
-def test_molmoact2_shirt_derivation_preserves_torso_and_topology():
+def test_yam_scene_shirt_derivation_preserves_torso_and_topology():
     points = np.array(
         [
             [0.04, -0.15, 0.0],
@@ -17,7 +17,7 @@ def test_molmoact2_shirt_derivation_preserves_torso_and_topology():
         ],
         dtype=np.float32,
     )
-    result = reshape_long_sleeves_for_molmoact2(points)
+    result = reshape_long_sleeves_for_yam_scene(points)
     np.testing.assert_array_equal(result[:2], points[:2])
     assert result.shape == points.shape
     assert np.all(np.abs(result[2:, 0]) < np.abs(points[2:, 0]))

@@ -9,7 +9,7 @@ import pytest
 import yaml
 
 from robodojo.core.paths import RepositoryPaths
-from robodojo.core.profiles import load_environment_profile
+from robodojo.core.profiles import load_environment_profile, load_scene_profile
 from robodojo.sim.camera_template import YAM_TOP, YAM_WRIST
 from robodojo.sim.environment.camera_manager.mount_registry import (
     apply_optical_roll,
@@ -35,26 +35,20 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_bimanual_yam_profile_preserves_30hz_component_graph():
     profile = load_environment_profile(RepositoryPaths.resolve(ROOT), "bimanual_yam")
-    assert profile.document.layout_config_name == "arx_x5"
     assert profile.document.config.model_dump() == {
         "sim": "real_time_30hz",
-        "scene": "default",
         "robot": "dual_yam",
         "camera": "bimanual_yam",
     }
     assert profile.document.observation["collect_freq"] == 30
-    assert profile.document.task_instruction_overrides == {
-        "fold_clothes": ["Fold the shirt neatly on the table using both arms."]
-    }
     assert profile.num_envs == 1
 
     robot_info = yaml.safe_load((ROOT / "configs/robot/_robot_info.json").read_text())["dual_yam"]
     assert robot_info == {"arm_dim": [6, 6], "ee_dim": [1, 1]}
 
 
-def test_yam_instruction_override_is_profile_scoped_and_preserves_default_task_text():
+def test_task_instruction_is_independent_of_environment_and_scene_profiles():
     profile = load_environment_profile(RepositoryPaths.resolve(ROOT), "bimanual_yam")
-    override = "Fold the shirt neatly on the table using both arms."
     layout_manager = SimpleNamespace(get_label_descriptions=lambda **kwargs: [])
 
     class FakeEnv:
@@ -69,28 +63,15 @@ def test_yam_instruction_override_is_profile_scoped_and_preserves_default_task_t
 
     yam_manager = DescManager(num_envs=1, description_cfg={"seen": 1}, desc_type="seen")
     yam_manager.initialize(FakeEnv("fold_clothes", profile.payload))
-    assert yam_manager.templates == [[override]]
-
-    default_manager = DescManager(num_envs=1, description_cfg={"seen": 1}, desc_type="seen")
-    default_manager.initialize(FakeEnv("fold_clothes", {"task_instruction_overrides": {}}))
-    assert default_manager.templates == [["Fold the clothes neatly."]]
-
-    unrelated_manager = DescManager(num_envs=1, description_cfg={"seen": 1}, desc_type="seen")
-    unrelated_manager.initialize(FakeEnv("insert_key", profile.payload))
-    assert unrelated_manager.templates == [["Fold the clothes neatly."]]
+    assert yam_manager.templates == [["Fold the clothes neatly."]]
 
 
-def test_molmoact2_yam_profile_uses_model_aligned_bundled_layouts():
-    profile = load_environment_profile(RepositoryPaths.resolve(ROOT), "bimanual_yam_molmoact2")
-    assert profile.document.layout_config_name == "bimanual_yam_molmoact2"
-    assert profile.document.config.model_dump() == {
-        "sim": "real_time_30hz",
-        "scene": "default",
-        "robot": "dual_yam",
-        "camera": "bimanual_yam",
-    }
-    assert profile.document.task_instruction_overrides == {}
-    layout_root = ROOT / "configs/layout/bimanual_yam_molmoact2/0"
+def test_molmo_yam_scene_profile_uses_model_aligned_bundled_layouts():
+    profile = load_scene_profile(RepositoryPaths.resolve(ROOT), "molmo_yam")
+    assert profile.document.layout_set == "molmo_yam"
+    assert profile.document.component == "molmo_yam"
+    assert profile.document.task_asset_preparers == {"fold_clothes": ["yam_short_sleeve_garment"]}
+    layout_root = ROOT / "configs/layout/molmo_yam/0"
     assert {path.name for path in layout_root.glob("*.json")} == {
         "fold_clothes_0.json",
         "general_pickup_0.json",
@@ -109,11 +90,12 @@ def test_molmoact2_yam_profile_uses_model_aligned_bundled_layouts():
 
 def test_fold_clothes_does_not_replace_yam_profile_components():
     profile = load_environment_profile(RepositoryPaths.resolve(ROOT), "bimanual_yam")
+    scene = load_scene_profile(RepositoryPaths.resolve(ROOT), "default")
     payload = profile.payload
     env_cfg = OmegaConf.create(
         {
             "sim": yaml.safe_load(profile.component_paths["sim"].read_text()),
-            "scene": yaml.safe_load(profile.component_paths["scene"].read_text()),
+            "scene": scene.component,
             "robot": yaml.safe_load(profile.component_paths["robot"].read_text()),
             "camera": yaml.safe_load(profile.component_paths["camera"].read_text()),
             "task_env": yaml.safe_load((ROOT / "configs/task/fold_clothes.yml").read_text()),

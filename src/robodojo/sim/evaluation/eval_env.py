@@ -1,9 +1,11 @@
 from copy import deepcopy
 from datetime import datetime
+import hashlib
 import inspect
 import json
 import logging
 import os
+from pathlib import Path
 
 from client_server.ws.model_client import WsModelClient
 import numpy as np
@@ -56,7 +58,10 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
             super().__init__(config, app, **kwargs)
             self.eval_cfg = config.eval_cfg
             self.config_name = self.eval_cfg.get("config_name", None)
-            self.scene_config = self.eval_cfg.get("scene_config", self.eval_cfg.get("config", {}).get("scene"))
+            self.scene_config = self.eval_cfg.get("scene_config")
+            self.scene_component = self.eval_cfg.get("scene_component")
+            self.scene_profile_hash = self.eval_cfg.get("scene_profile_hash")
+            self.layout_config_name = self.eval_cfg.get("layout_config_name")
             self.task_name = self.eval_cfg.get("task_name", None)
             self.eval_batch = self.eval_cfg.get("eval_batch", False)
             self.eval_num = int(self.eval_cfg.get("eval_num", 50))
@@ -134,6 +139,9 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
                 "eval_time": 0,
                 "score": 0.0,
                 "scene_config": self.scene_config,
+                "scene_component": self.scene_component,
+                "scene_profile_hash": self.scene_profile_hash,
+                "layout_config_name": self.layout_config_name,
                 "details": {},
             }
 
@@ -143,11 +151,19 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
             completed_layout_ids: list[int] = []
             abandoned_layout_ids: list[int] = []
             if resume_state is not None:
-                resumed_scene = resume_state.get("scene_config")
-                if resumed_scene != self.scene_config:
-                    raise ValueError(
-                        f"resume manifest scene mismatch: expected {self.scene_config!r}, found {resumed_scene!r}"
-                    )
+                expected_scene_identity = {
+                    "scene_config": self.scene_config,
+                    "scene_component": self.scene_component,
+                    "scene_profile_hash": self.scene_profile_hash,
+                    "layout_config_name": self.layout_config_name,
+                }
+                for field, expected_value in expected_scene_identity.items():
+                    resumed_value = resume_state.get(field)
+                    if resumed_value != expected_value:
+                        raise ValueError(
+                            f"resume manifest {field} mismatch: expected {expected_value!r}, "
+                            f"found {resumed_value!r}"
+                        )
                 self.success_nums = int(resume_state.get("success_nums", 0))
                 self.fail_nums = int(resume_state.get("fail_nums", 0))
                 self.total_score = float(resume_state.get("total_score", 0.0))
@@ -747,6 +763,9 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
                 "policy_name": self.policy_name,
                 "config_name": self.config_name,
                 "scene_config": self.scene_config,
+                "scene_component": self.scene_component,
+                "scene_profile_hash": self.scene_profile_hash,
+                "layout_config_name": self.layout_config_name,
                 "eval_seed": self.eval_seed,
                 "additional_info": self.additional_info,
                 "success_nums": int(self.success_nums),
@@ -866,8 +885,11 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
                 # layout id. Since init_eval populates seed_list as
                 # range(N_layouts), seed == layout_id by construction; use
                 # env_seeds[env_idx] directly.
+                layout_id = int(self.env_seeds[env_idx])
+                layout_path = Path(self.seed_manager.seed_info[layout_id]["scene_layout"])
                 self.eval_result["details"][index] = {
-                    "layout_id": int(self.env_seeds[env_idx]),
+                    "layout_id": layout_id,
+                    "layout_sha256": hashlib.sha256(layout_path.read_bytes()).hexdigest(),
                     "success": bool(self.success[env_idx]),
                     "score": episode_score,
                 }

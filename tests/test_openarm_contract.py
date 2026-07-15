@@ -20,11 +20,9 @@ def test_hardware_profiles_share_only_upstream_contracts(profile):
 
     assert env_cfg["config"] == {
         "sim": profile,
-        "scene": "default",
         "robot": f"dual_{profile}",
         "camera": profile,
     }
-    assert env_cfg["layout_config_name"] == "arx_x5"
     assert env_cfg["hardware_calibration"] == profile
     assert env_cfg["observation"]["collect_freq"] == 30
     assert 1.0 / (sim_cfg["dt"] * 30) == 8.0
@@ -38,11 +36,9 @@ def test_lerobot_profile_is_runnable_and_uses_standard_scene_contracts():
     robot_info = json.loads((ROOT / "configs/robot/_robot_info.json").read_text())["dual_openarm_lerobot"]
     assert env_cfg["config"] == {
         "sim": "real_time_30hz",
-        "scene": "default",
         "robot": "dual_openarm_lerobot",
         "camera": "openarm_lerobot",
     }
-    assert env_cfg["layout_config_name"] == "arx_x5"
     assert "hardware_calibration" not in env_cfg
     assert env_cfg["observation"]["collect_freq"] == 30
     assert sim_cfg["frequency_settings"]["/app/runLoops/main/rateLimitFrequency"] == 150
@@ -128,7 +124,7 @@ def test_ambiguous_and_cloth_specific_profiles_are_removed():
         "configs/robot/dual_openarm.yml",
         "configs/openarm_cloth_folding.yml",
         "configs/camera/openarm_cloth_folding.yml",
-        "configs/scene/openarm_cloth_folding.yml",
+        "configs/scene/profiles/openarm_cloth_folding.yml",
         "configs/sim/openarm_cloth_folding.yml",
     ):
         assert not (ROOT / path).exists()

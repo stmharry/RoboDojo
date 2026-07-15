@@ -13,6 +13,7 @@ import zipfile
 import numpy as np
 
 from robodojo.core.paths import RepositoryPaths
+from robodojo.core.profiles import load_scene_profile
 
 SCENE_EXPORT_FORMAT_VERSION = 3
 REQUIRED_EXPORT_ARTIFACTS = (
@@ -52,16 +53,19 @@ class ExportIdentity:
 def scene_config_paths(
     repo_root: Path,
     profile: str,
+    scene_config: str,
     task: str,
     components: Mapping[str, str],
 ) -> list[Path]:
     """Return the canonical configuration inputs for a scene export."""
     repository_paths = RepositoryPaths.resolve(repo_root)
     config_root = repository_paths.environment_configs
+    scene_profile = load_scene_profile(repository_paths, scene_config)
     return [
         repository_paths.environment_profiles / f"{profile}.yml",
         config_root / "camera" / f"{components['camera']}.yml",
-        config_root / "scene" / f"{components['scene']}.yml",
+        scene_profile.path,
+        scene_profile.component_path,
         config_root / "robot" / f"{components['robot']}.yml",
         config_root / "sim" / f"{components['sim']}.yml",
         repository_paths.task_configs / f"{task}.yml",

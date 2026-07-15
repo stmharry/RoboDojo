@@ -22,14 +22,21 @@ RUNNER = CliRunner()
 
 def _write_minimal_config_graph(root: Path) -> RepositoryPaths:
     config_root = root / "configs"
-    for directory in ("environment", "sim", "scene", "robot", "camera", "task"):
+    for directory in (
+        "environment",
+        "sim",
+        "scene/profiles",
+        "scene/components",
+        "robot",
+        "camera",
+        "task",
+    ):
         (config_root / directory).mkdir(parents=True, exist_ok=True)
     (config_root / "environment/test.yml").write_text(
         """\
 config_name: test
 config:
   sim: sim_config
-  scene: profile_scene
   robot: robot_config
   camera: camera_config
 """,
@@ -38,8 +45,12 @@ config:
     (config_root / "sim/sim_config.yml").write_text("scene:\n  num_envs: 2\n", encoding="utf-8")
     (config_root / "robot/robot_config.yml").write_text("robots: []\n", encoding="utf-8")
     (config_root / "camera/camera_config.yml").write_text("cameras: []\n", encoding="utf-8")
-    for scene in ("default", "profile_scene", "task_scene", "explicit_scene"):
-        (config_root / f"scene/{scene}.yml").write_text("Room: {}\n", encoding="utf-8")
+    for scene in ("default", "task_scene", "explicit_scene"):
+        (config_root / f"scene/profiles/{scene}.yml").write_text(
+            f"config_name: {scene}\ncomponent: {scene}\nlayout_set: arx_x5\n",
+            encoding="utf-8",
+        )
+        (config_root / f"scene/components/{scene}.yml").write_text("Room: {}\n", encoding="utf-8")
     (config_root / "task/_task.yml").write_text(
         """\
 common:
@@ -70,15 +81,15 @@ def _simulator_request(task: str = "plain", scene_config: str | None = None) -> 
 def test_scene_resolution_precedence_and_pre_isaac_validation(tmp_path):
     paths = _write_minimal_config_graph(tmp_path)
 
-    assert resolve_scene_config(paths, _simulator_request()) == "profile_scene"
+    assert resolve_scene_config(paths, _simulator_request()) == "default"
     assert resolve_scene_config(paths, _simulator_request(task="special")) == "task_scene"
     assert resolve_scene_config(paths, _simulator_request(task="profile_default")) == "default"
     assert resolve_scene_config(paths, _simulator_request(task="special", scene_config="default")) == "default"
     assert resolve_scene_config(paths, _simulator_request(scene_config="explicit_scene")) == "explicit_scene"
 
-    with pytest.raises(ValueError, match="scene config not found"):
+    with pytest.raises(ValueError, match="scene profile not found"):
         simulator_command(paths, _simulator_request(scene_config="missing"))
-    with pytest.raises(ValueError, match="must stay below"):
+    with pytest.raises(ValueError, match="letters, digits, and underscores"):
         simulator_command(paths, _simulator_request(scene_config="../outside"))
 
 

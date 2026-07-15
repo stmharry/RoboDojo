@@ -34,10 +34,11 @@ policy adapter and are intentionally absent from that reference.
 
 ## Independent workspace selection
 
-The profile defaults to the shared `default` scene. The `molmo_yam` scene is a
-reusable cloth workspace that can be selected independently with
-`--scene molmo_yam` for any compatible policy and embodiment composition. Its
-geometry, fixture transforms, physics materials, camera stand, HDR, and
+Scene selection comes from task metadata or the explicit `--scene` option; it
+is not stored in an environment profile. The typed `molmo_yam` scene profile
+selects its rendering component, bundled layout set, and any assets required by
+those layouts. It can be composed with any compatible policy and embodiment.
+Its geometry, fixture transforms, physics materials, camera stand, HDR, and
 intensity match `default`; only visible room and tabletop appearance differs.
 
 The referenced room receives an off-white PreviewSurface. Replayed layouts
@@ -45,13 +46,11 @@ retain their geometry and physics but replace the legacy white tabletop
 material with the packaged material-0122 Mahogany MDL. Scene selection never
 changes the robot, camera, task, or policy contract.
 
-The public MolmoAct2 checkpoint can use the additive
-`bimanual_yam_molmoact2` profile for `general_pickup`. It retains the
-canonical YAM components while selecting a bundled, training-aligned
+For `general_pickup`, `molmo_yam` selects a bundled, training-aligned
 single-ball layout. The task's upstream instruction, lift reward, labels, and
 episode limit remain unchanged.
 
-The `fold_clothes` profile derives a topology-preserving short-sleeve shirt
+The scene's `fold_clothes` asset hook derives a topology-preserving short-sleeve shirt
 from the downloaded `Top_Long/00009` garment before scene construction. It
 retains the source mesh and reward-point vertex indices, places the garment at
 the table center in its native frame, and uses the cloth spring parameters from
@@ -68,20 +67,20 @@ uv run --extra sim --locked robodojo eval \
   --task general_pickup \
   --ckpt molmoact2_bimanual_yam \
   --policy-env molmoact2 \
-  --env-cfg bimanual_yam_molmoact2 \
+  --env-cfg bimanual_yam \
   --action-type joint \
-  --scene default
+  --scene molmo_yam
 ```
 
-The same scene is independently composable with the ARX embodiment and π0.5:
+The same scene remains independently composable with other policies:
 
 ```bash
 uv run --extra sim --locked robodojo eval \
-  --policy-dir XPolicyLab/policy/Pi_05 \
+  --policy-dir XPolicyLab/policy/MolmoACT2 \
   --task fold_clothes \
-  --ckpt pi05_arx5_multitask_v1 \
-  --policy-env uv \
-  --env-cfg arx_x5 \
+  --ckpt molmoact2_bimanual_yam \
+  --policy-env molmoact2 \
+  --env-cfg bimanual_yam \
   --action-type joint \
   --scene molmo_yam
 ```

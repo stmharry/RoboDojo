@@ -6,7 +6,7 @@ import pytest
 import yaml
 
 from robodojo.core.paths import RepositoryPaths
-from robodojo.core.profiles import load_environment_profile
+from robodojo.core.profiles import load_environment_profile, load_scene_profile
 from robodojo.sim.environment.camera_manager.mount_registry import (
     align_hardware_frame_pose,
     apply_mount_calibration,
@@ -45,11 +45,12 @@ def test_mast_pose_records_max_open_alignment():
 
 def test_cloth_workspace_scene_is_independent_of_the_yam_profile():
     profile = load_environment_profile(RepositoryPaths.resolve(ROOT), "bimanual_yam")
-    assert profile.document.config.scene == "default"
+    assert set(profile.component_paths) == {"sim", "robot", "camera"}
     assert profile.matched_replay_manifest is None
 
-    default = yaml.safe_load((ROOT / "configs/scene/default.yml").read_text())
-    workspace = yaml.safe_load((ROOT / "configs/scene/molmo_yam.yml").read_text())
+    paths = RepositoryPaths.resolve(ROOT)
+    default = load_scene_profile(paths, "default").component
+    workspace = load_scene_profile(paths, "molmo_yam").component
     comparable = deepcopy(workspace)
     assert comparable["Table"].pop("replay_material_override") == "material_0122"
     assert comparable["Room"].pop("visual_color") == [0.75, 0.75, 0.72]

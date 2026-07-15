@@ -13,7 +13,7 @@ import yaml
 from robodojo.core.models import SimulatorLaunchRequest
 from robodojo.core.paths import RepositoryPaths
 from robodojo.core.processes import format_command, run
-from robodojo.core.profiles import EnvironmentProfile, load_environment_profile
+from robodojo.core.profiles import EnvironmentProfile, SceneProfile, load_environment_profile, load_scene_profile
 
 logger = logging.getLogger(__name__)
 
@@ -26,17 +26,14 @@ def _task_scene_config(paths: RepositoryPaths, task: str) -> str | None:
     task_config = payload.get("tasks", {}).get(task, {})
     if "scene_config" in task_config:
         return str(task_config["scene_config"])
-    selected = common.get("scene_config", "default")
-    return str(selected) if selected != "default" else None
+    return str(common.get("scene_config", "default"))
 
 
-def _validate_scene_config(paths: RepositoryPaths, scene_config: str) -> None:
-    scene_root = (paths.environment_configs / "scene").resolve()
-    scene_path = (scene_root / f"{scene_config}.yml").resolve()
-    if not scene_path.is_relative_to(scene_root):
-        raise ValueError(f"scene config must stay below {scene_root}: {scene_config}")
-    if not scene_path.is_file():
-        raise ValueError(f"scene config not found: {scene_path}")
+def resolve_scene_profile(paths: RepositoryPaths, request: SimulatorLaunchRequest) -> SceneProfile:
+    """Resolve the explicit or task-selected scene profile."""
+
+    scene_name = request.scene_config or _task_scene_config(paths, request.task) or "default"
+    return load_scene_profile(paths, scene_name)
 
 
 def resolve_scene_config(
@@ -45,11 +42,10 @@ def resolve_scene_config(
     *,
     profile: EnvironmentProfile | None = None,
 ) -> str:
-    """Resolve explicit, task, and profile scene selection in precedence order."""
-    profile = profile or load_environment_profile(paths, request.env_config)
-    scene_config = request.scene_config or _task_scene_config(paths, request.task) or profile.document.config.scene
-    _validate_scene_config(paths, scene_config)
-    return scene_config
+    """Return the name of the explicit or task-selected scene profile."""
+
+    del profile  # Retained for source compatibility; scenes no longer come from embodiments.
+    return resolve_scene_profile(paths, request).name
 
 
 def _resolved_simulator_config(

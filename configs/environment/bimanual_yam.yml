@@ -1,9 +1,7 @@
 config_name: bimanual_yam
-layout_config_name: arx_x5
 
 config:
   sim: real_time_30hz
-  scene: default
   robot: dual_yam
   camera: bimanual_yam
 
@@ -16,7 +14,3 @@ observation:
     intrinsic_matrix: false
     extrinsic_matrix: false
     shape: true
-
-task_instruction_overrides:
-  fold_clothes:
-    - "Fold the shirt neatly on the table using both arms."

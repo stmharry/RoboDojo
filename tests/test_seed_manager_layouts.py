@@ -9,8 +9,8 @@ def _manager():
         {
             "num_envs": 1,
             "task_name": "general_pickup",
-            "config_name": "bimanual_yam_molmoact2",
-            "layout_config_name": "bimanual_yam_molmoact2",
+            "config_name": "bimanual_yam",
+            "layout_config_name": "molmo_yam",
             "seed": 0,
         }
     )
@@ -19,7 +19,7 @@ def _manager():
 def test_seed_manager_falls_back_to_bundled_layout(monkeypatch, tmp_path):
     monkeypatch.setattr(seed_manager_module, "ASSETS_PATH", str(tmp_path / "assets"))
     monkeypatch.setattr(seed_manager_module, "ENV_CONFIG_PATH", str(tmp_path / "configs"))
-    bundled = tmp_path / "configs/layout/bimanual_yam_molmoact2/0/general_pickup_0.json"
+    bundled = tmp_path / "configs/layout/molmo_yam/0/general_pickup_0.json"
     bundled.parent.mkdir(parents=True)
     bundled.write_text(json.dumps({"source": "bundled"}), encoding="utf-8")
 
@@ -33,8 +33,8 @@ def test_seed_manager_falls_back_to_bundled_layout(monkeypatch, tmp_path):
 def test_runtime_layout_takes_precedence_over_bundled(monkeypatch, tmp_path):
     monkeypatch.setattr(seed_manager_module, "ASSETS_PATH", str(tmp_path / "assets"))
     monkeypatch.setattr(seed_manager_module, "ENV_CONFIG_PATH", str(tmp_path / "configs"))
-    bundled = tmp_path / "configs/layout/bimanual_yam_molmoact2/0/general_pickup_0.json"
-    runtime = tmp_path / "assets/Eval_Layout/RoboDojo/bimanual_yam_molmoact2/0/general_pickup_0.json"
+    bundled = tmp_path / "configs/layout/molmo_yam/0/general_pickup_0.json"
+    runtime = tmp_path / "assets/Eval_Layout/RoboDojo/molmo_yam/0/general_pickup_0.json"
     for path, source in ((bundled, "bundled"), (runtime, "runtime")):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps({"source": source}), encoding="utf-8")

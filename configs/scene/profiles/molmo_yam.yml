@@ -1,0 +1,7 @@
+config_name: molmo_yam
+component: molmo_yam
+layout_set: molmo_yam
+
+task_asset_preparers:
+  fold_clothes:
+    - yam_short_sleeve_garment

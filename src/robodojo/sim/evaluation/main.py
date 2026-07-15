@@ -11,7 +11,7 @@ from isaaclab.app import AppLauncher
 from robodojo.core.logging import configure_logging
 from robodojo.core.models import SimulatorLaunchRequest
 from robodojo.core.paths import RepositoryPaths
-from robodojo.core.profiles import load_environment_profile
+from robodojo.core.profiles import load_environment_profile, load_scene_profile
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +134,7 @@ RESOLVED_SCENE_CONFIG = resolve_scene_config(
     ),
     profile=ENVIRONMENT_PROFILE,
 )
+SCENE_PROFILE = load_scene_profile(REPOSITORY_PATHS, RESOLVED_SCENE_CONFIG)
 
 
 def _physx_monitor_needed(task_name) -> bool:
@@ -178,13 +179,9 @@ if enable_monitor:
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
-# The public checkpoint was trained with a short-sleeve shirt, while the
-# upstream RoboDojo garment catalog contains only a topology-compatible long
-# sleeve source. Keep this policy-specific visual adapter out of task logic.
-if args_cli.env_cfg_type == "bimanual_yam_molmoact2" and args_cli.task_name == "fold_clothes":
-    from robodojo.workflows.assets_molmoact2_yam import prepare_molmoact2_yam_garment
+from robodojo.sim.scene_preparation import prepare_scene_assets
 
-    prepare_molmoact2_yam_garment()
+prepare_scene_assets(SCENE_PROFILE, args_cli.task_name)
 
 from omegaconf import OmegaConf
 
@@ -232,12 +229,13 @@ def _load_resume_manifest(eval_cfg, run_id):
     except Exception as e:
         logger.warning("[main] failed to load resume manifest at %s: %s; ignoring.", path, e)
         return None
-    resumed_scene = data.get("scene_config")
-    current_scene = eval_cfg["config"]["scene"]
-    if resumed_scene != current_scene:
-        raise ValueError(
-            f"resume manifest scene mismatch: expected {current_scene!r}, found {resumed_scene!r} at {path}"
-        )
+    for field in ("scene_config", "scene_component", "scene_profile_hash", "layout_config_name"):
+        resumed_value = data.get(field)
+        current_value = eval_cfg.get(field)
+        if resumed_value != current_value:
+            raise ValueError(
+                f"resume manifest {field} mismatch: expected {current_value!r}, found {resumed_value!r} at {path}"
+            )
     logger.info(
         "[main] resuming from manifest %s (success=%s fail=%s completed=%s abandoned=%s restart_count=%s)",
         path,
@@ -329,8 +327,10 @@ def main():
     task_name = args_cli.task_name
     num_envs = 1 if SCENE_EXPORT_ONLY else args_cli.num_envs
     eval_cfg = load_yaml(ENVIRONMENT_PROFILE.path)
-    eval_cfg["config"]["scene"] = RESOLVED_SCENE_CONFIG
     eval_cfg["scene_config"] = RESOLVED_SCENE_CONFIG
+    eval_cfg["scene_component"] = SCENE_PROFILE.document.component
+    eval_cfg["scene_profile_hash"] = SCENE_PROFILE.identity_hash
+    eval_cfg["layout_config_name"] = SCENE_PROFILE.document.layout_set
     eval_cfg["task_name"] = task_name
     eval_cfg["num_envs"] = num_envs
     eval_cfg["device_id"] = args_cli.device_id
@@ -354,13 +354,7 @@ def main():
     env_cfg = OmegaConf.create(
         {
             "sim": load_yaml(os.path.join(ENV_CONFIG_PATH, "sim", eval_cfg["config"]["sim"] + ".yml")),
-            "scene": load_yaml(
-                os.path.join(
-                    ENV_CONFIG_PATH,
-                    "scene",
-                    eval_cfg["config"]["scene"] + ".yml",
-                )
-            ),
+            "scene": load_yaml(SCENE_PROFILE.component_path),
             "camera": load_yaml(
                 os.path.join(
                     ENV_CONFIG_PATH,

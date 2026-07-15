@@ -1,4 +1,4 @@
-"""Prepare the narrow simulator assets used by the public MolmoAct2 YAM profile."""
+"""Prepare simulator assets required by the YAM-oriented scene layouts."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ SOURCE_GARMENT_INDEX = 9
 DERIVED_GARMENT_INDEX = 12
 
 
-def reshape_long_sleeves_for_molmoact2(points: np.ndarray) -> np.ndarray:
+def reshape_long_sleeves_for_yam_scene(points: np.ndarray) -> np.ndarray:
     """Return a topology-preserving short-sleeve variant of a garment mesh."""
     result = np.asarray(points, dtype=np.float32).copy()
     if result.ndim != 2 or result.shape[1] != 3:
@@ -62,8 +62,8 @@ def update_garment_metadata(metadata: dict, points: np.ndarray, face_count: int)
     return result
 
 
-def prepare_molmoact2_yam_garment() -> Path:
-    """Derive the policy shirt from the downloaded upstream garment asset."""
+def prepare_yam_short_sleeve_garment() -> Path:
+    """Derive the scene's short-sleeve shirt from the upstream garment asset."""
     from pxr import Usd, UsdGeom, Vt
 
     garment_root = assets_root() / "Object" / "RoboDojo" / "Garment" / "Top_Long"
@@ -72,7 +72,7 @@ def prepare_molmoact2_yam_garment() -> Path:
     source_metadata = source_root / "metadata.json"
     if not source.is_file() or not source_metadata.is_file():
         raise FileNotFoundError(
-            f"MolmoAct2 garment source is incomplete under {source_root}; download RoboDojo assets first"
+            f"YAM scene garment source is incomplete under {source_root}; download RoboDojo assets first"
         )
 
     destination = garment_root / f"{DERIVED_GARMENT_INDEX:05d}" / "object.usd"
@@ -81,18 +81,18 @@ def prepare_molmoact2_yam_garment() -> Path:
     temporary.unlink(missing_ok=True)
     source_stage = Usd.Stage.Open(str(source))
     if source_stage is None:
-        raise RuntimeError(f"could not open MolmoAct2 garment source {source}")
+        raise RuntimeError(f"could not open YAM scene garment source {source}")
     if not source_stage.Flatten().Export(str(temporary)):
-        raise RuntimeError(f"could not export flattened MolmoAct2 garment to {temporary}")
+        raise RuntimeError(f"could not export flattened YAM scene garment to {temporary}")
 
     stage = Usd.Stage.Open(str(temporary))
     if stage is None:
-        raise RuntimeError(f"could not open flattened MolmoAct2 garment {temporary}")
+        raise RuntimeError(f"could not open flattened YAM scene garment {temporary}")
     meshes = [UsdGeom.Mesh(prim) for prim in stage.Traverse() if prim.IsA(UsdGeom.Mesh)]
     if len(meshes) != 1:
         raise RuntimeError(f"expected one garment mesh in {source}, found {len(meshes)}")
     mesh = meshes[0]
-    points = reshape_long_sleeves_for_molmoact2(np.asarray(mesh.GetPointsAttr().Get(), dtype=np.float32))
+    points = reshape_long_sleeves_for_yam_scene(np.asarray(mesh.GetPointsAttr().Get(), dtype=np.float32))
     usd_points = Vt.Vec3fArray.FromNumpy(points)
     mesh.GetPointsAttr().Set(usd_points)
     mesh.GetExtentAttr().Set(UsdGeom.PointBased.ComputeExtent(usd_points))
@@ -109,5 +109,5 @@ def prepare_molmoact2_yam_garment() -> Path:
         json.dump(derived_metadata, stream, indent=2)
         stream.write("\n")
     metadata_temporary.replace(metadata)
-    logger.info("prepared inherited MolmoAct2 YAM garment %s from %s", destination, source)
+    logger.info("prepared YAM scene garment %s from %s", destination, source)
     return destination

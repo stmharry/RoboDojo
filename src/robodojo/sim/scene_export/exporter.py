@@ -507,7 +507,13 @@ def _source_revisions(repo_root: Path) -> dict[str, Any]:
 
 
 def _config_hashes(repo_root: Path, env) -> dict[str, str]:
-    paths = scene_config_paths(repo_root, env.config_name, env.task_name, env.eval_cfg["config"])
+    paths = scene_config_paths(
+        repo_root,
+        env.config_name,
+        env.scene_config,
+        env.task_name,
+        env.eval_cfg["config"],
+    )
     return {str(path.relative_to(repo_root)): _sha256_file(path) for path in paths if path.is_file()}
 
 
@@ -617,6 +623,11 @@ def export_scene_snapshot(env, output_dir: str | os.PathLike[str], layout_id: in
             "task": env.task_name,
             "profile": {"config_name": env.config_name, "camera_profile_id": env.camera_rig.profile_id},
             "scene_config": env.scene_config,
+            "scene_profile": {
+                "component": env.scene_component,
+                "layout_set": env.layout_config_name,
+                "sha256": env.scene_profile_hash,
+            },
             "seed": int(env.eval_seed),
             "layout": {
                 "id": int(layout_id),

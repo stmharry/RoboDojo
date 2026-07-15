@@ -119,10 +119,10 @@ def test_scene_export_inputs_follow_canonical_config_domains():
     paths = scene_config_paths(
         ROOT,
         "arx_x5",
+        "default",
         "stack_bowls",
         {
             "sim": "sim_config",
-            "scene": "default",
             "robot": "dual_x5",
             "camera": "camera_config",
         },
@@ -131,7 +131,8 @@ def test_scene_export_inputs_follow_canonical_config_domains():
     assert {str(path.relative_to(ROOT)) for path in paths} == {
         "configs/environment/arx_x5.yml",
         "configs/camera/camera_config.yml",
-        "configs/scene/default.yml",
+        "configs/scene/profiles/default.yml",
+        "configs/scene/components/default.yml",
         "configs/robot/dual_x5.yml",
         "configs/sim/sim_config.yml",
         "configs/task/stack_bowls.yml",
