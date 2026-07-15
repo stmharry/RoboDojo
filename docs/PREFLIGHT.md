@@ -15,7 +15,10 @@ Make arguments or exported process variables. The Makefile defaults to the
 RoboDojo dataset, joint actions, seed 0, automatic policy and simulator GPU
 selection, one episode, scene export, and publication. Override any default
 with a Make assignment such as `make eval PRESET=<name> EVAL_NUM=25` or disable
-the export with `EXPORT_SCENE=false`; repository `.env` files are not loaded.
+the export with `EXPORT_SCENE=false`. Make also loads an optional ignored `.env`
+from the repository root. Entries use Make syntax and should use `?=` so Make
+arguments and exported process variables retain precedence. Direct `robodojo`
+commands continue to read the process environment only.
 
 A normal `make eval` runs idempotent setup first and then calls the managed
 evaluation. The managed evaluation performs fast preflight exactly once before

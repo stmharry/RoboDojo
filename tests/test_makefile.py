@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import shutil
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -26,6 +27,7 @@ MAKE_VARIABLES = (
     "ONLY",
     "ARGS",
 )
+MACHINE_VARIABLES = ("ROBODOJO_STORAGE_ROOT", "ROBODOJO_S3_URI", "AWS_PROFILE")
 
 PRESETS = (
     (
@@ -233,6 +235,117 @@ def run_make(*arguments: str, env: dict[str, str] | None = None) -> subprocess.C
         capture_output=True,
         text=True,
     )
+
+
+def make_probe(tmp_path: Path) -> tuple[Path, Path]:
+    makefile = tmp_path / "Makefile"
+    probe = tmp_path / "probe.mk"
+    shutil.copy2(ROOT / "Makefile", makefile)
+    probe.write_text(
+        ".PHONY: machine-env\n"
+        "machine-env:\n"
+        '\t@printf \'%s|%s|%s\\n\' "$$ROBODOJO_STORAGE_ROOT" "$$ROBODOJO_S3_URI" "$$AWS_PROFILE"\n',
+        encoding="utf-8",
+    )
+    return makefile, probe
+
+
+def run_make_probe(
+    makefile: Path,
+    probe: Path,
+    *arguments: str,
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    environment = os.environ.copy() if env is None else env.copy()
+    if env is None:
+        for name in MACHINE_VARIABLES:
+            environment.pop(name, None)
+    return subprocess.run(
+        ["make", "-f", str(makefile), "-f", str(probe), "machine-env", *arguments],
+        cwd=makefile.parent.parent,
+        env=environment,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_make_loads_and_exports_machine_defaults_from_repo_dotenv(tmp_path: Path):
+    makefile, probe = make_probe(tmp_path)
+    (tmp_path / ".env").write_text(
+        "ROBODOJO_STORAGE_ROOT ?= $(ROOT_DIR)/storage\n"
+        "ROBODOJO_S3_URI ?= s3://dotenv/robodojo\n"
+        "AWS_PROFILE ?= dotenv-profile\n",
+        encoding="utf-8",
+    )
+
+    result = run_make_probe(makefile, probe)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == f"{tmp_path}/storage|s3://dotenv/robodojo|dotenv-profile"
+
+
+def test_shell_and_make_arguments_override_dotenv_defaults(tmp_path: Path):
+    makefile, probe = make_probe(tmp_path)
+    (tmp_path / ".env").write_text(
+        "ROBODOJO_STORAGE_ROOT ?= /dotenv/storage\n"
+        "ROBODOJO_S3_URI ?= s3://dotenv/robodojo\n"
+        "AWS_PROFILE ?= dotenv-profile\n",
+        encoding="utf-8",
+    )
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "ROBODOJO_STORAGE_ROOT": "/shell/storage",
+            "ROBODOJO_S3_URI": "s3://shell/robodojo",
+            "AWS_PROFILE": "shell-profile",
+        }
+    )
+
+    shell = run_make_probe(makefile, probe, env=environment)
+    command_line = run_make_probe(
+        makefile,
+        probe,
+        "ROBODOJO_STORAGE_ROOT=/make/storage",
+        "ROBODOJO_S3_URI=s3://make/robodojo",
+        "AWS_PROFILE=make-profile",
+        env=environment,
+    )
+
+    assert shell.returncode == 0, shell.stderr
+    assert shell.stdout.strip() == "/shell/storage|s3://shell/robodojo|shell-profile"
+    assert command_line.returncode == 0, command_line.stderr
+    assert command_line.stdout.strip() == "/make/storage|s3://make/robodojo|make-profile"
+
+
+def test_make_dotenv_is_optional(tmp_path: Path):
+    makefile, probe = make_probe(tmp_path)
+
+    environment = os.environ.copy()
+    for name in MACHINE_VARIABLES:
+        environment.pop(name, None)
+    machine = run_make_probe(makefile, probe, env=environment)
+    presets = subprocess.run(
+        ["make", "-f", str(makefile), "presets"],
+        cwd=makefile.parent.parent,
+        env=environment,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert machine.returncode == 0, machine.stderr
+    assert machine.stdout.strip() == "||"
+    assert presets.returncode == 0, presets.stderr
+    assert len(presets.stdout.splitlines()) == len(PRESETS) + 1
+
+
+def test_make_requires_experiment_selection_without_a_preset():
+    result = run_make("-n", "eval")
+
+    assert result.returncode != 0
+    assert "TASK is required" in result.stderr
+    assert "select PRESET=..., pass TASK=... to make, or export it" in result.stderr
 
 
 def test_make_lists_the_complete_aligned_preset_catalog():

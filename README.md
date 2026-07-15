@@ -77,11 +77,13 @@ make eval PRESET=pi05-bimanual_yam-molmo_yam-general_pickup
 
 The selected preset supplies the policy directory and environment, checkpoint,
 environment, scene, and task. Explicit Make assignments can override individual
-preset fields. Custom experiments can still supply those values entirely through
-Make arguments or exported process variables; repository `.env` files are not
-loaded. Make supplies stable defaults for the RoboDojo dataset, joint actions,
-seed 0, automatic policy and simulator GPU selection, one evaluation episode,
-scene export, and publication.
+preset fields. Custom experiments can still supply those values through Make
+arguments or exported process variables. Make also loads an optional ignored
+`.env` from the repository root for machine-local defaults. Use Make-compatible
+`?=` assignments so explicit arguments and exported variables retain precedence;
+direct Python CLI commands do not load this file. Make supplies stable defaults
+for the RoboDojo dataset, joint actions, seed 0, automatic policy and simulator
+GPU selection, one evaluation episode, scene export, and publication.
 
 For paired workflows, Python assigns the most-free GPU to the simulator and the
 next-most-free GPU to the policy, breaking ties by device index. Override either

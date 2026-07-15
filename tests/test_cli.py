@@ -1,6 +1,5 @@
 import os
 from pathlib import Path
-import shutil
 import subprocess
 import sys
 
@@ -338,27 +337,12 @@ def test_make_dry_run_toggle_and_local_sweeps():
         assert "--export-scene" not in rendered[target]
 
 
-def test_make_ignores_dotenv_and_requires_experiment_selection(tmp_path):
-    shutil.copy2(ROOT / "Makefile", tmp_path / "Makefile")
-    dotenv = tmp_path / ".env"
-    dotenv.write_text(
-        "TASK=general_pickup\nENV_CFG=bimanual_yam\n"
-        "POLICY_DIR=XPolicyLab/policy/Pi_05\nPOLICY_ENV=uv\nCKPT=pi05_yam_molmoact2\n",
-        encoding="utf-8",
-    )
-
-    invalid = subprocess.run(["make", "-n", "eval"], cwd=tmp_path, check=False, capture_output=True, text=True)
-    assert invalid.returncode != 0
-    assert "TASK is required" in invalid.stderr
-    assert "select PRESET=..., pass TASK=... to make, or export it" in invalid.stderr
-    assert dotenv.is_file()
-
-
 def test_make_help_exposes_only_the_supported_target_surface():
     result = subprocess.run(["make", "help"], cwd=ROOT, check=True, capture_output=True, text=True)
     for target in ("presets", "setup", "preflight", "eval", "smoke", "benchmark", "results", "check"):
         assert target in result.stdout
     assert "make presets -> make eval PRESET=<name>" in result.stdout
+    assert "optional machine defaults: .env (?= assignments)" in result.stdout
     for removed in ("init", "policy-setup", "eval-dry-run", "storage-publish", "docker-build", "assets-yam"):
         assert removed not in result.stdout
 

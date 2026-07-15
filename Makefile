@@ -1,8 +1,13 @@
 # Opinionated local workflow shortcuts. Python owns workflow behavior; Make
-# accepts experiment selection from arguments or the process environment and
-# translates it to CLI flags.
+# accepts experiment selection from arguments, the process environment, or an
+# optional machine-local .env and translates it to CLI flags.
 
 SELF := $(firstword $(MAKEFILE_LIST))
+ROOT_DIR := $(patsubst %/,%,$(dir $(abspath $(SELF))))
+
+# Make-only machine defaults. Use ?= assignments so explicit Make arguments
+# and exported process variables retain precedence.
+-include $(ROOT_DIR)/.env
 
 SHELL := /bin/bash
 .SHELLFLAGS := -e -o pipefail -c
@@ -132,7 +137,7 @@ SWEEP_ARGS = \
 
 ##@ Workflow
 help: ## Show the supported local workflow
-	@printf 'RoboDojo local workflow\n\n  make presets -> make eval PRESET=<name>\n'
+	@printf 'RoboDojo local workflow\n\n  make presets -> make eval PRESET=<name>\n  optional machine defaults: .env (?= assignments)\n'
 	@awk \
 		'BEGIN {FS = ":.*## "} \
 		/^##@ / {printf "\n%s\n", substr($$0, 5); next} \

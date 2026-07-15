@@ -161,7 +161,9 @@ During review, verify the applicable items:
 `Makefile` is the tracked entry point for common development, evaluation, and
 storage workflows. Keep its help output synchronized when adding or changing
 configurable targets. Experiment values come from Make arguments or the process
-environment; repository `.env` files are not loaded.
+environment. Make optionally loads an ignored repository `.env` for
+machine-local defaults; direct Python commands do not. Keep rollout identity in
+tracked presets rather than the local file.
 
 Before starting implementation work, fetch `origin`, confirm local `main` has
 no tracked-file changes, and confirm it is current with `origin/main` when that

@@ -2,11 +2,19 @@
 
 RoboDojo keeps all runtime data in one writable local root. By default this is
 `.robodojo/` below the repository root, regardless of the directory from which
-the CLI is invoked. Override it when needed:
+the CLI is invoked. Make workflows can keep machine-local storage and remote
+defaults in the ignored repository `.env`:
 
-```bash
-export ROBODOJO_STORAGE_ROOT=/local/nvme/robodojo
+```make
+ROBODOJO_STORAGE_ROOT ?= /local/nvme/robodojo
+ROBODOJO_S3_URI ?= s3://your-bucket/robodojo
+AWS_PROFILE ?= robodojo-runtime
 ```
+
+This file is parsed by Make, not by Python or a shell dotenv loader. The `?=`
+assignments let explicit Make arguments and exported shell variables override
+the local defaults. Direct CLI calls instead require process environment values,
+for example `export ROBODOJO_STORAGE_ROOT=/local/nvme/robodojo`.
 
 The canonical layout is:
 
@@ -28,7 +36,8 @@ is reserved for transactional storage operations.
 
 ## Optional S3 remote
 
-Configure a dedicated remote prefix and standard AWS CLI credentials:
+Direct CLI users configure a dedicated remote prefix and standard AWS CLI
+credentials through the process environment:
 
 ```bash
 export ROBODOJO_S3_URI=s3://your-bucket/robodojo
