@@ -6,7 +6,7 @@ from pathlib import Path
 import re
 from typing import Any, Dict, List
 
-from robodojo.sim.environment.global_configs import ASSETS_PATH, BENCHMARK
+from robodojo.sim.environment.global_configs import ASSETS_PATH, BENCHMARK, ENV_CONFIG_PATH
 from robodojo.sim.utils.load_file import load_json
 
 logger = logging.getLogger(__name__)
@@ -36,10 +36,15 @@ class SeedManager:
         self.eval_seed = self.config.get("seed", 0)
         layout_dir = Path(ASSETS_PATH, "Eval_Layout", BENCHMARK, self.layout_config_name, str(self.eval_seed))
         pattern = re.compile(rf"{re.escape(self.task_name)}_\d+\.json")
-        matching_files = sorted(
-            [p for p in layout_dir.iterdir() if pattern.fullmatch(p.name)],
-            key=lambda p: int(p.stem.rsplit("_", 1)[-1]),
-        )
+        matching_files = [p for p in layout_dir.iterdir() if pattern.fullmatch(p.name)] if layout_dir.is_dir() else []
+        if not matching_files:
+            bundled_dir = Path(ENV_CONFIG_PATH, "layout", self.layout_config_name, str(self.eval_seed))
+            matching_files = (
+                [p for p in bundled_dir.iterdir() if pattern.fullmatch(p.name)] if bundled_dir.is_dir() else []
+            )
+            if matching_files:
+                logger.info("[SeedManager] using bundled evaluation layouts from %s", bundled_dir)
+        matching_files.sort(key=lambda p: int(p.stem.rsplit("_", 1)[-1]))
 
         matching_files = [str(p) for p in matching_files]
         self.seed_info = {}

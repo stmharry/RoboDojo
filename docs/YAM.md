@@ -45,17 +45,23 @@ retain their geometry and physics but replace the legacy white tabletop
 material with the packaged material-0122 Mahogany MDL. Scene selection never
 changes the robot, camera, task, or policy contract.
 
+The public MolmoAct2 checkpoint can use the additive
+`bimanual_yam_molmoact2` profile for `general_pickup`. It retains the
+canonical YAM components while selecting a bundled, training-aligned
+single-ball layout. The task's upstream instruction, lift reward, labels, and
+episode limit remain unchanged.
+
 For example, a YAM evaluation may opt into that workspace explicitly:
 
 ```bash
 uv run --extra sim --locked robodojo eval \
   --policy-dir XPolicyLab/policy/MolmoACT2 \
-  --task fold_clothes \
+  --task general_pickup \
   --ckpt molmoact2_bimanual_yam \
-  --policy-env uv \
-  --env-cfg bimanual_yam \
+  --policy-env molmoact2 \
+  --env-cfg bimanual_yam_molmoact2 \
   --action-type joint \
-  --scene molmo_yam
+  --scene default
 ```
 
 The same scene is independently composable with the ARX embodiment and π0.5:

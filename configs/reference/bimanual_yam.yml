@@ -26,6 +26,11 @@ sources:
       gripper_mesh:
         path: assets/yam/yam_mujoco/assets/gripper_linear.obj
         sha256: 31d70e2129a3ab8e85f391785cae5bba4163e1e16fb02a3988c5ac1c549c9d78
+  historical_finger_collision_reference:
+    repository: https://huggingface.co/datasets/TreeePlanter/molmoact2-sim-eval-assets
+    revision: 9332a64224ff0a813d9f77bd377b845270232513
+    usage: reference_only_final_values_retained
+    derivation: historical box-pad colliders transformed into the pinned I2RT tip-link frames
   historical_hardware_calibration:
     usage: provenance_only_final_values_retained
     method: offline_matched_frame_fit
@@ -155,3 +160,7 @@ controller_contract:
     effort_limit: 40.0
     static_friction: 3.0
     dynamic_friction: 2.5
+    collision_geometry:
+      source: historical_finger_collision_reference
+      type: three_box_pads_per_finger
+      frame: i2rt_tip_link

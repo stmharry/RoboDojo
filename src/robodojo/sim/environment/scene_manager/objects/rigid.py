@@ -2,6 +2,7 @@ import logging
 import random
 
 from isaacsim.core.api.materials.physics_material import PhysicsMaterial
+from isaacsim.core.api.materials.preview_surface import PreviewSurface
 from isaacsim.core.prims import SingleGeometryPrim, SingleRigidPrim
 from isaacsim.core.simulation_manager import SimulationManager
 from isaacsim.core.utils.prims import get_prim_at_path, is_prim_path_valid
@@ -9,8 +10,9 @@ from isaacsim.core.utils.stage import add_reference_to_stage
 from isaacsim.core.utils.string import find_unique_string_name
 import numpy as np
 from omegaconf import DictConfig
+import omni.kit.commands
 import omni.usd
-from pxr import Gf, Sdf, Usd, UsdGeom
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade
 import torch
 
 from robodojo.sim.environment.scene_manager.layout_manager import LayoutManager
@@ -97,10 +99,30 @@ class RigidObject(SingleRigidPrim, SingleGeometryPrim):
             orientation=self.default_ori,
             scale=self.scale,
         )
+        self._current_color = self.visual_config.get("color")
+        if self._current_color is not None:
+            self._apply_color_material(self._current_color)
         self._default_linear_velocity = [0.0, 0.0, 0.0]
         self._default_angular_velocity = [0.0, 0.0, 0.0]
 
         self._setup_physics()
+
+    def _apply_color_material(self, color_rgb):
+        """Apply an opt-in PreviewSurface color override to a rigid asset."""
+        color = np.asarray(color_rgb, dtype=np.float32)
+        if color.shape != (3,) or not np.isfinite(color).all() or ((color < 0) | (color > 1)).any():
+            raise ValueError("rigid visual color must contain three finite values in [0, 1]")
+        self.color_material_path = find_unique_string_name(
+            initial_name=self.usd_prim_path + "/Looks/color_material",
+            is_unique_fn=lambda path: not is_prim_path_valid(path),
+        )
+        PreviewSurface(prim_path=self.color_material_path, color=color)
+        omni.kit.commands.execute(
+            "BindMaterialCommand",
+            prim_path=self._prim_path,
+            material_path=self.color_material_path,
+            strength=UsdShade.Tokens.strongerThanDescendants,
+        )
 
     def _get_object_transform(self, device=None):
         """

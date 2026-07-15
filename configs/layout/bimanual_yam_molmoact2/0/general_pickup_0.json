@@ -1,0 +1,145 @@
+{
+  "Background": {
+    "intensity": 1000,
+    "category_name": "brown_photostudio_02_4k.hdr"
+  },
+  "Geometry": {
+    "camera_stand": [
+      {
+        "category": "camera_stand",
+        "category_idx": 0,
+        "group": null,
+        "xlim": [
+          0,
+          0
+        ],
+        "ylim": [
+          -0.47,
+          -0.47
+        ],
+        "zlim": [
+          0.715,
+          0.715
+        ],
+        "qpos": [
+          0.707,
+          -0.707,
+          0,
+          0
+        ],
+        "rotate_deg": 0,
+        "rotate_rand": false,
+        "relative_plane": "Ground",
+        "place_tag": null,
+        "margin": 0.01,
+        "check_mode": "bbox",
+        "need_check_stable": true,
+        "label": "camera_stand",
+        "default_pos": [
+          0,
+          -0.47,
+          0.765
+        ],
+        "default_ori": [
+          0.707,
+          -0.707,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "physics": {
+          "type": "geometry"
+        },
+        "visual": {}
+      }
+    ]
+  },
+  "Ground": {
+    "geometry": "cube",
+    "thickness": 0.1,
+    "axis": "Z",
+    "default_pos": [
+      0,
+      0,
+      0
+    ],
+    "materials": {
+      "type": "mdl",
+      "default": "material_0564",
+      "random": false
+    },
+    "physics_material": {
+      "static_friction": 1,
+      "dynamic_friction": 1,
+      "restitution": 0,
+      "friction_combine_mode": "multiply",
+      "restitution_combine_mode": "multiply",
+      "compliant_contact_stiffness": 0,
+      "compliant_contact_damping": 0
+    }
+  },
+  "Room": {
+    "default": "Simple_Room_nolight",
+    "default_pos": [
+      0,
+      0,
+      0
+    ],
+    "default_rot": [
+      1,
+      0,
+      0,
+      0
+    ],
+    "scale": [
+      0.5,
+      0.5,
+      0.5
+    ]
+  },
+  "Table": {
+    "default": "material_0122",
+    "scale": [
+      1.4,
+      1.1,
+      0.05
+    ],
+    "default_pos": [
+      0,
+      -0.05,
+      0.74
+    ],
+    "default_ori": [
+      1,
+      0,
+      0,
+      0
+    ]
+  },
+  "Rigid": {
+    "ball": [
+      {
+        "category_idx": 1,
+        "physics": {"type": "rigid"},
+        "scale": [1, 1, 1],
+        "type": "cluttered",
+        "clutter_idx": 0,
+        "yaml_path": "Clutter/clutter.yml",
+        "relative_plane": "Table",
+        "default_pos": [0.22, -0.10, 0.7683537298662597],
+        "default_ori": [
+          0.959055682083492,
+          -0.08378034247114842,
+          0.20092118888373203,
+          0.18117320093306527
+        ],
+        "label": "target",
+        "visual": {"color": [0.35, 0.65, 0.08]}
+      }
+    ]
+  }
+}

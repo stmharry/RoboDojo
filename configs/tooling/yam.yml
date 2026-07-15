@@ -17,6 +17,22 @@ sources:
       gripper_mesh:
         path: assets/yam/yam_mujoco/assets/gripper_linear.obj
         sha256: 31d70e2129a3ab8e85f391785cae5bba4163e1e16fb02a3988c5ac1c549c9d78
+  historical_finger_collision_reference:
+    repository: https://huggingface.co/datasets/TreeePlanter/molmoact2-sim-eval-assets
+    revision: 9332a64224ff0a813d9f77bd377b845270232513
+    license: undeclared
+    usage: reference_only
+    derivation: transform the historical YAM box-pad colliders into the pinned I2RT tip-link frames
+    files:
+      bimanual_model:
+        path: assets/yam/yam_mujoco/bimanual_yam_linear_flattened.xml
+        sha256: 459f1801fae5618e7caf3c44f257a53d61974e7708a14d83c7b60a60b65e374a
+      tip_left_mesh:
+        path: assets/yam/yam_mujoco/assets/tip_left_linear.obj
+        sha256: 2757c8cb1a00ebdea396109103886931d2792857ad81fc3de222793f7a8d0d4c
+      tip_right_mesh:
+        path: assets/yam/yam_mujoco/assets/tip_right_linear.obj
+        sha256: 0db3a5d8899e496da288ad5e42c581b42403dc4ea943fca52cac2568bf57bbc2
   hardware_appearance_reference:
     repository: https://huggingface.co/datasets/allenai/MolmoAct2-BimanualYAM-Dataset
     revision: e9f21ae15074330839f2ac25ed4b49d76dfa1f9c
@@ -48,7 +64,8 @@ asset:
     - source_linear_3507_gripper_meshes
     - convert_zero_range_dof_joint0_to_fixed
     - set_finger_limits_to_negative_47_5_mm
-    - add_convex_hull_collisions_from_visuals
+    - add_convex_hull_collisions_from_visuals_except_fingers
+    - add_reference_finger_box_pad_collisions
     - add_reference_only_wrist_camera_mount_frame
     - author_yam_hardware_preview_materials
     - author_nonphysical_d405_visual_proxy
@@ -66,7 +83,7 @@ asset:
       optical_frame: OpticalFrame
       provenance_source: realsense_d405
       dimensions_m: [0.042, 0.042, 0.023]
-      housing_material: light_gray
+      housing_material: charcoal
       detail_material: charcoal
       physical: false
   converter:
@@ -142,3 +159,33 @@ physics_contract:
     effort_limit: 40.0
     static_friction: 3.0
     dynamic_friction: 2.5
+    finger_colliders:
+      derivation_source: historical_finger_collision_reference
+      frame: i2rt_tip_link
+      links:
+        tip_left:
+          - name: pad_0
+            origin_xyz: [0.02319321, -0.04839998, -0.02431830]
+            origin_rpy: [-1.57079633, -1.57079633, 0.0]
+            size: [0.0136, 0.0600, 0.0040]
+          - name: pad_1
+            origin_xyz: [0.03819321, -0.04839998, -0.05431830]
+            origin_rpy: [-1.57079633, 0.37920389, 0.0]
+            size: [0.0096, 0.0680, 0.0040]
+          - name: pad_2
+            origin_xyz: [0.00819321, -0.04839998, -0.05431830]
+            origin_rpy: [-1.57079633, -0.37079754, 0.0]
+            size: [0.0096, 0.0680, 0.0040]
+        tip_right:
+          - name: pad_0
+            origin_xyz: [-0.02319320, 0.04840000, -0.02431830]
+            origin_rpy: [-1.57079633, -1.57079633, 0.0]
+            size: [0.0136, 0.0600, 0.0040]
+          - name: pad_1
+            origin_xyz: [-0.03819320, 0.04840000, -0.05431830]
+            origin_rpy: [1.57079633, 0.37920389, 3.14159265]
+            size: [0.0096, 0.0680, 0.0040]
+          - name: pad_2
+            origin_xyz: [-0.00819320, 0.04840000, -0.05431830]
+            origin_rpy: [1.57079633, -0.37079754, 3.14159265]
+            size: [0.0096, 0.0680, 0.0040]

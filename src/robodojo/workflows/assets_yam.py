@@ -400,11 +400,71 @@ def _joint_by_name(robot: ET.Element, name: str) -> ET.Element:
     return matches[0]
 
 
-def _add_collisions_from_visuals(robot: ET.Element) -> int:
+def _finger_collider_contract(build_manifest: dict) -> dict[str, list[dict]]:
+    """Validate the historical YAM finger-pad geometry in I2RT link frames."""
+
+    source = build_manifest.get("physics_contract", {}).get("gripper", {}).get("finger_colliders")
+    if not isinstance(source, dict) or source.get("frame") != "i2rt_tip_link":
+        raise ValueError("YAM gripper must declare finger colliders in i2rt_tip_link frames")
+    derivation_source = source.get("derivation_source")
+    provenance = build_manifest.get("sources", {}).get(derivation_source)
+    if not isinstance(provenance, dict) or provenance.get("usage") != "reference_only":
+        raise ValueError("YAM finger colliders must cite reference-only simulator geometry")
+
+    links = source.get("links")
+    if not isinstance(links, dict) or set(links) != {"tip_left", "tip_right"}:
+        raise ValueError("YAM finger colliders must cover tip_left and tip_right")
+    normalized = {}
+    for link_name in ("tip_left", "tip_right"):
+        colliders = links[link_name]
+        if not isinstance(colliders, list) or len(colliders) != 3:
+            raise ValueError(f"{link_name} must declare exactly three finger-pad colliders")
+        names = set()
+        normalized[link_name] = []
+        for collider in colliders:
+            if not isinstance(collider, dict) or set(collider) != {
+                "name",
+                "origin_xyz",
+                "origin_rpy",
+                "size",
+            }:
+                raise ValueError(f"invalid {link_name} finger collider: {collider!r}")
+            name = collider["name"]
+            if not isinstance(name, str) or not name or name in names or "/" in name:
+                raise ValueError(f"invalid or duplicate {link_name} finger collider name: {name!r}")
+            names.add(name)
+            origin_xyz = [float(value) for value in collider["origin_xyz"]]
+            origin_rpy = [float(value) for value in collider["origin_rpy"]]
+            size = [float(value) for value in collider["size"]]
+            if len(origin_xyz) != 3 or len(origin_rpy) != 3 or len(size) != 3 or any(value <= 0 for value in size):
+                raise ValueError(f"invalid dimensions for {link_name}/{name}")
+            normalized[link_name].append(
+                {"name": name, "origin_xyz": origin_xyz, "origin_rpy": origin_rpy, "size": size}
+            )
+    return normalized
+
+
+def _add_collision_geometry(robot: ET.Element, finger_colliders: dict[str, list[dict]]) -> int:
     count = 0
     for link in robot.findall("link"):
         if link.findall("collision"):
             raise RuntimeError(f"source link {link.get('name')} already defines collision geometry")
+        link_name = link.get("name")
+        if link_name in finger_colliders:
+            for pad in finger_colliders[link_name]:
+                collision = ET.SubElement(link, "collision", {"name": pad["name"]})
+                ET.SubElement(
+                    collision,
+                    "origin",
+                    {
+                        "xyz": " ".join(str(value) for value in pad["origin_xyz"]),
+                        "rpy": " ".join(str(value) for value in pad["origin_rpy"]),
+                    },
+                )
+                geometry = ET.SubElement(collision, "geometry")
+                ET.SubElement(geometry, "box", {"size": " ".join(str(value) for value in pad["size"])})
+                count += 1
+            continue
         for visual in link.findall("visual"):
             collision = ET.Element("collision")
             origin = visual.find("origin")
@@ -646,7 +706,8 @@ def derive_yam_urdf(source_root: Path, output_root: Path, build_manifest: dict) 
         limit.set("effort", "40.0")
         finger_limits[name] = [float(limit.get("lower")), float(limit.get("upper"))]
 
-    collision_count = _add_collisions_from_visuals(robot)
+    finger_colliders = _finger_collider_contract(build_manifest)
+    collision_count = _add_collision_geometry(robot, finger_colliders)
     ET.indent(tree, space="  ")
     derived_urdf = output_root / asset["derived_urdf"]
     tree.write(derived_urdf, encoding="utf-8", xml_declaration=True)
@@ -681,6 +742,16 @@ def _convert_to_usd(
 
     simulation_app = SimulationApp({"headless": True})
     try:
+        # The official IsaacLab wheel keeps its implementation below
+        # ``isaaclab/source/isaaclab/isaaclab`` while exposing only the app
+        # launcher from the top-level package. AppLauncher normally extends
+        # this path, but this standalone asset converter starts SimulationApp
+        # directly and must make the bundled modules visible itself.
+        import isaaclab
+
+        bundled_isaaclab = Path(isaaclab.__file__).resolve().parent / "source" / "isaaclab" / "isaaclab"
+        if bundled_isaaclab.is_dir() and str(bundled_isaaclab) not in isaaclab.__path__:
+            isaaclab.__path__.append(str(bundled_isaaclab))
         from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
         from isaaclab.sim.converters.asset_converter_base import AssetConverterBase
         from pxr import Gf, Usd, UsdGeom, UsdPhysics, UsdShade
@@ -807,7 +878,7 @@ def _convert_to_usd(
                 if not bound or bound.GetPath() != material.GetPath():
                     raise RuntimeError(f"finger collision {path} did not inherit its physics material")
                 finger_collision_paths.append(path)
-        if len(collision_paths) != 9 or len(finger_collision_paths) != 2:
+        if len(collision_paths) != 13 or len(finger_collision_paths) != 6:
             raise RuntimeError(
                 f"generated collision contract mismatch: total={collision_paths}, fingers={finger_collision_paths}"
             )

@@ -1,4 +1,5 @@
 import ast
+import json
 from pathlib import Path
 from types import SimpleNamespace
 import xml.etree.ElementTree as ET
@@ -23,6 +24,7 @@ from robodojo.sim.environment.description_manager.desc_manager import DescManage
 from robodojo.sim.utils.pipeline_utils import process_config
 from robodojo.workflows.assets_yam import (
     _appearance_contract,
+    _finger_collider_contract,
     _fixed_camera_frame_contract,
     _visual_proxy_contracts,
     derive_yam_urdf,
@@ -76,6 +78,22 @@ def test_yam_instruction_override_is_profile_scoped_and_preserves_default_task_t
     unrelated_manager = DescManager(num_envs=1, description_cfg={"seen": 1}, desc_type="seen")
     unrelated_manager.initialize(FakeEnv("insert_key", profile.payload))
     assert unrelated_manager.templates == [["Fold the clothes neatly."]]
+
+
+def test_molmoact2_yam_profile_uses_model_aligned_bundled_layouts():
+    profile = load_environment_profile(RepositoryPaths.resolve(ROOT), "bimanual_yam_molmoact2")
+    assert profile.document.layout_config_name == "bimanual_yam_molmoact2"
+    assert profile.document.config.model_dump() == {
+        "sim": "real_time_30hz",
+        "scene": "default",
+        "robot": "dual_yam",
+        "camera": "bimanual_yam",
+    }
+    layout_root = ROOT / "configs/layout/bimanual_yam_molmoact2/0"
+    assert {path.name for path in layout_root.glob("*.json")} == {"general_pickup_0.json"}
+    pickup = json.loads((layout_root / "general_pickup_0.json").read_text())
+    assert pickup["Rigid"]["ball"][0]["visual"]["color"] == [0.35, 0.65, 0.08]
+    assert "basket" not in pickup["Geometry"]
 
 
 def test_fold_clothes_does_not_replace_yam_profile_components():
@@ -190,6 +208,14 @@ def test_yam_tooling_and_embodiment_reference_are_revision_pinned():
             "sha256": "31d70e2129a3ab8e85f391785cae5bba4163e1e16fb02a3988c5ac1c549c9d78",
         },
     }
+    finger_colliders = _finger_collider_contract(tooling)
+    assert set(finger_colliders) == {"tip_left", "tip_right"}
+    assert all(len(colliders) == 3 for colliders in finger_colliders.values())
+    assert all(
+        collider["size"][2] == pytest.approx(0.004)
+        for colliders in finger_colliders.values()
+        for collider in colliders
+    )
     appearance_source = tooling["sources"]["hardware_appearance_reference"]
     assert appearance_source == {
         "repository": "https://huggingface.co/datasets/allenai/MolmoAct2-BimanualYAM-Dataset",
@@ -243,10 +269,10 @@ def test_yam_tooling_and_embodiment_reference_are_revision_pinned():
     assert visual_proxies["d405"]["output"] == "D405_proxy.usd"
     assert visual_proxies["d405"]["default_prim"] == "D405"
     assert visual_proxies["d405"]["dimensions_m"] == [0.042, 0.042, 0.023]
-    assert visual_proxies["d405"]["materials"] == {"housing": "light_gray", "detail": "charcoal"}
+    assert visual_proxies["d405"]["materials"] == {"housing": "charcoal", "detail": "charcoal"}
     assert visual_proxies["d405"]["physical"] is False
     assert visual_proxies["d405"]["contract_sha256"] == (
-        "3c15307252439ebc8635cf0117371adc5d520a21b394e76f94cf12932395920d"
+        "9125eb7695aa7561e1dd7fb331ab4867994a79828dc7802922f903c727950511"
     )
     assert "author_nonphysical_d405_visual_proxy" in tooling["asset"]["transformations"]
     assert _fixed_camera_frame_contract(tooling) == [
@@ -315,7 +341,7 @@ def test_derived_yam_urdf_is_normalized_and_collision_complete(tmp_path):
     assert base_joint.get("type") == "fixed"
     assert base_joint.find("origin").get("rpy") == "0 1.5708 1.5708"
     assert base_joint.find("axis") is None and base_joint.find("limit") is None
-    assert contract["collision_geometry_count"] == 9
+    assert contract["collision_geometry_count"] == 13
     assert contract["visual_links"] == [
         "base",
         "gripper",
@@ -328,7 +354,13 @@ def test_derived_yam_urdf_is_normalized_and_collision_complete(tmp_path):
         "tip_right",
     ]
     assert contract["links_without_visuals"] == ["root"]
-    assert len(robot.findall(".//collision")) == 9
+    collisions = robot.findall(".//collision")
+    assert len(collisions) == 13
+    assert len(robot.findall(".//collision/geometry/mesh")) == 7
+    assert len(robot.findall(".//collision/geometry/box")) == 6
+    for link_name in ("tip_left", "tip_right"):
+        link = next(link for link in robot.findall("link") if link.get("name") == link_name)
+        assert [collision.get("name") for collision in link.findall("collision")] == ["pad_0", "pad_1", "pad_2"]
     assert {mesh.get("filename") for mesh in robot.findall(".//mesh")} == {
         f"meshes/{name}"
         for name in (
