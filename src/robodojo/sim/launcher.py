@@ -13,7 +13,13 @@ import yaml
 from robodojo.core.models import SimulatorLaunchRequest
 from robodojo.core.paths import RepositoryPaths
 from robodojo.core.processes import format_command, run
-from robodojo.core.profiles import EnvironmentProfile, SceneProfile, load_environment_profile, load_scene_profile
+from robodojo.core.profiles import (
+    EnvironmentProfile,
+    SceneProfile,
+    load_environment_profile,
+    load_scene_profile,
+    validate_scene_environment_compatibility,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +50,10 @@ def resolve_scene_config(
 ) -> str:
     """Return the name of the explicit or task-selected scene profile."""
 
-    del profile  # Retained for source compatibility; scenes no longer come from embodiments.
-    return resolve_scene_profile(paths, request).name
+    environment = profile or load_environment_profile(paths, request.env_config)
+    scene = resolve_scene_profile(paths, request)
+    validate_scene_environment_compatibility(scene, environment)
+    return scene.name
 
 
 def _resolved_simulator_config(

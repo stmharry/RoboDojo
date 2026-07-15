@@ -150,4 +150,4 @@ class CameraMountRegistry:
             raise ValueError(f"unsupported camera mount kind: {kind}")
         if not target:
             raise ValueError("scene_fixture camera mount requires a fixture label")
-        return self.scene_manager.resolve_camera_fixture_mount(env_id, target)
+        return self.scene_manager.resolve_camera_fixture_mount(env_id, target, camera.get("mount_frame"))

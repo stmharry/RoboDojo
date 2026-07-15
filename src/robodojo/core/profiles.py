@@ -44,6 +44,16 @@ class SceneProfile:
     identity_hash: str
 
 
+def validate_scene_environment_compatibility(scene: SceneProfile, environment: EnvironmentProfile) -> None:
+    """Reject scene/embodiment combinations that have no declared mount contract."""
+    compatible = scene.document.compatible_environments
+    if compatible and environment.name not in compatible:
+        raise ValueError(
+            f"scene profile {scene.name!r} is compatible only with environment profiles {compatible}; "
+            f"received {environment.name!r}"
+        )
+
+
 def _profile_path(config_root: Path, relative: str, *, field: str) -> Path:
     root = config_root.resolve()
     path = (root / relative).resolve()

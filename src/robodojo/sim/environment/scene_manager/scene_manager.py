@@ -1,6 +1,7 @@
 from collections.abc import Sequence
 from copy import deepcopy
 import logging
+import re
 from typing import Any, Dict, List
 
 from isaacsim.core.utils.prims import delete_prim, is_prim_path_valid
@@ -125,10 +126,14 @@ class SceneManager:
         for env_idx in range(self.num_envs):
             self._set_env_seed(env_idx)
             if self.device.type == "cuda":
-                # Create dynamic and articulation objects for CUDA
+                # Static geometry must exist before cameras are attached to any
+                # fixture-published mount frames. Dynamic and articulation
+                # objects also need to be present before the simulation starts.
                 self.spawn_scene_objects(
                     env_id=env_idx,
-                    exclude_types=list(set(self.spawnable_object_types) - {"rigid", "articulation"}),
+                    exclude_types=list(
+                        set(self.spawnable_object_types) - {"rigid", "articulation", "geometry"}
+                    ),
                 )
             else:
                 self.spawn_scene_objects(
@@ -229,14 +234,20 @@ class SceneManager:
 
         if self.device.type == "cuda":
             self.relocate_stale_objects(env_id, ["rigid", "articulation"])
+            preserved_types = ["rigid", "articulation"]
+            if self.setup_scene:
+                preserved_types.append("geometry")
             # Clear existing objects (based on exclude_types)
-            self.clear_scene_objects(env_id, exclude_types=["rigid", "articulation"])
-            self.spawn_scene_objects(env_id, exclude_types=["rigid", "articulation"])
+            self.clear_scene_objects(env_id, exclude_types=preserved_types)
+            self.spawn_scene_objects(env_id, exclude_types=preserved_types)
         else:
             self.relocate_stale_objects(env_id, ["articulation"])
+            preserved_types = ["articulation"]
+            if self.setup_scene:
+                preserved_types.append("geometry")
             # Clear existing objects (based on exclude_types)
-            self.clear_scene_objects(env_id, exclude_types=["articulation"])
-            self.spawn_scene_objects(env_id, exclude_types=["articulation"])
+            self.clear_scene_objects(env_id, exclude_types=preserved_types)
+            self.spawn_scene_objects(env_id, exclude_types=preserved_types)
 
     def spawn_category_objects(
         self,
@@ -599,7 +610,7 @@ class SceneManager:
                     continue
                 self.spawn_category_objects(env_id, cat_name, objects_cfg[physics_type][cat_name], exclude_types)
 
-    def resolve_camera_fixture_mount(self, env_id: int, fixture_label: str) -> str:
+    def resolve_camera_fixture_mount(self, env_id: int, fixture_label: str, frame: str | None = None) -> str:
         """Resolve a scene-published fixture label to its current prim path."""
         matches = []
         records_by_type = self.layout_manager.object_records_by_type
@@ -611,6 +622,17 @@ class SceneManager:
         prim_path = matches[0].get("prim_path")
         if not prim_path:
             raise ValueError(f"camera fixture {fixture_label!r} has no prim path")
+        if frame:
+            parts = frame.split("/")
+            if frame.startswith("/") or any(
+                not part or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", part) for part in parts
+            ):
+                raise ValueError(f"invalid camera fixture frame: {frame!r}")
+            prim_path = f"{prim_path}/{frame}"
+            if not is_prim_path_valid(prim_path):
+                raise ValueError(
+                    f"camera fixture frame {frame!r} does not exist below fixture {fixture_label!r}"
+                )
         return prim_path
 
     def close(self):

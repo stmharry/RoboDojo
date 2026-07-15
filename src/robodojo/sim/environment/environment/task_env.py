@@ -27,6 +27,7 @@ class TaskEnv(BaseEnv):
             config=self.robot_config,
             dt=self.dt,
             device=self.device,
+            mount_overrides=config.get("scene_mounts", {}).get("robots", {}),
         )
         self._interactiveSceneCfg = self.robot_manager._get_SceneCfg(
             num_envs=self.num_envs, env_spacing=self.env_spacing
@@ -45,7 +46,11 @@ class TaskEnv(BaseEnv):
         )
 
         robot_cameras = self.robot_manager.get_camera_configs()
-        self.camera_rig = normalize_camera_rig(config.camera, robot_cameras=robot_cameras)
+        self.camera_rig = normalize_camera_rig(
+            config.camera,
+            robot_cameras=robot_cameras,
+            mount_overrides=config.get("scene_mounts", {}).get("cameras", {}),
+        )
         self.capture_config = self.camera_rig.runtime_config()
         self.camera_config = self.capture_config
         self.camera_manager = CameraManager(

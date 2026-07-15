@@ -378,6 +378,7 @@ def main():
                     eval_cfg["config"]["robot"] + ".yml",
                 )
             ),
+            "scene_mounts": SCENE_PROFILE.document.mounts.model_dump(mode="python", exclude_none=True),
             "task_env": load_yaml(task_registry.task_config_path(REPOSITORY_PATHS.task_configs, task_name)),
             "eval_cfg": eval_cfg,
             "deploy_cfg": deploy_cfg,

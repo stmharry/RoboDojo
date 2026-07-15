@@ -1,0 +1,24 @@
+config_name: moonlake_office
+component: moonlake_office
+layout_set: moonlake_office
+layout_source: bundled
+compatible_environments: [bimanual_yam]
+
+mounts:
+  robots:
+    robot0:
+      position: [-0.2032, -0.32, 0.77]
+      orientation: [0.7071067811865476, 0.0, 0.0, 0.7071067811865476]
+    robot1:
+      position: [0.2032, -0.32, 0.77]
+      orientation: [0.7071067811865476, 0.0, 0.0, 0.7071067811865476]
+  cameras:
+    cam_head:
+      kind: scene_fixture
+      target: moonlake_office_fixture
+      frame: Mounts/D435OpticalFrame
+      position: [0.0, 0.0, 0.0]
+      orientation: [1.0, 0.0, 0.0, 0.0]
+      pose_convention: isaac_usd
+      optical_roll_deg: 0.0
+      basis: moonlake_office_source_a52ae9c

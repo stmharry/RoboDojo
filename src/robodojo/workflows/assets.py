@@ -95,3 +95,54 @@ def build_yam(paths: RepositoryPaths) -> int:
     if code == 0 and not (output / "manifest.json").is_file():
         raise RuntimeError("YAM build completed without manifest.json")
     return code
+
+
+def build_moonlake_office(paths: RepositoryPaths) -> int:
+    """Build the pinned internal Moonlake office fixture without executing upstream code."""
+    manifest = yaml.safe_load(paths.moonlake_office_manifest.read_text(encoding="utf-8"))
+    source_spec = manifest["sources"]["spatio_monorepo"]
+    cache = storage_root() / ".cache" / "moonlake_office"
+    source = cache / "spatio_monorepo"
+    output = assets_root() / "Object" / "RoboDojo" / "Geometry" / manifest["fixture"]["category"]
+    output.mkdir(parents=True, exist_ok=True)
+
+    if not (source / ".git").is_dir():
+        source.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(
+            ["git", "clone", "--filter=blob:none", "--no-checkout", source_spec["repository"], str(source)],
+            check=True,
+        )
+    source_files = [entry["path"] for entry in source_spec["files"].values()]
+    subprocess.run(["git", "-C", str(source), "sparse-checkout", "init", "--no-cone"], check=True)
+    subprocess.run(
+        ["git", "-C", str(source), "sparse-checkout", "set", "--no-cone", *source_files],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(source), "fetch", "--depth", "1", "origin", source_spec["revision"]],
+        check=True,
+    )
+    subprocess.run(["git", "-C", str(source), "checkout", "--detach", "--force", "FETCH_HEAD"], check=True)
+
+    (output / "manifest.json").unlink(missing_ok=True)
+    env = {
+        **os.environ,
+        "OMNI_KIT_ACCEPT_EULA": "YES",
+        "ACCEPT_EULA": "Y",
+        "PRIVACY_CONSENT": "Y",
+    }
+    command = [
+        sys.executable,
+        "-m",
+        "robodojo.workflows.assets_moonlake_office",
+        "--source-root",
+        str(source),
+        "--output-root",
+        str(output),
+        "--manifest",
+        str(paths.moonlake_office_manifest),
+    ]
+    code = subprocess.run(command, cwd=paths.root, env=env).returncode
+    if code == 0 and not (output / "manifest.json").is_file():
+        raise RuntimeError("Moonlake office build completed without manifest.json")
+    return code

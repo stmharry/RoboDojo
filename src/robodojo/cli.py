@@ -941,6 +941,20 @@ def assets_build_yam(
     raise typer.Exit(build_yam(_paths(root)))
 
 
+@assets_app.command("build-moonlake-office")
+def assets_build_moonlake_office(
+    root: Path | None = typer.Option(
+        None,
+        "--root",
+        help="Repository checkout containing the pinned Moonlake office source manifest.",
+    ),
+) -> None:
+    """Build the pinned internal Moonlake office fixture into canonical local storage."""
+    from robodojo.workflows.assets import build_moonlake_office
+
+    raise typer.Exit(build_moonlake_office(_paths(root)))
+
+
 @data_app.command("list")
 def data_list() -> None:
     """List available dataset formats, sizes, and destination names."""

@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from importlib import import_module
 from typing import List, Literal
@@ -15,6 +15,10 @@ from robodojo.sim.environment.environment.isaac.isaac_rl_env import IsaacRLEnv
 from robodojo.sim.environment.global_configs import ENV_REGEX_NAMESPACE
 from robodojo.sim.environment.planner_manager.curobo_planner import CuroboPlanner
 from robodojo.sim.environment.robot_manager.control_manager import ControlManager, MetaControl
+from robodojo.sim.environment.robot_manager.mount_spec import (
+    apply_robot_mount_override,
+    normalize_robot_mount_overrides,
+)
 from robodojo.sim.environment.robot_manager.visual_calibration import apply_visual_calibration
 from robodojo.sim.utils.ensure_usd_path import ensure_usd_path
 
@@ -27,12 +31,14 @@ class RobotManager:
         config: DictConfig,
         dt,
         device,
+        mount_overrides: Mapping | DictConfig | None = None,
     ):
         self.sim: IsaacRLEnv = None
         self.control_manager = ControlManager(num_envs=num_envs, robot_manager=self)
         self.num_envs = num_envs
         self.env_spacing = env_spacing
         self.robots_cfg = config.get("robots", [])
+        self.mount_overrides = normalize_robot_mount_overrides(mount_overrides, len(self.robots_cfg))
         self.device = device
         self.dt = dt
         self._seeds_per_env: list[int] | None = None
@@ -676,7 +682,7 @@ class RobotManager:
         # Default rule:
         # - single robot: use robot.entity_origin_pose
         # - dual robot: use left_robot.entity_origin_pose
-        base_pose = robots[0].entity_origin_pose
+        base_pose = apply_robot_mount_override(robots, self.mount_overrides.get(f"robot{idx}"))
         if cfg is not None and "enabled_self_collisions" in cfg:
             scene_cfg = scene_cfg.replace(
                 spawn=scene_cfg.spawn.replace(

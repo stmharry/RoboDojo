@@ -1,0 +1,56 @@
+sources:
+  spatio_monorepo:
+    repository: https://github.com/MoonlakeAI/spatio_monorepo.git
+    revision: a52ae9cf99de605d23b893f81824d77238a12dff
+    license: internal_unlicensed
+    redistribution: prohibited_until_confirmed
+    files:
+      scene_builder:
+        path: robot/yam_sim_isaacsim/scene/build_scene.py
+        sha256: 7f6602da6526528fbc478513b92d9d8435fdcb3d4babf00bb288432e1e12de9e
+        usage: geometry_and_mount_reference_only
+      extrusion_2060:
+        path: robot/yam_sim_isaacsim/scene/assets/extrusion_2060_1000mm.stl
+        sha256: 6a9ff67f7c3bdad092cdc88bab01ce1f83f8ff73cc4bcb6e7297b92519479eed
+        usage: derived_static_mesh
+
+fixture:
+  category: moonlake_office_fixture
+  instance_index: 0
+  output: object.usd
+  default_prim: MoonlakeOfficeFixture
+  transformations:
+    - exclude_robot_articulations_and_drives
+    - exclude_wrist_camera_brackets_and_sensors
+    - exclude_task_container_and_cubes
+    - preserve_table_frame_and_2060_rail
+    - preserve_neewer_stand_and_non_sensor_d435_housing
+    - publish_d435_optical_mount_frame
+  table:
+    size_m: [1.2, 0.7, 0.05]
+    top_z_m: 0.75
+    leg_size_xy_m: [0.05, 0.05]
+    leg_edge_inset_m: 0.06
+  arm_mounts:
+    robot0:
+      position: [-0.2032, -0.32, 0.77]
+      orientation: [0.7071067811865476, 0.0, 0.0, 0.7071067811865476]
+    robot1:
+      position: [0.2032, -0.32, 0.77]
+      orientation: [0.7071067811865476, 0.0, 0.0, 0.7071067811865476]
+  rail:
+    translation_m: [0.0, -0.32, 0.76]
+    stl_scale_to_m: 0.001
+  top_camera:
+    stand_y_m: -0.375
+    body_center_m: [0.0, -0.375, 1.5374]
+    look_at_target_m: [0.0, 0.03, 0.75]
+    up_axis: [0.0, 0.0, 1.0]
+    optical_translation_m: [0.0, 0.0, -0.013]
+    mount_frame: Mounts/D435OpticalFrame
+  materials:
+    motor_black: [0.012, 0.012, 0.015]
+    camera_body: [0.35, 0.36, 0.38]
+    camera_face: [0.012, 0.015, 0.02]
+    lens_glass: [0.015, 0.035, 0.055]
+    table_leg: [0.15, 0.15, 0.16]

@@ -179,7 +179,7 @@ tasks-check: ## Validate task code/config pairs
 	$(ROBODOJO_BASE) tasks --check $(ARGS)
 
 ##@ Setup & data
-.PHONY: install sync policy-setup assets assets-yam data-list data
+.PHONY: install sync policy-setup assets assets-yam assets-moonlake-office data-list data
 
 install: ## Install system dependencies, submodules, and simulator environment
 	$(ROBODOJO_BASE) install $(ARGS)
@@ -198,6 +198,9 @@ assets: ## Download benchmark assets
 
 assets-yam: ## Build the pinned I2RT YAM articulation asset
 	$(ROBODOJO_SIM) assets build-yam $(ARGS)
+
+assets-moonlake-office: ## Build the pinned internal Moonlake office fixture
+	$(ROBODOJO_SIM) assets build-moonlake-office $(ARGS)
 
 data-list: ## List dataset formats
 	$(ROBODOJO_BASE) data list

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass
+import re
 from typing import Any, Mapping
 
 from omegaconf import DictConfig, OmegaConf
@@ -38,6 +39,16 @@ class CameraSpec:
             raise ValueError(f"{self.observation_key}: invalid mount kind {mount_kind!r}")
         if mount_kind != "world" and not self.mount.get("target"):
             raise ValueError(f"{self.observation_key}: {mount_kind} mount requires a target")
+        frame = self.mount.get("frame")
+        if frame is not None:
+            parts = frame.split("/") if isinstance(frame, str) else []
+            if (
+                mount_kind != "scene_fixture"
+                or not parts
+                or frame.startswith("/")
+                or any(not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", part) for part in parts)
+            ):
+                raise ValueError(f"{self.observation_key}: invalid scene fixture mount frame {frame!r}")
         position = self.mount.get("position", [0.0, 0.0, 0.0])
         orientation = self.mount.get("orientation", [1.0, 0.0, 0.0, 0.0])
         if len(position) != 3 or len(orientation) not in (3, 4):
@@ -107,6 +118,7 @@ class CameraSpec:
             "published_diagonal_fov_deg": float(self.sensor["diagonal_fov_deg"]),
             "mount_kind": self.mount["kind"],
             "mount_target": self.mount.get("target"),
+            "mount_frame": self.mount.get("frame"),
             "pos": list(self.mount.get("position", [0.0, 0.0, 0.0])),
             "ori": list(self.mount.get("orientation", [1.0, 0.0, 0.0, 0.0])),
             "mount_pose_convention": self.mount.get("pose_convention", "isaac_usd"),
@@ -228,12 +240,17 @@ def _legacy_camera_spec(name: str, section: Mapping[str, Any], frequency: float)
 
 
 def normalize_camera_rig(
-    config: DictConfig | Mapping[str, Any], robot_cameras: Mapping[str, Mapping[str, Any]] | None = None
+    config: DictConfig | Mapping[str, Any],
+    robot_cameras: Mapping[str, Mapping[str, Any]] | None = None,
+    mount_overrides: DictConfig | Mapping[str, Mapping[str, Any]] | None = None,
 ) -> CameraRigSpec:
     """Normalize the new layered schema or any existing flat camera config."""
     raw = OmegaConf.to_container(config, resolve=True) if isinstance(config, DictConfig) else deepcopy(dict(config))
     frequency = float(raw.get("default_frequency", 30.0))
     annotator = raw.get("annotator", {})
+    if isinstance(mount_overrides, DictConfig):
+        mount_overrides = OmegaConf.to_container(mount_overrides, resolve=True)
+    mount_overrides = deepcopy(dict(mount_overrides or {}))
     layered = raw.get("camera_rig")
     if layered is not None:
         cameras = []
@@ -245,10 +262,13 @@ def normalize_camera_rig(
                     camera_type=value["type"],
                     mesh=value.get("mesh", "pinhole"),
                     sensor=deepcopy(value["sensor"]),
-                    mount=deepcopy(value["mount"]),
+                    mount=deepcopy(mount_overrides.get(observation_key, value["mount"])),
                     projection=deepcopy(value["projection"]),
                 )
             )
+        unknown = sorted(set(mount_overrides) - {camera.observation_key for camera in cameras})
+        if unknown:
+            raise ValueError(f"scene camera mount overrides reference unknown cameras: {unknown}")
         return CameraRigSpec(layered["profile_id"], tuple(cameras), frequency, annotator)
 
     sections = {
@@ -258,5 +278,21 @@ def normalize_camera_rig(
     }
     for key, value in (robot_cameras or {}).items():
         sections.setdefault(key, value)
-    cameras = tuple(_legacy_camera_spec(key, value, frequency) for key, value in sections.items())
-    return CameraRigSpec("legacy", cameras, frequency, annotator)
+    cameras = []
+    for key, value in sections.items():
+        camera = _legacy_camera_spec(key, value, frequency)
+        if key in mount_overrides:
+            camera = CameraSpec(
+                observation_key=camera.observation_key,
+                role=camera.role,
+                camera_type=camera.camera_type,
+                mesh=camera.mesh,
+                sensor=camera.sensor,
+                mount=deepcopy(mount_overrides[key]),
+                projection=camera.projection,
+            )
+        cameras.append(camera)
+    unknown = sorted(set(mount_overrides) - {camera.observation_key for camera in cameras})
+    if unknown:
+        raise ValueError(f"scene camera mount overrides reference unknown cameras: {unknown}")
+    return CameraRigSpec("legacy", tuple(cameras), frequency, annotator)

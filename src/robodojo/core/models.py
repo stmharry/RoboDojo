@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from enum import StrEnum
+import math
 from pathlib import Path
+import re
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -243,6 +245,99 @@ class SceneGarmentVariantRecipe(StrictModel):
         return self
 
 
+def _finite_vector(value: tuple[float, ...], *, length: int, field: str) -> tuple[float, ...]:
+    if len(value) != length or not all(math.isfinite(component) for component in value):
+        raise ValueError(f"{field} must contain {length} finite values")
+    return value
+
+
+class SceneRobotMount(StrictModel):
+    position: tuple[float, float, float]
+    orientation: tuple[float, float, float, float]
+
+    @field_validator("position")
+    @classmethod
+    def finite_position(cls, value: tuple[float, float, float]) -> tuple[float, float, float]:
+        return _finite_vector(value, length=3, field="robot mount position")
+
+    @field_validator("orientation")
+    @classmethod
+    def normalized_orientation(
+        cls, value: tuple[float, float, float, float]
+    ) -> tuple[float, float, float, float]:
+        value = _finite_vector(value, length=4, field="robot mount orientation")
+        norm = math.sqrt(sum(component * component for component in value))
+        if not math.isclose(norm, 1.0, rel_tol=0.0, abs_tol=1e-6):
+            raise ValueError("robot mount orientation must be a normalized scalar-first quaternion")
+        return value
+
+
+class SceneCameraMount(StrictModel):
+    kind: Literal["world", "robot_link", "scene_fixture"]
+    target: str | None = None
+    frame: str | None = None
+    position: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    orientation: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
+    pose_convention: Literal["isaac_usd", "sapien_robotics"] = "isaac_usd"
+    optical_roll_deg: Literal[-180.0, -90.0, 0.0, 90.0, 180.0] = 0.0
+    basis: str | None = None
+
+    @field_validator("position")
+    @classmethod
+    def finite_position(cls, value: tuple[float, float, float]) -> tuple[float, float, float]:
+        return _finite_vector(value, length=3, field="camera mount position")
+
+    @field_validator("orientation")
+    @classmethod
+    def normalized_orientation(
+        cls, value: tuple[float, float, float, float]
+    ) -> tuple[float, float, float, float]:
+        value = _finite_vector(value, length=4, field="camera mount orientation")
+        norm = math.sqrt(sum(component * component for component in value))
+        if not math.isclose(norm, 1.0, rel_tol=0.0, abs_tol=1e-6):
+            raise ValueError("camera mount orientation must be a normalized scalar-first quaternion")
+        return value
+
+    @model_validator(mode="after")
+    def validate_target_and_frame(self) -> SceneCameraMount:
+        if self.kind == "world":
+            if self.target is not None or self.frame is not None:
+                raise ValueError("world camera mounts may not declare target or frame")
+            return self
+        if not self.target or not self.target.strip():
+            raise ValueError(f"{self.kind} camera mounts require a target")
+        if self.frame is not None:
+            if self.kind != "scene_fixture":
+                raise ValueError("camera mount frame is valid only for scene_fixture mounts")
+            parts = self.frame.split("/")
+            if (
+                self.frame.startswith("/")
+                or any(not part or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", part) for part in parts)
+            ):
+                raise ValueError("camera mount frame must be a safe relative USD prim path")
+        return self
+
+
+class SceneMounts(StrictModel):
+    robots: dict[str, SceneRobotMount] = Field(default_factory=dict)
+    cameras: dict[str, SceneCameraMount] = Field(default_factory=dict)
+
+    @field_validator("robots")
+    @classmethod
+    def valid_robot_slots(cls, value: dict[str, SceneRobotMount]) -> dict[str, SceneRobotMount]:
+        invalid = sorted(slot for slot in value if re.fullmatch(r"robot\d+", slot) is None)
+        if invalid:
+            raise ValueError(f"scene robot mounts require robot<N> slot names: {invalid}")
+        return value
+
+    @field_validator("cameras")
+    @classmethod
+    def valid_camera_keys(cls, value: dict[str, SceneCameraMount]) -> dict[str, SceneCameraMount]:
+        if any(not key.strip() for key in value):
+            raise ValueError("scene camera mount keys must not be empty")
+        return value
+
+
 class SceneConfigDocument(StrictModel):
     """Scene selection owns world composition, saved layouts, and their assets."""
 
@@ -251,6 +346,8 @@ class SceneConfigDocument(StrictModel):
     layout_set: str
     layout_source: Literal["assets", "bundled"] = "assets"
     task_assets: dict[str, list[SceneGarmentVariantRecipe]] = Field(default_factory=dict)
+    compatible_environments: list[str] = Field(default_factory=list)
+    mounts: SceneMounts = Field(default_factory=SceneMounts)
 
     @model_validator(mode="before")
     @classmethod
@@ -267,6 +364,19 @@ class SceneConfigDocument(StrictModel):
         allowed = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
         if not value or any(character not in allowed for character in value):
             raise ValueError("must contain only letters, digits, and underscores")
+        return value
+
+    @field_validator("compatible_environments")
+    @classmethod
+    def valid_compatible_environments(cls, value: list[str]) -> list[str]:
+        allowed = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
+        invalid = sorted(name for name in value if not name or any(character not in allowed for character in name))
+        if invalid:
+            raise ValueError(
+                f"compatible environment names must contain only letters, digits, and underscores: {invalid}"
+            )
+        if len(value) != len(set(value)):
+            raise ValueError("compatible environment names must be unique")
         return value
 
     @field_validator("task_assets")
