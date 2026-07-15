@@ -350,14 +350,15 @@ def test_make_ignores_dotenv_and_requires_experiment_selection(tmp_path):
     invalid = subprocess.run(["make", "-n", "eval"], cwd=tmp_path, check=False, capture_output=True, text=True)
     assert invalid.returncode != 0
     assert "TASK is required" in invalid.stderr
-    assert "pass TASK=... to make or export it" in invalid.stderr
+    assert "select PRESET=..., pass TASK=... to make, or export it" in invalid.stderr
     assert dotenv.is_file()
 
 
 def test_make_help_exposes_only_the_supported_target_surface():
     result = subprocess.run(["make", "help"], cwd=ROOT, check=True, capture_output=True, text=True)
-    for target in ("setup", "preflight", "eval", "smoke", "benchmark", "results", "check"):
+    for target in ("presets", "setup", "preflight", "eval", "smoke", "benchmark", "results", "check"):
         assert target in result.stdout
+    assert "make presets -> make eval PRESET=<name>" in result.stdout
     for removed in ("init", "policy-setup", "eval-dry-run", "storage-publish", "docker-build", "assets-yam"):
         assert removed not in result.stdout
 

@@ -68,32 +68,29 @@ RoboDojo uses a locked [uv](https://docs.astral.sh/uv/) environment with Python
 3.11. IsaacLab is pinned to its official release by uv. XPolicyLab and the
 cuRobo Warp-compatibility fork remain submodules. Install the machine
 prerequisites first: Git, Git LFS, uv, compiler/runtime tools, and NVIDIA
-drivers. Then use the documented local workflow:
+drivers. Then list the tracked experiment presets and run one end-to-end:
 
 ```bash
-export TASK=general_pickup
-export ENV_CFG=bimanual_yam
-export SCENE=molmo_yam
-export POLICY_DIR=XPolicyLab/policy/Pi_05
-export POLICY_ENV=uv
-export CKPT=pi05_yam_molmoact2
-make setup
-make preflight
-make eval
+make presets
+make eval PRESET=pi05-bimanual_yam-molmo_yam-general_pickup
 ```
 
-Experiment selection comes from Make arguments or exported process variables;
-repository `.env` files are not loaded. Make supplies stable defaults for the
-RoboDojo dataset, joint actions, seed 0, automatic policy and simulator GPU
-selection, one evaluation episode, scene export, and publication. For paired workflows,
-Python assigns the most-free GPU to the simulator and the next-most-free GPU
-to the policy, breaking ties by device index. Override either selector with a
-Make argument or exported `POLICY_GPU`/`ENV_GPU`; direct CLI flags take
-precedence over those variables. `make setup` initializes pinned
-submodules, synchronizes the locked simulator environment, prepares inferred
-assets, and invokes the optional policy preparation hook. It is idempotent and
-preserves valid assets, environments, and checkpoints. Inspect the deliberately
-small Make surface with:
+The selected preset supplies the policy directory and environment, checkpoint,
+environment, scene, and task. Explicit Make assignments can override individual
+preset fields. Custom experiments can still supply those values entirely through
+Make arguments or exported process variables; repository `.env` files are not
+loaded. Make supplies stable defaults for the RoboDojo dataset, joint actions,
+seed 0, automatic policy and simulator GPU selection, one evaluation episode,
+scene export, and publication.
+
+For paired workflows, Python assigns the most-free GPU to the simulator and the
+next-most-free GPU to the policy, breaking ties by device index. Override either
+selector with a Make argument or exported `POLICY_GPU`/`ENV_GPU`; direct CLI
+flags take precedence over those variables. `make eval` first performs the
+idempotent setup workflow, which initializes pinned submodules, synchronizes the
+locked simulator environment, prepares inferred assets, and invokes the optional
+policy preparation hook. The managed evaluation then runs fast preflight before
+launching. Inspect the deliberately small Make surface with:
 
 ```bash
 make help
@@ -110,22 +107,24 @@ uv run --extra sim --locked --no-sync robodojo doctor --skip-policy
 uv run --locked --no-sync robodojo tasks
 ```
 
-For a configured experiment, policy preparation and validation are explicit:
+Standalone preparation and deeper policy readiness checks remain available for
+diagnosis:
 
 ```bash
-make preflight
-make preflight DEEP=true
-make eval PUBLISH=false
+make setup PRESET=pi05-bimanual_yam-molmo_yam-general_pickup
+make preflight PRESET=pi05-bimanual_yam-molmo_yam-general_pickup
+make preflight PRESET=pi05-bimanual_yam-molmo_yam-general_pickup DEEP=true
+make eval PRESET=pi05-bimanual_yam-molmo_yam-general_pickup PUBLISH=false
 ```
 
-`setup` is the consolidated mutation boundary. Preflight and every real
-managed launch are read-only: they never install, download, build, or derive
-prerequisites. Fast preflight
-checks the locked simulator and policy runtimes, task/scene/layout and generated
-robot assets, GPUs, checkpoints, policy contracts, and optional publication
-settings. Deep preflight additionally starts the normal policy server on a
-temporary port and always stops it, without starting Isaac Sim or publishing.
-See [Experiment setup and preflight](docs/PREFLIGHT.md).
+Setup remains the consolidated mutation boundary. The setup phase of `make eval`
+may install, download, build, or derive missing prerequisites; its subsequent
+preflight and managed launch are read-only. Fast preflight checks the locked
+simulator and policy runtimes, task/scene/layout and generated robot assets,
+GPUs, checkpoints, policy contracts, and optional publication settings. Deep
+preflight additionally starts the normal policy server on a temporary port and
+always stops it, without starting Isaac Sim or publishing. See
+[Experiment setup and preflight](docs/PREFLIGHT.md).
 
 The simulator environment is always the repository's `.venv`. Policy servers
 remain independent and `--policy-env` may identify a uv project, environment

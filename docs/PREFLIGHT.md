@@ -1,27 +1,33 @@
 # Experiment setup and preflight
 
-RoboDojo separates repository-local setup from launch-time validation.
-Select one experiment with Make arguments or exported process variables,
-prepare it explicitly, validate it, and then launch it:
+RoboDojo separates repository-local setup from launch-time validation. Select a
+tracked preset and run the complete local workflow with one Make invocation:
 
 ```bash
-export TASK=general_pickup
-export ENV_CFG=bimanual_yam
-export SCENE=molmo_yam
-export POLICY_DIR=XPolicyLab/policy/Pi_05
-export POLICY_ENV=uv
-export CKPT=pi05_yam_molmoact2
-make setup
-make preflight
-make preflight DEEP=true
-make eval PUBLISH=false
+make presets
+make eval PRESET=pi05-bimanual_yam-molmo_yam-general_pickup PUBLISH=false
 ```
 
-The Makefile defaults to the RoboDojo dataset, joint actions, seed 0, automatic
-policy and simulator GPU selection, one episode, scene export, and publication.
-Override any default with a Make assignment such as `make eval EVAL_NUM=25` or
-disable the export with `make eval EXPORT_SCENE=false`; repository `.env` files
-are not loaded.
+The preset resolves the policy directory and environment, checkpoint,
+environment, scene, and task. Explicit per-field Make assignments override the
+selected preset. Without `PRESET`, those required values can still come from
+Make arguments or exported process variables. The Makefile defaults to the
+RoboDojo dataset, joint actions, seed 0, automatic policy and simulator GPU
+selection, one episode, scene export, and publication. Override any default
+with a Make assignment such as `make eval PRESET=<name> EVAL_NUM=25` or disable
+the export with `EXPORT_SCENE=false`; repository `.env` files are not loaded.
+
+A normal `make eval` runs idempotent setup first and then calls the managed
+evaluation. The managed evaluation performs fast preflight exactly once before
+starting policy and simulator processes. `DRY_RUN=true` skips both setup and
+preflight so it remains mutation-free. Standalone setup and deep preflight are
+available when diagnosing readiness:
+
+```bash
+make setup PRESET=pi05-bimanual_yam-molmo_yam-general_pickup
+make preflight PRESET=pi05-bimanual_yam-molmo_yam-general_pickup
+make preflight PRESET=pi05-bimanual_yam-molmo_yam-general_pickup DEEP=true
+```
 
 GPU selectors accept a nonnegative physical device index or lowercase `auto`.
 When both roles are automatic, Python ranks `nvidia-smi` devices by free memory,
@@ -32,9 +38,9 @@ use the most-free device and therefore support one-GPU hosts. CLI flags override
 exported `POLICY_GPU` and `ENV_GPU`, which override the `auto` default:
 
 ```bash
-make eval POLICY_GPU=0 ENV_GPU=1
+make eval PRESET=pi05-bimanual_yam-molmo_yam-general_pickup POLICY_GPU=0 ENV_GPU=1
 export POLICY_GPU=0 ENV_GPU=1
-make eval
+make eval PRESET=pi05-bimanual_yam-molmo_yam-general_pickup
 ```
 
 On a direct CLI call, `--policy-gpu 2 --env-gpu 3` takes precedence over those
@@ -117,6 +123,6 @@ runs the shared gate once, not once per child task. Dry runs intentionally skip
 preflight; automatic selectors still inspect `nvidia-smi` so the rendered
 commands contain concrete devices, while numeric dry runs remain GPU-query-free.
 Scene-only export runs simulator-side preflight and does not require a policy
-GPU, adapter, checkpoint, or publication configuration. Make launch targets use
-uv's `--no-sync` mode, so a missing or stale root environment fails with
-`make setup` instead of changing the environment during launch.
+GPU, adapter, checkpoint, or publication configuration. After the setup phase,
+the launch phase of `make eval` uses uv's `--no-sync` mode so managed evaluation
+cannot modify the environment while processes are starting.
