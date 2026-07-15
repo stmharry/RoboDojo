@@ -75,6 +75,10 @@ make recipes
 make eval RECIPE=pi05-bimanual_yam-molmo_yam-general_pickup
 ```
 
+`make recipes` renders a grouped terminal table for people. Automation can use
+`robodojo recipes --format plain` for TSV or `--format json` for structured
+output.
+
 Each recipe explicitly selects a typed policy profile, environment profile,
 scene profile, and task protocol. Those components cannot be overridden under a
 recipe. The direct CLI also supports a strict manual mode, but all four profiles

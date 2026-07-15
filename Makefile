@@ -90,7 +90,7 @@ help: ## Show the supported local workflow
 		"$(POLICY_GPU)" "$(ENV_GPU)"
 
 recipes: ## List tracked evaluation recipes
-	$(ROBODOJO_BASE) recipes $(ARGS)
+	@$(ROBODOJO_BASE) recipes --format table $(ARGS)
 
 _config-check:
 	$(call require_experiment)

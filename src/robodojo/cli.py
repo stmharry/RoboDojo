@@ -137,7 +137,7 @@ def tasks(
 
 @app.command()
 def recipes(
-    format: str = typer.Option("plain", "--format", help="Output format: plain or json."),
+    format: str = typer.Option("plain", "--format", help="Output format: table, plain, or json."),
     check: bool = typer.Option(False, "--check", help="Validate every policy/protocol/recipe reference."),
     root: Path | None = typer.Option(None, "--root", help="Repository checkout to inspect."),
 ) -> None:
@@ -160,8 +160,12 @@ def recipes(
                 f"{row['recipe']}\t{row['policy']}\t{row['environment']}\t"
                 f"{row['scene']}\t{row['protocol']}\t{row['task']}\t{row['layout']}"
             )
+    elif format == "table":
+        from robodojo.workflows.recipe_inventory import print_recipe_table
+
+        print_recipe_table(rows)
     else:
-        raise typer.BadParameter("expected plain or json", param_hint="--format")
+        raise typer.BadParameter("expected table, plain, or json", param_hint="--format")
 
 
 @app.command()

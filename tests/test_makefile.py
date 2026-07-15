@@ -47,7 +47,9 @@ def test_make_lists_recipes_through_the_cli():
     result = run_make("-n", "recipes")
     assert result.returncode == 0
     assert "robodojo" in result.stdout
-    assert " recipes" in result.stdout
+    assert " recipes --format table" in result.stdout
+    source = MAKEFILE.read_text(encoding="utf-8")
+    assert "\n\t@$(ROBODOJO_BASE) recipes --format table $(ARGS)" in source
 
 
 def test_every_recipe_renders_as_one_opaque_selection():

@@ -8,6 +8,9 @@ make recipes
 make eval RECIPE=pi05-bimanual_yam-molmo_yam-general_pickup
 ```
 
+The Make target displays a grouped terminal table. Use the direct
+`robodojo recipes --format plain|json` formats for automation.
+
 The recipe resolves four typed components: policy, environment, scene, and task
 protocol. A recipe cannot be combined with component overrides. Direct CLI
 manual mode requires all four named components, which prevents a partial
