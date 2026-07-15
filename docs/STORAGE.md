@@ -63,9 +63,11 @@ robodojo storage publish .robodojo/datasets/example datasets/example
 ```
 
 With `--publish`, a successful evaluation publishes its completed timestamped
-run. RoboDojo validates the S3 prefix and AWS CLI before starting the expensive
-evaluation; an upload failure returns nonzero but leaves the local result in
-place. Payload files are uploaded first, followed by `_MANIFEST.json`,
+run exactly once through the typed storage API. Dry runs, failed evaluations,
+smoke runs, and benchmark sweeps never publish. RoboDojo validates the S3
+prefix and AWS CLI before starting the expensive evaluation; an upload failure
+returns nonzero but leaves the local result in place. Payload files are
+uploaded first, followed by `_MANIFEST.json`,
 `_result.json` when present, and `_COMPLETE.json` last. Completed remote
 destinations are immutable unless `--replace` is explicit.
 
@@ -80,6 +82,9 @@ robodojo storage pull model_weights/SmolVLA/run-10000
 Pulls stage downloads below `.robodojo/.staging`, verify the completion marker,
 manifest hash, file sizes, and SHA-256 digests, then install the payload. An
 existing local destination is preserved unless `--replace` is supplied.
+
+Summarize local evaluation artifacts with `make results`, or explicitly with
+`robodojo results summarize`. There is no flat `robodojo summarize` command.
 
 AWS credentials must not be committed or stored in the project `.env`. The
 Docker smoke workflow mounts the same local storage root and passes the named

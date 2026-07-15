@@ -4,34 +4,32 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-import socket
 from typing import Any
 
-from pydantic import ValidationError
 import typer
 
+from robodojo.commands.assets import assets_app, data_app
+from robodojo.commands.common import model as _model, paths as _paths, report_format as _report_format
+from robodojo.commands.docker import docker_app
+from robodojo.commands.results import results_app
+from robodojo.commands.setup import setup as setup_command
+from robodojo.commands.storage import storage_app
 from robodojo.core.logging import LOG_LEVEL_ENV, configure_logging, parse_log_level
 from robodojo.core.models import (
-    DataFormat,
     EvaluationRequest,
-    PolicyServerLaunchRequest,
     PreflightRequest,
+    ServerRequest,
     SimulatorLaunchRequest,
     SweepRequest,
 )
-from robodojo.core.paths import RepositoryPaths
 
 app = typer.Typer(no_args_is_help=True, help="RoboDojo evaluation and operations CLI.")
-assets_app = typer.Typer(no_args_is_help=True, help="Download and build benchmark assets.")
-data_app = typer.Typer(no_args_is_help=True, help="Download benchmark datasets.")
-storage_app = typer.Typer(no_args_is_help=True, help="Manage durable RoboDojo storage.")
-results_app = typer.Typer(no_args_is_help=True, help="Analyze evaluation results.")
-docker_app = typer.Typer(no_args_is_help=True, help="Build and validate RoboDojo containers.")
 app.add_typer(assets_app, name="assets")
 app.add_typer(data_app, name="data")
 app.add_typer(storage_app, name="storage")
 app.add_typer(results_app, name="results")
 app.add_typer(docker_app, name="docker")
+app.command(name="setup")(setup_command)
 
 
 @app.callback()
@@ -50,55 +48,6 @@ def configure_cli_logging(
     if log_level is not None:
         os.environ[LOG_LEVEL_ENV] = log_level.strip().upper()
     configure_logging(log_level)
-
-
-def _paths(root: Path | None = None) -> RepositoryPaths:
-    try:
-        paths = RepositoryPaths.resolve(root)
-        from robodojo.core.settings import RuntimeSettings
-
-        RuntimeSettings.load(paths).export_missing()
-        return paths
-    except RuntimeError as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(2) from exc
-
-
-def _model(model: type[Any], **values: Any) -> Any:
-    try:
-        return model.model_validate(values)
-    except ValidationError as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(2) from exc
-
-
-def _report_format(value: str) -> str:
-    if value not in {"human", "json"}:
-        raise typer.BadParameter("expected human or json", param_hint="--format")
-    return value
-
-
-@app.command()
-def install(
-    root: Path | None = typer.Option(
-        None,
-        "--root",
-        help="Repository checkout to install; auto-detected when omitted.",
-    ),
-    from_step: str = typer.Option(
-        "system",
-        "--from",
-        help="Resume at this installation stage: system, submodules, or sync.",
-    ),
-) -> None:
-    """Install system dependencies, submodules, and the locked simulator environment."""
-    from robodojo.workflows.install import InstallStep, install as install_workflow
-
-    try:
-        step = InstallStep(from_step)
-    except ValueError as exc:
-        raise typer.BadParameter("expected system, submodules, or sync", param_hint="--from") from exc
-    install_workflow(_paths(root), step)
 
 
 @app.command()
@@ -173,43 +122,6 @@ def tasks(
         raise typer.Exit(1)
 
 
-@app.command("policy-setup")
-def policy_setup(
-    policy_dir: Path = typer.Option(..., "--policy-dir", help="XPolicyLab policy adapter directory."),
-    task: str = typer.Option(..., "--task", help="Task passed to the policy setup hook."),
-    checkpoint: str = typer.Option(..., "--ckpt", help="Checkpoint alias or path to prepare."),
-    policy_env: str = typer.Option(..., "--policy-env", help="Policy runtime environment name or project path."),
-    dataset: str = typer.Option("RoboDojo", "--dataset", help="Benchmark or dataset family."),
-    env_config: str = typer.Option("arx_x5", "--env-cfg", help="Policy embodiment/environment contract."),
-    action_type: str = typer.Option("ee", "--action-type", help="Policy action representation."),
-    seed: int = typer.Option(0, "--seed", help="Nonnegative experiment seed."),
-    policy_gpu: int = typer.Option(0, "--policy-gpu", help="Zero-based policy GPU index."),
-    output_format: str = typer.Option("human", "--format", help="Report format: human or json."),
-    root: Path | None = typer.Option(None, "--root", help="Repository checkout to use."),
-) -> None:
-    """Run the optional policy-owned setup mutation hook."""
-    from robodojo.workflows.preflight import emit_report, run_policy_setup
-
-    request = _model(
-        PolicyServerLaunchRequest,
-        policy_dir=policy_dir,
-        task=task,
-        checkpoint=checkpoint,
-        policy_env=policy_env,
-        dataset=dataset,
-        env_config=env_config,
-        action_type=action_type,
-        seed=seed,
-        policy_gpu=policy_gpu,
-    )
-    selected_format = _report_format(output_format)
-    report, transcript = run_policy_setup(_paths(root), request)
-    if selected_format == "human" and transcript:
-        typer.echo(transcript)
-    emit_report(report, selected_format)
-    raise typer.Exit(1 if report.status == "FAIL" else 0)
-
-
 @app.command()
 def preflight(
     policy_dir: Path = typer.Option(..., "--policy-dir", help="XPolicyLab policy adapter directory."),
@@ -261,7 +173,6 @@ def _evaluation_request(
     dataset: str,
     env_config: str,
     scene_config: str | None,
-    expert_num: int,
     action_type: str,
     seed: int,
     policy_gpu: int,
@@ -290,7 +201,6 @@ def _evaluation_request(
         dataset=dataset,
         env_config=env_config,
         scene_config=scene_config,
-        expert_num=expert_num,
         action_type=action_type,
         seed=seed,
         policy_gpu=policy_gpu,
@@ -338,11 +248,6 @@ def evaluate(
         None,
         "--scene",
         help="Scene configuration override; otherwise task and environment defaults apply.",
-    ),
-    expert_num: int = typer.Option(
-        100,
-        "--expert-num",
-        help="Reserved expert-count compatibility setting; it does not alter the current simulator loop.",
     ),
     action_type: str = typer.Option(
         "ee",
@@ -484,47 +389,26 @@ def server(
     ),
 ) -> None:
     """Start an XPolicyLab policy server adapter without simulator dependencies."""
-    from robodojo.policy.adapter import run_policy_server
+    from robodojo.orchestration.split import run_server
 
     request = _model(
-        PolicyServerLaunchRequest,
+        ServerRequest,
         policy_dir=policy_dir,
         task=task,
         checkpoint=checkpoint,
         policy_env=policy_env,
         dataset=dataset,
         env_config=env_config,
+        scene_config=scene_config,
         action_type=action_type,
         seed=seed,
         policy_gpu=policy_gpu,
+        env_gpu=env_gpu,
         port=policy_port,
         host=bind_host,
         dry_run=dry_run,
     )
-    if not dry_run:
-        from robodojo.workflows.preflight import emit_report, run_fast_preflight
-
-        report = run_fast_preflight(
-            _paths(root),
-            _model(
-                PreflightRequest,
-                policy_dir=policy_dir,
-                task=task,
-                checkpoint=checkpoint,
-                policy_env=policy_env,
-                dataset=dataset,
-                env_config=env_config,
-                scene_config=scene_config,
-                action_type=action_type,
-                seed=seed,
-                policy_gpu=policy_gpu,
-                env_gpu=env_gpu,
-            ),
-        )
-        emit_report(report)
-        if report.status == "FAIL":
-            raise typer.Exit(1)
-    raise typer.Exit(run_policy_server(request))
+    raise typer.Exit(run_server(_paths(root), request))
 
 
 def _client(
@@ -547,10 +431,9 @@ def _client(
     connect_timeout: float | None = None,
 ) -> int:
     from robodojo.core.storage import checkpoint_label as safe_checkpoint_label
-    from robodojo.orchestration.evaluation import run_simulator_session
+    from robodojo.orchestration.split import run_client
 
     resolved_name = policy_name or (policy_dir.resolve().name if policy_dir else None)
-    _ = connect_timeout
     if not resolved_name:
         raise typer.BadParameter("provide --policy-name or --policy-dir")
     parsed_eval_num: int | str = eval_num if eval_num == "native" else int(eval_num)
@@ -569,7 +452,7 @@ def _client(
         additional_info=f"ckpt_name={label},action_type={action_type}",
         dry_run=dry_run,
     )
-    return run_simulator_session(_paths(root), request)
+    return run_client(_paths(root), request, connect_timeout=connect_timeout if connect_timeout is not None else 5)
 
 
 @app.command()
@@ -640,12 +523,6 @@ def client(
     ),
 ) -> None:
     """Run the simulator client against an external policy server."""
-    if not dry_run:
-        try:
-            with socket.create_connection((policy_host, policy_port), timeout=connect_timeout):
-                pass
-        except OSError:
-            typer.echo(f"warning: {policy_host}:{policy_port} is not reachable yet; the client will retry", err=True)
     raise typer.Exit(_client(**locals()))
 
 
@@ -861,514 +738,6 @@ def benchmark(
 ) -> None:
     """Run a sequential benchmark sweep."""
     _sweep_options("benchmark", **locals())
-
-
-@app.command()
-def summarize(
-    output: Path | None = typer.Option(
-        None,
-        "--output",
-        help="Markdown destination; defaults to runs/reports/_summary.md in local storage.",
-    ),
-    env_config: str | None = typer.Option(
-        None,
-        "--env-cfg",
-        help="Include only results recorded with this environment profile.",
-    ),
-    scene_config: str | None = typer.Option(
-        None,
-        "--scene",
-        help="Include only results recorded with this scene configuration.",
-    ),
-) -> None:
-    """Aggregate evaluation results into Markdown."""
-    from robodojo.workflows.results_summary import main
-
-    args: list[str] = []
-    if output:
-        args += ["--output", str(output)]
-    if env_config:
-        args += ["--env-cfg", env_config]
-    if scene_config:
-        args += ["--scene", scene_config]
-    main(args)
-
-
-@assets_app.command("download")
-def assets_download(
-    root: Path | None = typer.Option(
-        None,
-        "--root",
-        help="Repository checkout used to resolve settings; auto-detected when omitted.",
-    ),
-    revision: str = typer.Option(
-        "main",
-        "--revision",
-        help="Git revision of the RoboDojo dataset repository to download.",
-    ),
-) -> None:
-    """Download the benchmark asset bundle into canonical local storage."""
-    from robodojo.workflows.downloads import download_assets
-
-    download_assets(_paths(root), revision)
-
-
-@assets_app.command("build-openarm")
-def assets_build_openarm(
-    root: Path | None = typer.Option(
-        None,
-        "--root",
-        help="Repository checkout containing the pinned OpenArm source manifest.",
-    ),
-) -> None:
-    """Build the pinned OpenArm robot assets into canonical local storage."""
-    from robodojo.workflows.assets import build_openarm
-
-    raise typer.Exit(build_openarm(_paths(root)))
-
-
-@assets_app.command("build-yam")
-def assets_build_yam(
-    root: Path | None = typer.Option(
-        None,
-        "--root",
-        help="Repository checkout containing the pinned YAM source manifest.",
-    ),
-) -> None:
-    """Build the pinned I2RT YAM robot assets into canonical local storage."""
-    from robodojo.workflows.assets import build_yam
-
-    raise typer.Exit(build_yam(_paths(root)))
-
-
-@assets_app.command("build-moonlake-office")
-def assets_build_moonlake_office(
-    root: Path | None = typer.Option(
-        None,
-        "--root",
-        help="Repository checkout containing the pinned Moonlake office source manifest.",
-    ),
-) -> None:
-    """Build the pinned internal Moonlake office fixture into canonical local storage."""
-    from robodojo.workflows.assets import build_moonlake_office
-
-    raise typer.Exit(build_moonlake_office(_paths(root)))
-
-
-@data_app.command("list")
-def data_list() -> None:
-    """List available dataset formats, sizes, and destination names."""
-    from robodojo.workflows.downloads import list_data
-
-    list_data()
-
-
-@data_app.command("download")
-def data_download(
-    data_format: DataFormat = typer.Argument(
-        ...,
-        help="Dataset format to download; run `robodojo data list` to compare choices.",
-    ),
-    root: Path | None = typer.Option(
-        None,
-        "--root",
-        help="Repository checkout used to resolve settings; auto-detected when omitted.",
-    ),
-    revision: str = typer.Option(
-        "main",
-        "--revision",
-        help="Git revision of the RoboDojo dataset repository to download.",
-    ),
-) -> None:
-    """Download one benchmark dataset into canonical local storage."""
-    from robodojo.workflows.downloads import download_data
-
-    download_data(_paths(root), data_format, revision)
-
-
-@storage_app.command("status")
-@storage_app.command("doctor")
-def storage_doctor() -> None:
-    """Check local storage writes and optional S3 access."""
-    from robodojo.workflows.storage import doctor
-
-    doctor()
-
-
-@storage_app.command()
-def publish(
-    source: Path = typer.Argument(..., help="Local directory whose files should be published."),
-    relative: str = typer.Argument(
-        ...,
-        help="Destination below ROBODOJO_S3_URI, beginning with assets, datasets, model_weights, or runs.",
-    ),
-    replace: bool = typer.Option(
-        False,
-        "--replace",
-        help="Replace an already completed remote payload instead of preserving its immutability.",
-    ),
-    dry_run: bool = typer.Option(
-        False,
-        "--dry-run",
-        help="Print the resolved source and S3 destination without uploading files.",
-    ),
-) -> None:
-    """Publish a local directory to an explicit canonical S3 destination."""
-    from robodojo.workflows.storage import publish as publish_payload
-
-    publish_payload(source, relative, replace=replace, dry_run=dry_run)
-
-
-def _storage_passthrough(arguments: list[str]) -> None:
-    from robodojo.workflows.storage import main
-
-    raise typer.Exit(main(arguments))
-
-
-def _publish_arguments(command: str, values: list[str], replace: bool, dry_run: bool) -> list[str]:
-    arguments = [command, *values]
-    if replace:
-        arguments.append("--replace")
-    if dry_run:
-        arguments.append("--dry-run")
-    return arguments
-
-
-@storage_app.command()
-def pull(
-    relative: str = typer.Argument(
-        ...,
-        help="Completed payload below ROBODOJO_S3_URI to restore into canonical local storage.",
-    ),
-    replace: bool = typer.Option(
-        False,
-        "--replace",
-        help="Replace an existing local payload after the remote copy passes verification.",
-    ),
-    dry_run: bool = typer.Option(
-        False,
-        "--dry-run",
-        help="Print the resolved S3 source and local destination without downloading files.",
-    ),
-) -> None:
-    """Download and verify one completed S3 payload."""
-    args = ["pull", relative]
-    if replace:
-        args.append("--replace")
-    if dry_run:
-        args.append("--dry-run")
-    _storage_passthrough(args)
-
-
-@storage_app.command("publish-assets")
-def storage_publish_assets(
-    source: Path = typer.Argument(..., help="Local benchmark asset directory to publish."),
-    replace: bool = typer.Option(
-        False,
-        "--replace",
-        help="Replace the completed remote assets payload if it already exists.",
-    ),
-    dry_run: bool = typer.Option(
-        False,
-        "--dry-run",
-        help="Print the canonical assets destination without uploading files.",
-    ),
-) -> None:
-    """Publish the canonical benchmark asset payload."""
-    _storage_passthrough(_publish_arguments("publish-assets", [str(source)], replace, dry_run))
-
-
-@storage_app.command("publish-data")
-def storage_publish_data(
-    dataset: str = typer.Argument(..., help="Dataset directory name used below the remote datasets prefix."),
-    source: Path = typer.Argument(..., help="Local dataset directory to publish."),
-    replace: bool = typer.Option(
-        False,
-        "--replace",
-        help="Replace the completed remote dataset payload if it already exists.",
-    ),
-    dry_run: bool = typer.Option(
-        False,
-        "--dry-run",
-        help="Print the canonical dataset destination without uploading files.",
-    ),
-) -> None:
-    """Publish one named dataset payload."""
-    _storage_passthrough(_publish_arguments("publish-data", [dataset, str(source)], replace, dry_run))
-
-
-@storage_app.command("publish-checkpoint")
-def storage_publish_checkpoint(
-    policy: str = typer.Argument(..., help="Policy name used below the remote model_weights prefix."),
-    checkpoint: str = typer.Argument(..., help="Checkpoint name used as the remote payload directory."),
-    source: Path = typer.Argument(..., help="Local checkpoint directory to publish."),
-    replace: bool = typer.Option(
-        False,
-        "--replace",
-        help="Replace the completed remote checkpoint payload if it already exists.",
-    ),
-    dry_run: bool = typer.Option(
-        False,
-        "--dry-run",
-        help="Print the canonical checkpoint destination without uploading files.",
-    ),
-) -> None:
-    """Publish one policy checkpoint payload."""
-    _storage_passthrough(_publish_arguments("publish-checkpoint", [policy, checkpoint, str(source)], replace, dry_run))
-
-
-@storage_app.command("publish-model")
-def storage_publish_model(
-    policy: str = typer.Argument(..., help="Policy name used below the remote model_weights prefix."),
-    model: str = typer.Argument(..., help="Model name used as the remote payload directory."),
-    source: Path = typer.Argument(..., help="Local model directory to publish."),
-    replace: bool = typer.Option(
-        False,
-        "--replace",
-        help="Replace the completed remote model payload if it already exists.",
-    ),
-    dry_run: bool = typer.Option(
-        False,
-        "--dry-run",
-        help="Print the canonical model destination without uploading files.",
-    ),
-) -> None:
-    """Publish one named policy model payload."""
-    _storage_passthrough(_publish_arguments("publish-model", [policy, model, str(source)], replace, dry_run))
-
-
-@storage_app.command("publish-reference-cache")
-def storage_publish_reference_cache(
-    name: str = typer.Argument(..., help="Reference-cache name used below the remote datasets prefix."),
-    revision: str = typer.Argument(..., help="Source revision used to version the remote cache payload."),
-    source: Path = typer.Argument(..., help="Local reference-cache directory to publish."),
-    replace: bool = typer.Option(
-        False,
-        "--replace",
-        help="Replace the completed remote cache payload if it already exists.",
-    ),
-    dry_run: bool = typer.Option(
-        False,
-        "--dry-run",
-        help="Print the canonical cache destination without uploading files.",
-    ),
-) -> None:
-    """Publish a versioned reference-data cache."""
-    _storage_passthrough(_publish_arguments("publish-reference-cache", [name, revision, str(source)], replace, dry_run))
-
-
-@storage_app.command("publish-eval")
-def storage_publish_eval(
-    source: Path = typer.Option(
-        Path("."),
-        "--source",
-        help="Completed evaluation directory, used directly when --run-id is omitted.",
-    ),
-    run_id: str | None = typer.Option(
-        None,
-        "--run-id",
-        help="Timestamped run name to find uniquely below canonical local evaluation storage.",
-    ),
-    replace: bool = typer.Option(
-        False,
-        "--replace",
-        help="Replace the completed remote evaluation payload if it already exists.",
-    ),
-    dry_run: bool = typer.Option(
-        False,
-        "--dry-run",
-        help="Print the canonical evaluation destination without uploading files.",
-    ),
-) -> None:
-    """Publish one completed evaluation result directory."""
-    values = [str(source)]
-    if run_id:
-        values += ["--run-id", run_id]
-    _storage_passthrough(_publish_arguments("publish-eval", values, replace, dry_run))
-
-
-@storage_app.command("publish-run")
-def storage_publish_run(
-    kind: str = typer.Argument(..., help="Run category used directly below the remote runs prefix."),
-    run_id: str = typer.Argument(..., help="Stable run identifier used as the remote payload directory."),
-    source: Path = typer.Argument(..., help="Local run directory to publish."),
-    replace: bool = typer.Option(
-        False,
-        "--replace",
-        help="Replace the completed remote run payload if it already exists.",
-    ),
-    dry_run: bool = typer.Option(
-        False,
-        "--dry-run",
-        help="Print the canonical run destination without uploading files.",
-    ),
-) -> None:
-    """Publish a named run payload under a caller-selected category."""
-    _storage_passthrough(_publish_arguments("publish-run", [kind, run_id, str(source)], replace, dry_run))
-
-
-@results_app.command("stats")
-def results_stats(
-    root: Path | None = typer.Option(
-        None,
-        "--root",
-        help="Evaluation-result directory; defaults to canonical local evaluation storage.",
-    ),
-    policies: list[str] | None = typer.Option(
-        None,
-        "--policy",
-        help="Policy to include; repeat the option to compare multiple policies.",
-    ),
-    tasks: list[str] | None = typer.Option(
-        None,
-        "--task",
-        help="Task to include; repeat the option to select multiple tasks.",
-    ),
-    env_config: str | None = typer.Option(
-        None,
-        "--env-cfg",
-        help="Include only results recorded with this environment profile.",
-    ),
-    scene_config: str | None = typer.Option(
-        None,
-        "--scene",
-        help="Include only results recorded with this scene configuration.",
-    ),
-    per_seed: bool = typer.Option(
-        False,
-        "--per-seed",
-        help="Break score counts down by evaluation seed in addition to policy and task.",
-    ),
-    json_out: Path | None = typer.Option(
-        None,
-        "--json-out",
-        help="Write the complete aggregated distribution to this JSON file.",
-    ),
-) -> None:
-    """Count evaluation scores by policy and task."""
-    from robodojo.workflows.results_stats import main
-
-    args: list[str] = []
-    if root:
-        args += ["--root", str(root)]
-    if policies:
-        args += ["--policies", *policies]
-    for task in tasks or []:
-        args += ["--task", task]
-    if env_config:
-        args += ["--env-cfg", env_config]
-    if scene_config:
-        args += ["--scene", scene_config]
-    if per_seed:
-        args.append("--per-seed")
-    if json_out:
-        args += ["--json-out", str(json_out)]
-    raise typer.Exit(main(args))
-
-
-@docker_app.command("install")
-def docker_install(
-    root: Path | None = typer.Option(
-        None,
-        "--root",
-        help="Repository checkout from which installation commands run; auto-detected when omitted.",
-    ),
-) -> None:
-    """Install Docker and the NVIDIA container runtime when missing."""
-    from robodojo.workflows.docker import install
-
-    raise typer.Exit(install(_paths(root)))
-
-
-@docker_app.command("build")
-def docker_build(
-    image: str = typer.Option(
-        "robodojo:cuda12.8",
-        "--image",
-        help="Repository and tag to assign to the built simulator image.",
-    ),
-    root: Path | None = typer.Option(
-        None,
-        "--root",
-        help="Repository checkout used as the Docker build context; auto-detected when omitted.",
-    ),
-) -> None:
-    """Build the RoboDojo simulator container image."""
-    from robodojo.workflows.docker import build
-
-    raise typer.Exit(build(_paths(root), image))
-
-
-@docker_app.command("smoke")
-def docker_smoke(
-    port: int = typer.Option(
-        ...,
-        "--policy-port",
-        help="Host TCP port of the already running external policy server.",
-    ),
-    image: str = typer.Option(
-        "robodojo:cuda12.8",
-        "--image",
-        help="Simulator image to run for the one-episode container check.",
-    ),
-    task: str = typer.Option(
-        "stack_bowls",
-        "--task",
-        help="Canonical task name to evaluate inside the container.",
-    ),
-    policy: str = typer.Option(
-        "demo_policy",
-        "--policy",
-        help="XPolicyLab policy name expected by the simulator client.",
-    ),
-    env_config: str = typer.Option(
-        "arx_x5",
-        "--env-cfg",
-        help="Environment profile selecting the robot, cameras, simulator, and default scene.",
-    ),
-    scene_config: str | None = typer.Option(
-        None,
-        "--scene",
-        help="Scene configuration override for the container evaluation.",
-    ),
-    root: Path | None = typer.Option(
-        None,
-        "--root",
-        help="Repository checkout whose storage and settings are mounted into the container.",
-    ),
-) -> None:
-    """Run a one-episode GPU and policy-connectivity check in Docker."""
-    from robodojo.workflows.docker import smoke
-
-    raise typer.Exit(smoke(_paths(root), image, task, policy, port, env_config, scene_config))
-
-
-@docker_app.command("monitor")
-def docker_monitor(
-    root: Path | None = typer.Option(
-        None,
-        "--root",
-        help="Repository checkout containing docker/smoke_logs; auto-detected when omitted.",
-    ),
-) -> None:
-    """Follow the newest Docker smoke log."""
-    from robodojo.workflows.docker import monitor
-
-    raise typer.Exit(monitor(_paths(root)))
-
-
-@docker_app.command("clean")
-def docker_clean(
-    root: Path | None = typer.Option(
-        None,
-        "--root",
-        help="Repository checkout whose Docker smoke state should be cleaned.",
-    ),
-) -> None:
-    """Stop and remove RoboDojo Docker smoke-test state."""
-    from robodojo.workflows.docker import clean
-
-    raise typer.Exit(clean(_paths(root)))
 
 
 @app.command(

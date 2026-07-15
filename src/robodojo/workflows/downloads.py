@@ -25,6 +25,14 @@ DATASETS = {
 logger = logging.getLogger(__name__)
 
 
+def assets_ready() -> bool:
+    """Return whether the canonical base asset bundle is structurally complete."""
+
+    target = assets_root()
+    required = ("Robots", "Object", "Material", "Eval_Layout")
+    return target.is_dir() and all((target / item).is_dir() for item in required)
+
+
 def list_data() -> None:
     for kind, (directory, size, description) in DATASETS.items():
         print(f"{kind.value:14} {size:7} {directory}: {description}")
@@ -81,8 +89,7 @@ def _install_payload(payload: Path, target: Path, cache: Path) -> None:
 
 def download_assets(paths: RepositoryPaths, revision: str = "main") -> None:
     target = assets_root()
-    required = ("Robots", "Object", "Material", "Eval_Layout")
-    if target.is_dir() and all((target / item).is_dir() for item in required):
+    if assets_ready():
         logger.info("assets already ready: %s", target)
         return
     if target.exists() or target.is_symlink():
@@ -90,7 +97,7 @@ def download_assets(paths: RepositoryPaths, revision: str = "main") -> None:
     cache = storage_root() / ".cache" / "git" / "robodojo_assets_repo"
     payload = _sparse_payload(paths, "Assets", cache, revision)
     _install_payload(payload, target, cache)
-    if not all((target / item).is_dir() for item in required):
+    if not assets_ready():
         raise RuntimeError(f"asset download is incomplete: {target}")
 
 

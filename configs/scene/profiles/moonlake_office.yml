@@ -2,6 +2,7 @@ config_name: moonlake_office
 component: moonlake_office
 layout_set: moonlake_office
 layout_source: bundled
+asset_builds: [moonlake_office]
 compatible_environments: [bimanual_yam]
 
 mounts:

@@ -53,6 +53,9 @@ def test_environment_profiles_resolve_policy_and_diagnostic_metadata():
     assert recipe.source.model_dump() == {"object_type": "Garment", "category": "Top_Long", "index": 9}
     assert recipe.destination.model_dump() == {"object_type": "Garment", "category": "Top_Long", "index": 12}
 
+    moonlake = load_scene_profile(paths, "moonlake_office")
+    assert moonlake.document.asset_builds == ["moonlake_office"]
+
 
 def test_runtime_yaml_domains_use_the_canonical_config_root():
     paths = RepositoryPaths.resolve(ROOT)

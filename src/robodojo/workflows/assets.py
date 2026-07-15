@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
+from pathlib import Path
 import subprocess
 import sys
 from urllib.parse import quote
@@ -12,7 +14,109 @@ from urllib.request import urlopen
 import yaml
 
 from robodojo.core.paths import RepositoryPaths
+from robodojo.core.profiles import EnvironmentProfile, SceneProfile
 from robodojo.core.storage import assets_root, storage_root
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def required_robot_builds(profile: EnvironmentProfile) -> tuple[str, ...]:
+    """Return generated robot assets required by an environment profile."""
+
+    robot_config = yaml.safe_load(profile.component_paths["robot"].read_text(encoding="utf-8")) or {}
+    names = {str(item.get("robot_name", "")) for item in robot_config.get("robots", [])}
+    return tuple(sorted(names.intersection({"yam", "openarm"})))
+
+
+def generated_robot_error(name: str) -> str | None:
+    """Return a read-only integrity error for one generated robot asset."""
+
+    root = assets_root() / "Robots" / name
+    manifest_path = root / "manifest.json"
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return f"generated {name} manifest is missing or invalid: {manifest_path}: {exc}"
+    outputs = manifest.get("outputs")
+    if isinstance(outputs, dict):
+        for relative, expected in outputs.items():
+            output = root / relative
+            if not output.is_file():
+                return f"generated {name} asset is missing: {output}"
+            if _sha256(output) != expected:
+                return f"generated {name} asset checksum mismatch: {output}"
+    else:
+        output_name = manifest.get("output")
+        if output_name and not (root / str(output_name)).is_file():
+            return f"generated {name} asset is missing: {root / str(output_name)}"
+    return None
+
+
+def ensure_generated_robot(paths: RepositoryPaths, name: str) -> bool:
+    """Build a required generated robot only when its manifest is invalid."""
+
+    if generated_robot_error(name) is None:
+        return False
+    builders = {"yam": build_yam, "openarm": build_openarm}
+    code = builders[name](paths)
+    if code != 0:
+        raise RuntimeError(f"{name} asset builder exited {code}")
+    if error := generated_robot_error(name):
+        raise RuntimeError(error)
+    return True
+
+
+def _fixture_paths(paths: RepositoryPaths, name: str) -> tuple[Path, Path, Path]:
+    if name != "moonlake_office":
+        raise ValueError(f"unsupported generated scene asset: {name}")
+    tooling = paths.moonlake_office_manifest
+    specification = yaml.safe_load(tooling.read_text(encoding="utf-8")) or {}
+    root = assets_root() / "Object" / "RoboDojo" / "Geometry" / specification["fixture"]["category"]
+    return tooling, root, root / "manifest.json"
+
+
+def generated_fixture_error(paths: RepositoryPaths, name: str) -> str | None:
+    """Return a read-only integrity error for a scene-declared fixture build."""
+
+    tooling, root, manifest_path = _fixture_paths(paths, name)
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return f"generated {name} fixture manifest is missing or invalid: {manifest_path}: {exc}"
+    if manifest.get("build_manifest_sha256") != _sha256(tooling):
+        return f"generated {name} fixture manifest is stale: {manifest_path}"
+    output_name = manifest.get("output")
+    output = root / str(output_name or "")
+    if not output_name or not output.is_file():
+        return f"generated {name} fixture output is missing: {output}"
+    if manifest.get("output_sha256") != _sha256(output):
+        return f"generated {name} fixture checksum mismatch: {output}"
+    return None
+
+
+def ensure_generated_fixture(paths: RepositoryPaths, name: str) -> bool:
+    """Build a scene-declared fixture only when its pinned manifest is invalid."""
+
+    if generated_fixture_error(paths, name) is None:
+        return False
+    if name != "moonlake_office":
+        raise ValueError(f"unsupported generated scene asset: {name}")
+    code = build_moonlake_office(paths)
+    if code != 0:
+        raise RuntimeError(f"{name} fixture builder exited {code}")
+    if error := generated_fixture_error(paths, name):
+        raise RuntimeError(error)
+    return True
+
+
+def required_fixture_builds(scene: SceneProfile) -> tuple[str, ...]:
+    return tuple(scene.document.asset_builds)
 
 
 def build_openarm(paths: RepositoryPaths) -> int:

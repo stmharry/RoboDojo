@@ -245,11 +245,7 @@ def project_points_to_camera(
     pixels[in_front, 0] = intrinsic[0, 0] * local[in_front, 0] / depth[in_front] + intrinsic[0, 2]
     pixels[in_front, 1] = intrinsic[1, 2] - intrinsic[1, 1] * local[in_front, 1] / depth[in_front]
     visible = (
-        in_front
-        & (pixels[:, 0] >= 0.0)
-        & (pixels[:, 0] < width)
-        & (pixels[:, 1] >= 0.0)
-        & (pixels[:, 1] < height)
+        in_front & (pixels[:, 0] >= 0.0) & (pixels[:, 0] < width) & (pixels[:, 1] >= 0.0) & (pixels[:, 1] < height)
     )
     visible_pixels = pixels[visible]
     bounds = None

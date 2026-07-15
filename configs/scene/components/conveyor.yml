@@ -28,7 +28,7 @@ Ground:
 
 Geometry:
   -
-    common: 
+    common:
       xlim: [0.0, 0.0]
       ylim: [-0.47, -0.47]
       zlim: [0.715, 0.715]

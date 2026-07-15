@@ -36,7 +36,7 @@ Rigid:
       -
         name: "goblet"
         index: [6]
-        
+
     select_mode:
       nums: [1]
       mode: "unique"

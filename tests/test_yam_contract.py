@@ -184,14 +184,10 @@ def test_yam_tooling_and_embodiment_reference_are_revision_pinned():
     assert robot["gripper_joints_name"] == ["dof_joint7", "dof_joint8"]
     assert robot["gripper_move"] == {"base": "dof_joint7", "sign": -1.0, "mimic": ["dof_joint8", 1.0, 0.0]}
     assert robot["gripper_scale"] == [-0.0475, 0.0]
-    assert robot["camera_mount_links"] == {
-        "wrist_camera_mount": "gripper/wrist_camera_mount"
-    }
+    assert robot["camera_mount_links"] == {"wrist_camera_mount": "gripper/wrist_camera_mount"}
 
     reference_source = tooling["sources"]["historical_camera_mount_reference"]
-    assert reference_source["repository"] == (
-        "https://huggingface.co/datasets/TreeePlanter/molmoact2-sim-eval-assets"
-    )
+    assert reference_source["repository"] == ("https://huggingface.co/datasets/TreeePlanter/molmoact2-sim-eval-assets")
     assert reference_source["revision"] == "9332a64224ff0a813d9f77bd377b845270232513"
     assert reference_source["license"] == "undeclared"
     assert reference_source["usage"] == "reference_only"
@@ -209,9 +205,7 @@ def test_yam_tooling_and_embodiment_reference_are_revision_pinned():
     assert set(finger_colliders) == {"tip_left", "tip_right"}
     assert all(len(colliders) == 3 for colliders in finger_colliders.values())
     assert all(
-        collider["size"][2] == pytest.approx(0.004)
-        for colliders in finger_colliders.values()
-        for collider in colliders
+        collider["size"][2] == pytest.approx(0.004) for colliders in finger_colliders.values() for collider in colliders
     )
     appearance_source = tooling["sources"]["hardware_appearance_reference"]
     assert appearance_source == {
@@ -447,9 +441,7 @@ def test_sapien_camera_axes_are_converted_before_optical_roll():
     converted_rotation = Rotation.from_quat(converted[[1, 2, 3, 0]])
     assert converted_rotation.apply([0.0, 0.0, -1.0]) == pytest.approx(raw_rotation.apply([1.0, 0.0, 0.0]))
     assert converted_rotation.apply([0.0, 1.0, 0.0]) == pytest.approx(raw_rotation.apply([0.0, 0.0, 1.0]))
-    assert mount_orientation(raw, "sapien_robotics", 90.0) == pytest.approx(
-        apply_optical_roll(converted, 90.0)
-    )
+    assert mount_orientation(raw, "sapien_robotics", 90.0) == pytest.approx(apply_optical_roll(converted, 90.0))
 
 
 def test_camera_pose_convention_default_and_validation_are_backward_compatible():
@@ -472,10 +464,6 @@ def test_camera_pose_convention_default_and_validation_are_backward_compatible()
 def test_nested_yam_camera_mount_alias_resolves_to_generated_frame():
     tooling = yaml.safe_load((ROOT / "configs/tooling/yam.yml").read_text())
     nested_link = tooling["robot_config"]["camera_mount_links"]["wrist_camera_mount"]
-    assert robot_link_prim_path(3, "robot0", nested_link) == (
-        "/World/envs/env_3/robot0/gripper/wrist_camera_mount"
-    )
+    assert robot_link_prim_path(3, "robot0", nested_link) == ("/World/envs/env_3/robot0/gripper/wrist_camera_mount")
     with pytest.raises(ValueError, match="rebuild the embodiment asset"):
-        require_camera_mount_prim(
-            "/World/envs/env_3/robot0/gripper/wrist_camera_mount", lambda _: False
-        )
+        require_camera_mount_prim("/World/envs/env_3/robot0/gripper/wrist_camera_mount", lambda _: False)

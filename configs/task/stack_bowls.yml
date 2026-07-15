@@ -7,10 +7,10 @@ Rigid:
       relative_plane: "Table"
 
     category:
-      - 
+      -
         name: "bowl"
         index: [1, 2, 3, 5, 7, 8, 9, 10]
-    
+
     select_mode:
       nums: 3
       mode: "same"

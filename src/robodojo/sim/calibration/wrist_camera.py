@@ -118,9 +118,7 @@ def fit_camera(camera: dict[str, Any]) -> CameraFit:
 
     def residual(values: np.ndarray) -> np.ndarray:
         position, orientation, intrinsics, distortion = unpack(values)
-        reprojection = (
-            fisheye_project(train_xyz, position, orientation, intrinsics, distortion) - train_uv
-        ).ravel()
+        reprojection = (fisheye_project(train_xyz, position, orientation, intrinsics, distortion) - train_uv).ravel()
         # Holder registration and the 102-degree lens are weak priors. Dataset
         # landmarks dominate the solution.
         pose_prior = (values[:6] - initial[:6]) / np.asarray(priors["pose_sigma"])

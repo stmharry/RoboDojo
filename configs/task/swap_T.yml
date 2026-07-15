@@ -8,10 +8,10 @@ Rigid:
       relative_plane: "Table"
 
     category:
-      - 
+      -
         name: "t"
         index: [0]
-    
+
     select_mode:
       nums: 1
       mode: "allow_duplicate"
@@ -25,10 +25,10 @@ Rigid:
       relative_plane: "Table"
 
     category:
-      - 
+      -
         name: "t"
         index: [1]
-    
+
     select_mode:
       nums: 1
       mode: "allow_duplicate"

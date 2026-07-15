@@ -26,7 +26,7 @@ https://private-user-images.githubusercontent.com/88101805/619409345-cc074c5d-45
 - ⚡ **Heterogeneous parallel simulation** — runs different tasks, scenes, and processes concurrently on Isaac Sim for fast, scalable feedback.
 - 🧱 **Physically grounded assets** — rigid, articulated, and deformable objects in a single configuration-driven scene.
 - 🤖 **Integrate once, evaluate everywhere** — [XPolicyLab](https://github.com/XPolicyLab/XPolicyLab/blob/main/README.md) unifies 40+ policies behind one interface for both simulation and real-world runs.
-- 📊 **Reproducible & leaderboard-ready** — seed-controlled layouts and one-command `summarize` aggregation into a leaderboard table.
+- 📊 **Reproducible & leaderboard-ready** — seed-controlled layouts and one-command `results summarize` aggregation into a leaderboard table.
 
 ## 📚 Documentation
 
@@ -50,7 +50,7 @@ src/robodojo/core/          lightweight settings, paths, storage, and process co
 src/robodojo/policy/        XPolicyLab adapter validation and launching
 src/robodojo/sim/           simulator runtime, tasks, evaluation, and scene export
 src/robodojo/orchestration/ coordinated policy/simulator evaluation lifecycle
-src/robodojo/workflows/     install, download, storage, result, and Docker workflows
+src/robodojo/workflows/     setup, assets, storage, result, and Docker workflows
 configs/                    environment, task, simulator, scene, robot, and camera YAML
 XPolicyLab/                 policy implementations and server adapters (submodule)
 third_party/curobo/         cuRobo Warp compatibility fork (submodule)
@@ -66,43 +66,50 @@ task names, schemas, and XPolicyLab's `env_cfg_type` values remain unchanged.
 
 RoboDojo uses a locked [uv](https://docs.astral.sh/uv/) environment with Python
 3.11. IsaacLab is pinned to its official release by uv. XPolicyLab and the
-cuRobo Warp-compatibility fork remain submodules. Install `uv` first, then set
-up the submodules and simulator extra:
+cuRobo Warp-compatibility fork remain submodules. Install the machine
+prerequisites first: Git, Git LFS, uv, compiler/runtime tools, and NVIDIA
+drivers. Then use the documented local workflow:
 
 ```bash
-uv run --locked robodojo install
+make init
+# Edit .env if needed.
+make setup
+make preflight
+make eval
 ```
 
-Copy the environment template for machine-specific evaluation and storage
-settings, then inspect the available workflow shortcuts:
+`make init` creates `.env` from `.env.example` only when it is absent and never
+overwrites an existing file. `make setup` initializes pinned submodules,
+synchronizes the locked simulator environment, prepares inferred assets, and
+invokes the optional policy preparation hook. It is idempotent and preserves
+valid assets, environments, and checkpoints. Inspect the deliberately small
+Make surface with:
 
 ```bash
-cp .env.example .env
 make help
 ```
 
-The `storage-*` targets wrap the local storage and optional S3 helper. Start with
-`make storage-status`; publishing and pull targets list their required
-`STORAGE_*` variables in `make help` and report missing values before running.
-
-After setup, run every native command through the lockfile:
+Make is the opinionated `.env`-driven interface. The CLI is explicit and does
+not load experiment values from `.env`; support operations remain grouped under
+`assets`, `data`, `storage`, `results`, and `docker`. After setup, native
+commands run through the lockfile without synchronizing dependencies:
 
 ```bash
-uv run --extra sim --locked robodojo doctor --skip-policy
-uv run --locked robodojo tasks
+uv run --extra sim --locked --no-sync robodojo doctor --skip-policy
+uv run --locked --no-sync robodojo tasks
 ```
 
 For a configured experiment, policy preparation and validation are explicit:
 
 ```bash
-make policy-setup
 make preflight
 make preflight DEEP=true
 make eval PUBLISH=false
 ```
 
-`policy-setup` is the policy-owned mutation boundary. Preflight and every real
-managed launch are read-only: they never install or download. Fast preflight
+`setup` is the consolidated mutation boundary. Preflight and every real
+managed launch are read-only: they never install, download, build, or derive
+prerequisites. Fast preflight
 checks the locked simulator and policy runtimes, task/scene/layout and generated
 robot assets, GPUs, checkpoints, policy contracts, and optional publication
 settings. Deep preflight additionally starts the normal policy server on a
@@ -139,7 +146,8 @@ XPolicyLab/policy/<POLICY_NAME>/deploy.yml
 Adapters may also provide standardized `prepare_eval_policy.sh` and
 `check_eval_policy.sh` hooks. Both receive the same eight-argument experiment
 prefix used by the server adapter. RoboDojo invokes preparation only through
-`policy-setup`; preflight invokes the check hook read-only. Legacy adapters
+`robodojo setup --only policy` or the full `make setup` workflow; preflight
+invokes the check hook read-only. Legacy adapters
 remain launchable through generic runtime/import/checkpoint checks and report a
 warning when policy-specific validation is unavailable.
 

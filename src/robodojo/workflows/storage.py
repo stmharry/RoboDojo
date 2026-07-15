@@ -230,6 +230,14 @@ def _find_eval_run(run_id: str) -> Path:
     return matches[0]
 
 
+def publish_evaluation_run(run_id: str, *, replace: bool = False, dry_run: bool = False) -> None:
+    """Publish one completed evaluation selected by its runtime identifier."""
+
+    source = _find_eval_run(run_id)
+    relative = str(Path("runs/eval_result/RoboDojo") / source.resolve().relative_to(eval_work_root().resolve()))
+    publish(source, relative, replace=replace, dry_run=dry_run)
+
+
 def _verify_materialized(path: Path) -> None:
     manifest_path = path / "_MANIFEST.json"
     complete_path = path / "_COMPLETE.json"
@@ -279,15 +287,18 @@ def pull(relative: str, *, replace: bool = False, dry_run: bool = False) -> None
         raise SystemExit(f"local destination already exists: {destination}")
 
     bucket, key = _s3_location(source)
-    completed = _aws(
-        "s3api",
-        "head-object",
-        "--bucket",
-        bucket,
-        "--key",
-        f"{key}/_COMPLETE.json",
-        check=False,
-    ).returncode == 0
+    completed = (
+        _aws(
+            "s3api",
+            "head-object",
+            "--bucket",
+            bucket,
+            "--key",
+            f"{key}/_COMPLETE.json",
+            check=False,
+        ).returncode
+        == 0
+    )
     if not completed:
         raise SystemExit(f"remote payload is incomplete: {source}")
 
@@ -390,7 +401,8 @@ def main(argv: list[str] | None = None) -> int:
         relative = f"datasets/reference_cache/{args.name}/{args.revision}"
     elif args.command == "publish-eval":
         if args.run_id:
-            source = _find_eval_run(args.run_id)
+            publish_evaluation_run(args.run_id, replace=args.replace, dry_run=args.dry_run)
+            return 0
         relative = str(Path("runs/eval_result/RoboDojo") / source.resolve().relative_to(eval_work_root().resolve()))
     else:
         relative = f"runs/{args.kind}/{args.run_id}"

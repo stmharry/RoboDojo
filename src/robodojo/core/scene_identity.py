@@ -29,6 +29,4 @@ def require_matching_scene_identity(
     for field, expected_value in scene_identity(expected).items():
         actual_value = actual.get(field)
         if actual_value != expected_value:
-            raise ValueError(
-                f"{context} {field} mismatch: expected {expected_value!r}, found {actual_value!r}"
-            )
+            raise ValueError(f"{context} {field} mismatch: expected {expected_value!r}, found {actual_value!r}")

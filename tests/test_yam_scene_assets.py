@@ -10,6 +10,7 @@ from robodojo.core.paths import RepositoryPaths
 from robodojo.core.profiles import load_scene_profile
 from robodojo.sim import scene_assets
 from robodojo.sim.scene_assets import (
+    inspect_scene_assets,
     prepare_scene_assets,
     reshape_long_sleeves_for_yam_scene,
     update_garment_metadata,
@@ -17,6 +18,12 @@ from robodojo.sim.scene_assets import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_simulator_entrypoint_only_inspects_prepared_scene_assets():
+    source = (ROOT / "src/robodojo/sim/evaluation/main.py").read_text(encoding="utf-8")
+    assert "inspect_scene_assets" in source
+    assert "prepare_scene_assets" not in source
 
 
 @pytest.fixture(scope="module")
@@ -52,9 +59,7 @@ def test_inherited_garment_metadata_keeps_source_landmarks_and_updates_geometry(
         "geometry": {"vertices": 4, "faces": 2},
         "passive": {"functional": {"left_hem": {"id": [3]}}},
     }
-    points = np.array(
-        [[-0.2, -0.1, 0.0], [0.2, -0.1, 0.0], [-0.2, 0.1, 0.01], [0.2, 0.1, 0.01]]
-    )
+    points = np.array([[-0.2, -0.1, 0.0], [0.2, -0.1, 0.0], [-0.2, 0.1, 0.01], [0.2, 0.1, 0.01]])
     metadata = update_garment_metadata(source, points, face_count=3)
 
     assert metadata["geometry"]["vertices"] == 4
@@ -114,6 +119,20 @@ def test_typed_scene_asset_preparation_is_task_scoped(tmp_path):
     assert len(prepared.identity_hash) == 64
 
 
+def test_scene_asset_inspection_does_not_prepare_missing_outputs(tmp_path):
+    scene = load_scene_profile(RepositoryPaths.resolve(ROOT), "molmo_yam")
+    source = tmp_path / "Object/RoboDojo/Garment/Top_Long/00009"
+    source.mkdir(parents=True)
+    (source / "object.usd").write_bytes(b"read-only inspection fixture")
+    (source / "metadata.json").write_text("{}", encoding="utf-8")
+    destination = tmp_path / "Object/RoboDojo/Garment/Top_Long/00012"
+
+    with pytest.raises(FileNotFoundError, match="run make setup"):
+        inspect_scene_assets(scene, "fold_clothes", root=tmp_path)
+
+    assert not destination.exists()
+
+
 def test_scene_garment_derivation_is_manifested_idempotent_and_source_sensitive(tmp_path, isaac_app):
     from pxr import Sdf, Usd, UsdGeom
 
@@ -121,6 +140,7 @@ def test_scene_garment_derivation_is_manifested_idempotent_and_source_sensitive(
     scene = load_scene_profile(RepositoryPaths.resolve(ROOT), "molmo_yam")
 
     first = prepare_scene_assets(scene, "fold_clothes", root=tmp_path)
+    assert inspect_scene_assets(scene, "fold_clothes", root=tmp_path) == first
     destination = tmp_path / "Object/RoboDojo/Garment/Top_Long/00012"
     object_path = destination / "object.usd"
     metadata_path = destination / "metadata.json"

@@ -68,21 +68,11 @@ def test_moonlake_office_is_rejected_for_other_embodiments_before_isaac():
             "robot<N>",
         ),
         (
-            {
-                "mounts": {
-                    "robots": {
-                        "robot0": {"position": [math.inf, 0, 0], "orientation": [1, 0, 0, 0]}
-                    }
-                }
-            },
+            {"mounts": {"robots": {"robot0": {"position": [math.inf, 0, 0], "orientation": [1, 0, 0, 0]}}}},
             "finite",
         ),
         (
-            {
-                "mounts": {
-                    "robots": {"robot0": {"position": [0, 0, 0], "orientation": [1, 1, 0, 0]}}
-                }
-            },
+            {"mounts": {"robots": {"robot0": {"position": [0, 0, 0], "orientation": [1, 1, 0, 0]}}}},
             "normalized",
         ),
         (

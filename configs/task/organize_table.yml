@@ -72,7 +72,7 @@ Geometry:
       rotate_rand: False
       check_mode: "enforce"
       margin: 0
-    
+
     category:
       -
         name: "frame"
@@ -81,7 +81,7 @@ Geometry:
       nums: [1]
       mode: "allow_duplicate"
       label: ["frame"]
-      
+
 Rigid:
   -
     common:

@@ -1,217 +1,125 @@
-# RoboDojo workflow shortcuts. The Python CLI owns all workflow logic.
+# Opinionated local workflow shortcuts. Python owns workflow behavior; Make
+# loads the user's experiment contract from .env and translates it to CLI flags.
 
-# Make and tool runners.
 SELF := $(firstword $(MAKEFILE_LIST))
 -include .env
-export
 
 SHELL := /bin/bash
-.SHELLFLAGS := -eu -o pipefail -c
+.SHELLFLAGS := -e -o pipefail -c
 .DEFAULT_GOAL := help
 
 UV ?= uv
-# Keep lightweight workflows on the base environment; simulator workflows opt
-# into the large `sim` dependency extra explicitly.
 UV_RUN_SIM ?= $(UV) run --extra sim --locked
-ROBODOJO_BASE ?= $(UV) run --locked robodojo
-ROBODOJO_SIM ?= $(UV_RUN_SIM) robodojo
-ROBODOJO_LAUNCH_BASE ?= $(UV) run --locked --no-sync robodojo
-ROBODOJO_LAUNCH_SIM ?= $(UV) run --extra sim --locked --no-sync robodojo
+ROBODOJO_SETUP ?= $(UV) run --locked robodojo
+ROBODOJO_BASE ?= $(UV) run --locked --no-sync robodojo
+ROBODOJO_SIM ?= $(UV) run --extra sim --locked --no-sync robodojo
 OMNI_KIT_ACCEPT_EULA ?= yes
+export ROBODOJO_STORAGE_ROOT ROBODOJO_S3_URI AWS_PROFILE ROBODOJO_LOG_LEVEL OMNI_KIT_ACCEPT_EULA
 
-# Task and evaluation settings.
+# Stable benchmark default and Make-only workflow controls.
 DATASET ?= RoboDojo
-TASK ?= stack_bowls
-ENV_CFG ?= arx_x5
-SCENE ?=
-SEED ?= 0
-ACTION_TYPE ?= ee
-EXPERT_NUM ?= 100
-EVAL_NUM ?= 1
 PUBLISH ?= true
-ENV_GPU ?= 0
-ONLY ?=
 DEEP ?= false
-
-# Policy adapter and connectivity.
-POLICY_DIR ?=
-POLICY_NAME ?=
-POLICY_ENV ?=
-CKPT ?=
-POLICY_GPU ?= 0
-POLICY_HOST ?= 127.0.0.1
-POLICY_PORT ?=
-BIND_HOST ?= 0.0.0.0
-
-# Data and storage.
-DATA_TYPE ?=
-STORAGE_SOURCE ?=
-STORAGE_RELATIVE ?=
-
-# Docker.
-IMAGE ?= robodojo:cuda12.8
-
-# Additional arguments appended to the selected command.
+DRY_RUN ?= false
+ONLY ?=
 ARGS ?=
 
-# Internal recipe helpers.
-PUBLISH_VALUE := $(strip $(PUBLISH))
-ifeq ($(PUBLISH_VALUE),true)
-PUBLISH_FLAG := --publish
-else ifeq ($(PUBLISH_VALUE),false)
-PUBLISH_FLAG :=
-else
-$(error PUBLISH must be true or false, got '$(PUBLISH)')
-endif
+REQUIRED_EXPERIMENT_VARS := DATASET TASK ENV_CFG ACTION_TYPE SEED ENV_GPU POLICY_DIR POLICY_ENV CKPT POLICY_GPU EVAL_NUM
 
-DEEP_VALUE := $(strip $(DEEP))
-ifeq ($(DEEP_VALUE),true)
-DEEP_FLAG := --deep
-else ifeq ($(DEEP_VALUE),false)
-DEEP_FLAG :=
-else
-$(error DEEP must be true or false, got '$(DEEP)')
-endif
+define require_experiment
+$(foreach name,$(REQUIRED_EXPERIMENT_VARS),$(if $(strip $($(name))),,$(error $(name) is required; run `make init` and edit .env)))
+endef
 
+define boolean_flag
+$(if $(filter true,$(strip $($(1)))),$(2),$(if $(filter false,$(strip $($(1)))),,$(error $(1) must be true or false, got '$($(1))')))
+endef
+
+PUBLISH_FLAG = $(call boolean_flag,PUBLISH,--publish)
+DEEP_FLAG = $(call boolean_flag,DEEP,--deep)
+DRY_RUN_FLAG = $(call boolean_flag,DRY_RUN,--dry-run)
 SCENE_FLAG = $(if $(strip $(SCENE)),--scene "$(SCENE)")
+ONLY_FLAG = $(if $(strip $(ONLY)),--only "$(ONLY)")
 
-define require
-$(if $(strip $($(1))),,$(error $(1) is required. Pass it as `make $@ $(1)=...` or set it in .env))
-endef
-
-define run_dry_run
-@$(MAKE) --no-print-directory $(1) ARGS="--dry-run $(ARGS)"
-endef
-
-unexport require run_dry_run
-
-POLICY_FLAGS = \
+POLICY_ARGS = \
 	--policy-dir "$(POLICY_DIR)" \
 	--task "$(TASK)" \
 	--ckpt "$(CKPT)" \
 	--policy-env "$(POLICY_ENV)" \
+	--dataset "$(DATASET)" \
 	--env-cfg "$(ENV_CFG)" \
 	--action-type "$(ACTION_TYPE)" \
 	--seed "$(SEED)" \
 	--policy-gpu "$(POLICY_GPU)"
 
-EVAL_FLAGS = \
-	$(POLICY_FLAGS) \
-	--dataset "$(DATASET)" \
-	--expert-num "$(EXPERT_NUM)" \
+EXPERIMENT_ARGS = \
+	$(POLICY_ARGS) \
 	--env-gpu "$(ENV_GPU)" \
-	--eval-num "$(EVAL_NUM)" \
-	$(PUBLISH_FLAG) \
 	$(SCENE_FLAG)
 
-SERVER_FLAGS = \
-	$(POLICY_FLAGS) \
-	--dataset "$(DATASET)" \
-	--env-gpu "$(ENV_GPU)" \
-	$(SCENE_FLAG) \
-	--bind-host "$(BIND_HOST)" \
-	$(if $(strip $(POLICY_PORT)),--policy-port "$(POLICY_PORT)")
-
-POLICY_SETUP_FLAGS = \
-	$(POLICY_FLAGS) \
-	--dataset "$(DATASET)"
-
-PREFLIGHT_FLAGS = \
-	$(POLICY_SETUP_FLAGS) \
-	--env-gpu "$(ENV_GPU)" \
-	$(SCENE_FLAG) \
-	$(PUBLISH_FLAG) \
-	$(DEEP_FLAG)
-
-CLIENT_FLAGS = \
-	--task "$(TASK)" \
-	$(if $(strip $(POLICY_DIR)),--policy-dir "$(POLICY_DIR)",--policy-name "$(POLICY_NAME)") \
-	--policy-host "$(POLICY_HOST)" \
-	--policy-port "$(POLICY_PORT)" \
-	--ckpt "$(CKPT)" \
-	--env-cfg "$(ENV_CFG)" \
-	$(SCENE_FLAG) \
-	--action-type "$(ACTION_TYPE)" \
-	--seed "$(SEED)" \
-	--env-gpu "$(ENV_GPU)" \
-	--eval-num "$(EVAL_NUM)"
-
-SWEEP_POLICY_FLAGS = \
+SWEEP_ARGS = \
 	--policy-dir "$(POLICY_DIR)" \
 	--ckpt "$(CKPT)" \
-	--policy-env "$(POLICY_ENV)"
-
-SWEEP_RUNTIME_FLAGS = \
+	--policy-env "$(POLICY_ENV)" \
 	--env-cfg "$(ENV_CFG)" \
-	$(SCENE_FLAG) \
 	--action-type "$(ACTION_TYPE)" \
 	--seed "$(SEED)" \
 	--policy-gpu "$(POLICY_GPU)" \
 	--env-gpu "$(ENV_GPU)" \
-	$(if $(strip $(ONLY)),--only "$(ONLY)")
+	$(SCENE_FLAG) \
+	$(ONLY_FLAG)
 
-SMOKE_FLAGS = $(SWEEP_POLICY_FLAGS) $(SWEEP_RUNTIME_FLAGS)
-BENCHMARK_FLAGS = $(SWEEP_POLICY_FLAGS) --eval-num "$(EVAL_NUM)" $(SWEEP_RUNTIME_FLAGS)
+.PHONY: help init setup preflight eval smoke benchmark tasks doctor results \
+	lint lint-fix format format-check test pre-commit check _config-check
 
-##@ General
-.PHONY: help tasks tasks-check
-
-help: ## Show targets and common configuration variables
-	@printf 'RoboDojo local workflow\n'
+##@ Workflow
+help: ## Show the supported local workflow
+	@printf 'RoboDojo local workflow\n\n  make init -> make setup -> make preflight -> make eval\n'
 	@awk \
 		'BEGIN {FS = ":.*## "} \
 		/^##@ / {printf "\n%s\n", substr($$0, 5); next} \
-		/^[a-zA-Z0-9_.-]+:.*## / {printf "  %-24s %s\n", $$1, $$2}' \
+		/^[a-zA-Z0-9_.-]+:.*## / {printf "  %-16s %s\n", $$1, $$2}' \
 		"$(SELF)"
 	@printf \
-		'\nEvaluation defaults\n  TASK=%s ENV_CFG=%s SCENE=%s SEED=%s EVAL_NUM=%s PUBLISH=%s\n' \
-		"$(TASK)" \
-		"$(ENV_CFG)" \
-		"$(SCENE)" \
-		"$(SEED)" \
-		"$(EVAL_NUM)" \
-		"$(PUBLISH)"
+		'\nConfigured experiment\n  TASK=%s ENV_CFG=%s SCENE=%s SEED=%s EVAL_NUM=%s PUBLISH=%s\n' \
+		"$(TASK)" "$(ENV_CFG)" "$(SCENE)" "$(SEED)" "$(EVAL_NUM)" "$(PUBLISH)"
 
+init: ## Create .env when absent, preserve it otherwise, and validate required keys
+	@if [[ ! -e .env ]]; then cp .env.example .env; printf 'Created .env from .env.example.\n'; else printf 'Preserved existing .env.\n'; fi
+	@$(MAKE) --no-print-directory _config-check
+	@printf 'Configuration is ready. Next: make setup\n'
+
+_config-check:
+	$(call require_experiment)
+	@case "$(SEED):$(ENV_GPU):$(POLICY_GPU):$(EVAL_NUM)" in *[!0-9:]*|::*|:*:|*::*) printf 'SEED, ENV_GPU, POLICY_GPU, and EVAL_NUM must be nonnegative integers.\n' >&2; exit 2;; esac
+	@$(call boolean_flag,DEEP,true)
+	@$(call boolean_flag,DRY_RUN,true)
+
+setup: _config-check ## Prepare submodules, locked env, assets, policy runtime, and checkpoint
+	$(ROBODOJO_SETUP) setup $(POLICY_ARGS) $(SCENE_FLAG) $(ARGS)
+
+preflight: _config-check ## Validate the configured experiment; DEEP=true checks policy readiness
+	$(ROBODOJO_SIM) preflight $(EXPERIMENT_ARGS) $(DEEP_FLAG) $(ARGS)
+
+eval: _config-check ## Evaluate locally and publish when PUBLISH=true
+	$(ROBODOJO_SIM) eval $(EXPERIMENT_ARGS) --eval-num "$(EVAL_NUM)" $(PUBLISH_FLAG) $(DRY_RUN_FLAG) $(ARGS)
+
+smoke: _config-check ## Run one local episode for each selected task
+	$(ROBODOJO_SIM) smoke $(SWEEP_ARGS) $(DRY_RUN_FLAG) $(ARGS)
+
+benchmark: _config-check ## Run the configured local benchmark sweep
+	$(ROBODOJO_SIM) benchmark $(SWEEP_ARGS) --eval-num "$(EVAL_NUM)" $(DRY_RUN_FLAG) $(ARGS)
+
+##@ Inspection
 tasks: ## List canonical tasks
 	$(ROBODOJO_BASE) tasks $(ARGS)
 
-tasks-check: ## Validate task code/config pairs
-	$(ROBODOJO_BASE) tasks --check $(ARGS)
+doctor: _config-check ## Inspect the configured simulator and policy adapter
+	$(ROBODOJO_SIM) doctor --task "$(TASK)" --env-cfg "$(ENV_CFG)" $(SCENE_FLAG) --policy-dir "$(POLICY_DIR)" $(ARGS)
 
-##@ Setup & data
-.PHONY: install sync policy-setup assets assets-yam assets-moonlake-office data-list data
-
-install: ## Install system dependencies, submodules, and simulator environment
-	$(ROBODOJO_BASE) install $(ARGS)
-
-sync: ## Synchronize the locked simulator environment
-	$(UV) sync --extra sim --locked $(ARGS)
-
-policy-setup: ## Prepare the selected policy runtime and public checkpoint
-	$(call require,POLICY_DIR)
-	$(call require,POLICY_ENV)
-	$(call require,CKPT)
-	$(ROBODOJO_LAUNCH_BASE) policy-setup $(POLICY_SETUP_FLAGS) $(ARGS)
-
-assets: ## Download benchmark assets
-	$(ROBODOJO_BASE) assets download $(ARGS)
-
-assets-yam: ## Build the pinned I2RT YAM articulation asset
-	$(ROBODOJO_SIM) assets build-yam $(ARGS)
-
-assets-moonlake-office: ## Build the pinned internal Moonlake office fixture
-	$(ROBODOJO_SIM) assets build-moonlake-office $(ARGS)
-
-data-list: ## List dataset formats
-	$(ROBODOJO_BASE) data list
-
-data: ## Download DATA_TYPE
-	$(call require,DATA_TYPE)
-	$(ROBODOJO_BASE) data download "$(DATA_TYPE)" $(ARGS)
+results: ## Summarize local evaluation results
+	$(ROBODOJO_BASE) results summarize $(ARGS)
 
 ##@ Development
-.PHONY: lint lint-fix format format-check test pre-commit check
-
 lint: ## Run Ruff lint checks
 	$(UV_RUN_SIM) ruff check . $(ARGS)
 
@@ -224,129 +132,11 @@ format: ## Format Python code
 format-check: ## Check Python formatting
 	$(UV_RUN_SIM) ruff format --check . $(ARGS)
 
-test: ## Run tests
+test: ## Run the test suite
 	$(UV_RUN_SIM) pytest $(ARGS)
 
 pre-commit: ## Run all pre-commit hooks
 	$(UV_RUN_SIM) pre-commit run --all-files $(ARGS)
 
-check: lint format-check test tasks-check ## Run all non-mutating checks
-
-##@ Evaluation
-.PHONY: doctor preflight eval eval-dry-run server server-dry-run client client-dry-run \
-	smoke smoke-dry-run benchmark benchmark-dry-run
-
-doctor: ## Validate installation and configuration
-	$(ROBODOJO_SIM) doctor \
-		--task "$(TASK)" \
-		--env-cfg "$(ENV_CFG)" \
-		$(SCENE_FLAG) \
-		$(if $(strip $(POLICY_DIR)),--policy-dir "$(POLICY_DIR)",--skip-policy) \
-		$(ARGS)
-
-preflight: ## Validate the experiment; pass DEEP=true to start/stop the policy server
-	$(call require,POLICY_DIR)
-	$(call require,POLICY_ENV)
-	$(call require,CKPT)
-	$(ROBODOJO_LAUNCH_SIM) preflight $(PREFLIGHT_FLAGS) $(ARGS)
-
-eval: ## Run local evaluation and publish when PUBLISH=true
-	$(call require,POLICY_DIR)
-	$(call require,POLICY_ENV)
-	$(call require,CKPT)
-	$(ROBODOJO_LAUNCH_SIM) eval $(EVAL_FLAGS) $(ARGS)
-
-eval-dry-run: ## Print evaluation commands without running or publishing
-	$(call require,POLICY_DIR)
-	$(call require,POLICY_ENV)
-	$(call require,CKPT)
-	$(call run_dry_run,eval)
-
-server: ## Start only the policy server
-	$(call require,POLICY_DIR)
-	$(call require,POLICY_ENV)
-	$(call require,CKPT)
-	$(ROBODOJO_LAUNCH_BASE) server $(SERVER_FLAGS) $(ARGS)
-
-server-dry-run: ## Print the resolved server command
-	$(call require,POLICY_DIR)
-	$(call require,POLICY_ENV)
-	$(call require,CKPT)
-	$(call run_dry_run,server)
-
-client: ## Run simulator client against an external server
-	$(call require,POLICY_PORT)
-	$(call require,CKPT)
-	$(ROBODOJO_LAUNCH_SIM) client $(CLIENT_FLAGS) $(ARGS)
-
-client-dry-run: ## Print the resolved client command
-	$(call run_dry_run,client)
-
-smoke: ## Run selected/all tasks with one episode
-	$(call require,POLICY_DIR)
-	$(call require,POLICY_ENV)
-	$(call require,CKPT)
-	$(ROBODOJO_LAUNCH_SIM) smoke $(SMOKE_FLAGS) $(ARGS)
-
-smoke-dry-run: ## Dry-run a smoke sweep
-	$(call run_dry_run,smoke)
-
-benchmark: ## Run a benchmark sweep
-	$(call require,POLICY_DIR)
-	$(call require,POLICY_ENV)
-	$(call require,CKPT)
-	$(ROBODOJO_LAUNCH_SIM) benchmark $(BENCHMARK_FLAGS) $(ARGS)
-
-benchmark-dry-run: ## Dry-run a benchmark sweep
-	$(call run_dry_run,benchmark)
-
-##@ Results & storage
-.PHONY: summarize storage-status storage-doctor storage-publish \
-	storage-publish-dry-run storage-pull storage-pull-dry-run
-
-summarize: ## Aggregate results into Markdown
-	$(ROBODOJO_BASE) summarize $(ARGS)
-
-storage-status: ## Check storage configuration
-	$(ROBODOJO_BASE) storage status $(ARGS)
-
-storage-doctor: ## Validate storage configuration
-	$(ROBODOJO_BASE) storage doctor $(ARGS)
-
-storage-publish: ## Publish STORAGE_SOURCE to STORAGE_RELATIVE
-	$(call require,STORAGE_SOURCE)
-	$(call require,STORAGE_RELATIVE)
-	$(ROBODOJO_BASE) storage publish "$(STORAGE_SOURCE)" "$(STORAGE_RELATIVE)" $(ARGS)
-
-storage-publish-dry-run: ## Preview storage publication
-	$(call run_dry_run,storage-publish)
-
-storage-pull: ## Pull and verify STORAGE_RELATIVE into local storage
-	$(call require,STORAGE_RELATIVE)
-	$(ROBODOJO_BASE) storage pull "$(STORAGE_RELATIVE)" $(ARGS)
-
-storage-pull-dry-run: ## Preview storage pull
-	$(call run_dry_run,storage-pull)
-
-##@ Docker
-.PHONY: docker-install docker-build docker-smoke docker-monitor docker-clean
-
-docker-install: ## Install Docker and NVIDIA runtime
-	$(ROBODOJO_BASE) docker install $(ARGS)
-
-docker-build: ## Build simulator image
-	$(ROBODOJO_BASE) docker build --image "$(IMAGE)" $(ARGS)
-
-docker-smoke: ## Run Docker GPU smoke test
-	$(call require,POLICY_PORT)
-	$(ROBODOJO_BASE) docker smoke \
-		--image "$(IMAGE)" \
-		--policy-port "$(POLICY_PORT)" \
-		$(SCENE_FLAG) \
-		$(ARGS)
-
-docker-monitor: ## Monitor Docker smoke logs
-	$(ROBODOJO_BASE) docker monitor $(ARGS)
-
-docker-clean: ## Clean Docker smoke state
-	$(ROBODOJO_BASE) docker clean $(ARGS)
+check: lint format-check test ## Run all non-mutating repository checks
+	$(UV) run --locked robodojo tasks --format json --check >/dev/null

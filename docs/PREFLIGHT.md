@@ -1,19 +1,23 @@
 # Experiment setup and preflight
 
-RoboDojo separates policy mutation from launch-time validation. Configure one
-experiment in `.env`, prepare it explicitly, validate it, and then launch it:
+RoboDojo separates repository-local setup from launch-time validation.
+Configure one experiment in `.env`, prepare it explicitly, validate it, and
+then launch it:
 
 ```bash
-cp .env.example .env
-make policy-setup
+make init
+make setup
 make preflight
 make preflight DEEP=true
 make eval PUBLISH=false
 ```
 
-`make policy-setup` is the only new setup mutation interface. It invokes the
-selected policy's optional `prepare_eval_policy.sh` from the policy directory
-with this argument prefix:
+`make setup` is the consolidated mutation interface. It validates host tools,
+initializes pinned submodules without overwriting dirty work, synchronizes the
+locked Python 3.11 simulator environment, downloads the base asset bundle,
+builds robot/scene/task assets inferred from the configured profiles, and then
+invokes the selected policy's optional `prepare_eval_policy.sh`. The hook runs
+from the policy directory with this argument prefix:
 
 ```text
 <dataset> <task> <ckpt> <env> <action> <seed> <gpu> <policy-env>
@@ -63,12 +67,25 @@ uv run --extra sim --locked --no-sync robodojo preflight \
   --format json
 ```
 
-The JSON object has a stable top-level `status` and a `checks` array whose
+Setup provides the same human and JSON reporting style. Direct CLI callers can
+run every stage or repeat `--only` to select stages:
+
+```bash
+uv run --locked robodojo setup --only root
+uv run --locked robodojo setup --only assets \
+  --task general_pickup --env-cfg bimanual_yam --scene molmo_yam
+uv run --locked robodojo setup --only policy \
+  --policy-dir XPolicyLab/policy/Pi_05 --task general_pickup \
+  --ckpt pi05_yam_molmoact2 --policy-env uv --env-cfg bimanual_yam \
+  --action-type joint
+```
+
+The preflight JSON object has a stable top-level `status` and a `checks` array whose
 records contain `name`, `status`, `detail`, and optional `remediation`.
 
 Real `eval`, `server`, `smoke`, and `benchmark` commands run fast preflight
 before selecting a free port or starting policy/simulator processes. A sweep
 runs the shared gate once, not once per child task. Dry runs intentionally skip
 preflight and remain command-rendering-only. Make launch targets use uv's
-`--no-sync` mode, so a missing or stale root environment fails with `make sync`
+`--no-sync` mode, so a missing or stale root environment fails with `make setup`
 instead of changing the environment during launch.

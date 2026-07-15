@@ -6,15 +6,15 @@ Dynamic:
       zlim: [0.0, 0.0] # zlim is required when using qpos
       rotate_deg: 0
       rotate_rand: True
-      
+
       relative_plane: "Ground"
       qpos: [0, 0, 0, 1]
 
     category:
-      - 
+      -
         name: "conveyor" # asset name
         index: [0]
-    
+
     select_mode:
       nums: 1 # spawn count
       mode: "unique" # asset uniqueness mode: unique, category_unique, allow_duplicate, or same
@@ -62,13 +62,13 @@ Rigid:
       -
         name: "plate"
         index: [2]
- 
+
     select_mode:
       nums: 1
       mode: "same_as_label"
       same_label: "target1"
       label: ["target0"]
-  
+
   -
     common:
       xlim: [[-0.3, -0.3], [-0.14, -0.14], [0.02, 0.02], [0.2, 0.2]]
@@ -110,12 +110,12 @@ Rigid:
       -
         name: "plate"
         index: [2]
- 
+
     select_mode:
       nums: 1
       mode: "unique"
       label: ["target1"]
-  
+
   -
     common:
       xlim: [[-0.3, -0.3], [-0.14, -0.14], [0.02, 0.02], [0.2, 0.2]]
@@ -157,7 +157,7 @@ Rigid:
       -
         name: "plate"
         index: [2]
- 
+
     select_mode:
       nums: 3
       mode: "unique"

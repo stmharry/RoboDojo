@@ -196,9 +196,7 @@ def test_final_jaw_transforms_remain_visual_only_and_mirrored():
     contexts = {path: (np.eye(4), transforms[path].copy()) for path in calibration["visuals"]}
     transforms.update(plan_visual_calibration_matrices(calibration, np.eye(4), contexts))
     assert transforms[collision_path] == pytest.approx(collision_before)
-    assert set(plan_visual_calibration_matrices(calibration, np.eye(4), contexts)) == set(
-        calibration["visuals"]
-    )
+    assert set(plan_visual_calibration_matrices(calibration, np.eye(4), contexts)) == set(calibration["visuals"])
 
     tip_world = np.eye(4)
     tip_world[:3, 3] = [0.1, 0.2, 0.3]

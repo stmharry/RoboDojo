@@ -18,7 +18,7 @@ Rigid:
       - name: "number"
         index: [20, 21, 22, 23, 24, 25, 26, 27, 28, 29]
         group: "texture2"
-  
+
     select_mode:
       mode: "hierarchical"
       select_category_nums: [1, 1]
@@ -38,7 +38,7 @@ Geometry:
     category:
       - name: "cube_cushion"
         index: [1]
-  
+
     select_mode:
       mode: "linked_count"
       linked_label_prefix: "digit"

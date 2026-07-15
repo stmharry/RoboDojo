@@ -26,19 +26,71 @@ class DataFormat(StrEnum):
     REAL = "real"
 
 
-class EvaluationRequest(StrictModel):
+class PolicyExperimentBase(StrictModel):
+    """Fields shared by setup and executable policy experiment requests."""
+
+    policy_dir: Path | None = None
+    task: str | None = None
+    checkpoint: str | None = None
+    policy_env: str | None = None
+    dataset: str = "RoboDojo"
+    env_config: str | None = None
+    action_type: str | None = None
+    seed: NonNegativeInt = 0
+    policy_gpu: NonNegativeInt = 0
+
+    @field_validator("task", "checkpoint", "policy_env", "dataset", "env_config", "action_type")
+    @classmethod
+    def experiment_value_non_empty(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("must not be empty")
+        return value
+
+
+class PolicyExperimentRequest(PolicyExperimentBase):
     policy_dir: Path
     task: str
     checkpoint: str
     policy_env: str
-    dataset: str = "RoboDojo"
     env_config: str = "arx_x5"
-    scene_config: str | None = None
-    expert_num: Annotated[int, Field(ge=1)] = 100
     action_type: str = "ee"
-    seed: NonNegativeInt = 0
-    policy_gpu: NonNegativeInt = 0
+
+    def policy_request(
+        self,
+        *,
+        host: str = "127.0.0.1",
+        port: int | None = None,
+        dry_run: bool = False,
+    ) -> PolicyServerLaunchRequest:
+        return PolicyServerLaunchRequest(
+            policy_dir=self.policy_dir,
+            task=self.task,
+            checkpoint=self.checkpoint,
+            policy_env=self.policy_env,
+            dataset=self.dataset,
+            env_config=self.env_config,
+            action_type=self.action_type,
+            seed=self.seed,
+            policy_gpu=self.policy_gpu,
+            host=host,
+            port=port,
+            dry_run=dry_run,
+        )
+
+
+class ExperimentRequest(PolicyExperimentRequest):
+    scene_config: str | None = None
     env_gpu: NonNegativeInt = 0
+
+    @field_validator("scene_config")
+    @classmethod
+    def scene_non_empty(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("must not be empty")
+        return value
+
+
+class EvaluationRequest(ExperimentRequest):
     eval_num: int | Literal["native"] | None = None
     checkpoint_label: str | None = None
     export_scene: bool = False
@@ -47,20 +99,6 @@ class EvaluationRequest(StrictModel):
     layout_id: NonNegativeInt = 0
     publish: bool = False
     dry_run: bool = False
-
-    @field_validator("task", "checkpoint", "policy_env", "dataset", "env_config", "action_type")
-    @classmethod
-    def non_empty(cls, value: str) -> str:
-        if not value.strip():
-            raise ValueError("must not be empty")
-        return value
-
-    @field_validator("scene_config")
-    @classmethod
-    def optional_non_empty(cls, value: str | None) -> str | None:
-        if value is not None and not value.strip():
-            raise ValueError("must not be empty")
-        return value
 
     @field_validator("eval_num")
     @classmethod
@@ -76,52 +114,61 @@ class EvaluationRequest(StrictModel):
         return self
 
 
-class PolicyServerLaunchRequest(StrictModel):
-    policy_dir: Path
-    task: str
-    checkpoint: str
-    policy_env: str
-    dataset: str = "RoboDojo"
-    env_config: str = "arx_x5"
-    action_type: str = "ee"
-    seed: NonNegativeInt = 0
-    policy_gpu: NonNegativeInt = 0
+class PolicyServerLaunchRequest(PolicyExperimentRequest):
     host: str = "0.0.0.0"
     port: Port | None = None
     dry_run: bool = False
 
 
-class PreflightRequest(StrictModel):
-    policy_dir: Path
-    task: str
-    checkpoint: str
-    policy_env: str
-    dataset: str = "RoboDojo"
-    env_config: str = "arx_x5"
-    scene_config: str | None = None
-    action_type: str = "ee"
-    seed: NonNegativeInt = 0
-    policy_gpu: NonNegativeInt = 0
-    env_gpu: NonNegativeInt = 0
+class ServerRequest(ExperimentRequest):
+    host: str = "0.0.0.0"
+    port: Port | None = None
+    dry_run: bool = False
+
+
+class PreflightRequest(ExperimentRequest):
     publish: bool = False
     deep: bool = False
     timeout: Annotated[float, Field(gt=0)] = 600.0
 
-    @field_validator("task", "checkpoint", "policy_env", "dataset", "env_config", "action_type")
-    @classmethod
-    def required_value(cls, value: str) -> str:
-        if not value.strip():
-            raise ValueError("must not be empty")
-        return value
+    def policy_request(self, *, port: int | None = None) -> PolicyServerLaunchRequest:
+        return super().policy_request(port=port)
+
+
+class SetupStage(StrEnum):
+    ROOT = "root"
+    ASSETS = "assets"
+    POLICY = "policy"
+
+
+class SetupRequest(PolicyExperimentBase):
+    stages: tuple[SetupStage, ...] = ()
+    scene_config: str | None = None
 
     @field_validator("scene_config")
     @classmethod
-    def optional_scene(cls, value: str | None) -> str | None:
+    def setup_scene_non_empty(cls, value: str | None) -> str | None:
         if value is not None and not value.strip():
             raise ValueError("must not be empty")
         return value
 
-    def policy_request(self, *, port: int | None = None) -> PolicyServerLaunchRequest:
+    @model_validator(mode="after")
+    def required_stage_values(self) -> SetupRequest:
+        selected = set(self.stages) or set(SetupStage)
+        required: set[str] = set()
+        if SetupStage.ASSETS in selected:
+            required.update({"task", "env_config"})
+        if SetupStage.POLICY in selected:
+            required.update({"policy_dir", "task", "checkpoint", "policy_env", "env_config", "action_type"})
+        missing = sorted(name for name in required if not getattr(self, name))
+        if missing:
+            raise ValueError(f"setup stage arguments are missing: {', '.join(missing)}")
+        return self
+
+    def selected_stages(self) -> tuple[SetupStage, ...]:
+        return self.stages or tuple(SetupStage)
+
+    def policy_request(self) -> PolicyServerLaunchRequest:
         return PolicyServerLaunchRequest(
             policy_dir=self.policy_dir,
             task=self.task,
@@ -132,9 +179,19 @@ class PreflightRequest(StrictModel):
             action_type=self.action_type,
             seed=self.seed,
             policy_gpu=self.policy_gpu,
-            host="127.0.0.1",
-            port=port,
         )
+
+
+class SetupStageResult(StrictModel):
+    name: str
+    status: Literal["READY", "CHANGED", "SKIPPED", "WARN", "FAIL"]
+    detail: str
+    remediation: str | None = None
+
+
+class SetupReport(StrictModel):
+    status: Literal["PASS", "WARN", "FAIL"]
+    stages: list[SetupStageResult]
 
 
 class PreflightCheck(StrictModel):
@@ -172,14 +229,16 @@ class SimulatorLaunchRequest(StrictModel):
         return value
 
 
-class SweepRequest(EvaluationRequest):
+class SweepRequest(ExperimentRequest):
     task: str = "__sweep__"
+    eval_num: Annotated[int, Field(ge=1)] | Literal["native"] = 1
     only: tuple[str, ...] = ()
     tasks_file: Path | None = None
     limit: Annotated[int, Field(ge=1)] | None = None
     resume: bool = False
     fail_fast: bool = False
     run_id: str | None = None
+    dry_run: bool = False
 
 
 class EnvironmentConfigReferences(StrictModel):
@@ -262,9 +321,7 @@ class SceneRobotMount(StrictModel):
 
     @field_validator("orientation")
     @classmethod
-    def normalized_orientation(
-        cls, value: tuple[float, float, float, float]
-    ) -> tuple[float, float, float, float]:
+    def normalized_orientation(cls, value: tuple[float, float, float, float]) -> tuple[float, float, float, float]:
         value = _finite_vector(value, length=4, field="robot mount orientation")
         norm = math.sqrt(sum(component * component for component in value))
         if not math.isclose(norm, 1.0, rel_tol=0.0, abs_tol=1e-6):
@@ -289,9 +346,7 @@ class SceneCameraMount(StrictModel):
 
     @field_validator("orientation")
     @classmethod
-    def normalized_orientation(
-        cls, value: tuple[float, float, float, float]
-    ) -> tuple[float, float, float, float]:
+    def normalized_orientation(cls, value: tuple[float, float, float, float]) -> tuple[float, float, float, float]:
         value = _finite_vector(value, length=4, field="camera mount orientation")
         norm = math.sqrt(sum(component * component for component in value))
         if not math.isclose(norm, 1.0, rel_tol=0.0, abs_tol=1e-6):
@@ -310,9 +365,8 @@ class SceneCameraMount(StrictModel):
             if self.kind != "scene_fixture":
                 raise ValueError("camera mount frame is valid only for scene_fixture mounts")
             parts = self.frame.split("/")
-            if (
-                self.frame.startswith("/")
-                or any(not part or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", part) for part in parts)
+            if self.frame.startswith("/") or any(
+                not part or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", part) for part in parts
             ):
                 raise ValueError("camera mount frame must be a safe relative USD prim path")
         return self
@@ -345,6 +399,7 @@ class SceneConfigDocument(StrictModel):
     component: str
     layout_set: str
     layout_source: Literal["assets", "bundled"] = "assets"
+    asset_builds: list[Literal["moonlake_office"]] = Field(default_factory=list)
     task_assets: dict[str, list[SceneGarmentVariantRecipe]] = Field(default_factory=dict)
     compatible_environments: list[str] = Field(default_factory=list)
     mounts: SceneMounts = Field(default_factory=SceneMounts)

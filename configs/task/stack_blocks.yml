@@ -7,15 +7,15 @@ Rigid:
       relative_plane: "Table"
 
     category:
-      - 
+      -
         name: "block"
         index: [5, 8, 11, 14, 17]
         group: "size0"
-      - 
+      -
         name: "block"
         index: [6, 9, 12, 15, 18]
         group: "size1"
-      - 
+      -
         name: "block"
         index: [7, 10, 13, 16, 19]
         group: "size2"
@@ -26,7 +26,7 @@ Rigid:
       select_instance_nums: [3, 3]
       instance_sample_mode: "unique"
       label: ["block_0", "block_1", "block_2"]
- 
+
 ProhibitedArea:
   -
     [0.1, -0.23, -0.17, -0.1]

@@ -5,11 +5,15 @@ controllers, reset state, and state/action dimensions. It reuses the
 `fold_clothes` task and compatible saved layouts without selecting a policy or
 a policy-specific workspace.
 
-Build the licensed I2RT-derived runtime asset before launching the profile:
+The normal setup workflow infers and builds the licensed I2RT-derived runtime
+asset from `ENV_CFG=bimanual_yam` before launching the profile:
 
 ```bash
-make assets-yam
+make setup
 ```
+
+For a granular support operation, use
+`uv run --extra sim --locked robodojo assets build-yam`.
 
 The build checks out I2RT at the revision pinned in
 `configs/tooling/yam.yml`, snapshots the original inputs and license, produces
@@ -17,7 +21,7 @@ a normalized URDF with convex collisions, converts it to `YAM.usd`, and writes
 a checksummed manifest below `.robodojo/assets/Robots/yam/`. Generated assets
 remain untracked.
 
-Rebuild with `make assets-yam` after updating RoboDojo. Existing generated YAM
+Re-run `make setup` after updating RoboDojo. Existing generated YAM
 assets are not migrated in place. In particular, the canonical build now
 publishes the generated `gripper/wrist_camera_mount` frame; an asset that still
 contains the historical `molmo_link6` prim is stale. The build retains the

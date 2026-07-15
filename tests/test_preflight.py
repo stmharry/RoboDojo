@@ -13,7 +13,7 @@ from robodojo.cli import app
 from robodojo.core.models import EvaluationRequest, PreflightCheck, PreflightRequest
 from robodojo.core.paths import RepositoryPaths
 from robodojo.orchestration import evaluation
-from robodojo.workflows import preflight, sweeps
+from robodojo.workflows import assets, preflight, sweeps
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNNER = CliRunner()
@@ -38,7 +38,7 @@ def test_report_json_has_stable_overall_and_per_check_fields(capsys):
     report = preflight.build_report(
         [
             PreflightCheck(name="ready", status="PASS", detail="ok"),
-            PreflightCheck(name="legacy", status="WARN", detail="generic only", remediation="make policy-setup"),
+            PreflightCheck(name="legacy", status="WARN", detail="generic only", remediation="make setup"),
         ]
     )
 
@@ -53,22 +53,24 @@ def test_report_json_has_stable_overall_and_per_check_fields(capsys):
                 "name": "legacy",
                 "status": "WARN",
                 "detail": "generic only",
-                "remediation": "make policy-setup",
+                "remediation": "make setup",
             },
         ],
     }
 
 
 @pytest.mark.parametrize("output_format", ["human", "json"])
-def test_policy_setup_cli_invokes_eight_argument_hook_and_reports(monkeypatch, tmp_path, output_format):
+def test_setup_policy_stage_invokes_eight_argument_hook_and_reports(tmp_path, output_format):
     policy = tmp_path / "Policy"
     policy.mkdir()
     hook = policy / "prepare_eval_policy.sh"
-    hook.write_text('#!/usr/bin/env bash\nprintf "prepared:%s\\n" "$*"\n', encoding="utf-8")
+    hook.write_text('#!/usr/bin/env bash\nprintf "%s\\n" "$*" > hook_args.txt\n', encoding="utf-8")
     result = RUNNER.invoke(
         app,
         [
-            "policy-setup",
+            "setup",
+            "--only",
+            "policy",
             "--policy-dir",
             str(policy),
             "--task",
@@ -96,13 +98,13 @@ def test_policy_setup_cli_invokes_eight_argument_hook_and_reports(monkeypatch, t
 
     assert result.exit_code == 0
     expected = "RoboDojo stack_bowls release arx_x5 joint 4 2 runtime"
-    assert expected in result.stdout
+    assert (policy / "hook_args.txt").read_text(encoding="utf-8").strip() == expected
     if output_format == "json":
         payload = json.loads(result.stdout)
         assert payload["status"] == "PASS"
-        assert payload["checks"][0]["name"] == "policy_setup"
+        assert payload["stages"][-1]["name"] == "policy"
     else:
-        assert "PASS policy_setup:" in result.stdout
+        assert "CHANGED policy:" in result.stdout
 
 
 def test_missing_and_stale_uv_environments_are_actionable(monkeypatch, tmp_path):
@@ -131,7 +133,7 @@ def test_missing_and_stale_uv_environments_are_actionable(monkeypatch, tmp_path)
 
     assert checks[0].status == "FAIL"
     assert "stale" in checks[0].detail
-    assert checks[0].remediation == "make policy-setup"
+    assert checks[0].remediation.startswith("make setup; or uv run --locked robodojo setup --only policy")
 
 
 def test_missing_conda_environment_and_failed_xpolicylab_import(monkeypatch, tmp_path):
@@ -166,7 +168,7 @@ def test_missing_conda_environment_and_failed_xpolicylab_import(monkeypatch, tmp
     )
     assert [item.status for item in checks] == ["PASS", "FAIL"]
     assert checks[-1].name == "xpolicylab_import"
-    assert checks[-1].remediation == "make policy-setup"
+    assert checks[-1].remediation.startswith("make setup; or uv run --locked robodojo setup --only policy")
 
 
 def test_explicit_checkpoint_must_exist_and_opaque_alias_warns(tmp_path):
@@ -198,11 +200,11 @@ def test_yam_manifest_requires_asset_and_matching_checksums(monkeypatch, tmp_pat
     config.write_text(yaml.safe_dump({"robots": [{"robot_name": "yam"}]}), encoding="utf-8")
     profile = SimpleNamespace(component_paths={"robot": config})
     asset_root = tmp_path / "assets"
-    monkeypatch.setattr(preflight, "assets_root", lambda: asset_root)
+    monkeypatch.setattr(assets, "assets_root", lambda: asset_root)
 
     missing = preflight._robot_asset_check(profile)
     assert missing.status == "FAIL"
-    assert missing.remediation == "make assets-yam"
+    assert missing.remediation == "make setup"
 
     robot_root = asset_root / "Robots/yam"
     robot_root.mkdir(parents=True)
@@ -232,7 +234,8 @@ def test_layout_check_fails_when_selected_task_seed_is_missing(monkeypatch, tmp_
 
     assert result.status == "FAIL"
     assert "general_pickup_*.json" in result.detail
-    assert result.remediation == "make assets"
+    assert result.remediation.startswith("make setup; or uv run --locked robodojo setup --only assets")
+    assert "--task general_pickup" in result.remediation
 
 
 def test_failed_launch_preflight_stops_before_port_process_and_simulator(monkeypatch, tmp_path):

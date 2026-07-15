@@ -92,7 +92,9 @@ def simulator_command(paths: RepositoryPaths, request: SimulatorLaunchRequest) -
     # transform updates. RoboDojo's CPU/no-Fabric cloth tasks therefore need
     # the full Python experience so camera frames track simulated robots.
     experience = "isaaclab.python.kit"
-    kit_args = " --enable isaacsim.replicator.behavior --enable isaacsim.sensors.camera"
+    kit_args = (
+        " --/app/extensions/registryEnabled=0 --enable isaacsim.replicator.behavior --enable isaacsim.sensors.camera"
+    )
     argv = [
         sys.executable,
         "-u",

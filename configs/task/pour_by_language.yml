@@ -29,7 +29,7 @@ Rigid:
       -
         name: "wine_bowl"
         index: [0, 1, 2]
-        
+
     select_mode:
       nums: [3]
       mode: "unique"
@@ -54,7 +54,7 @@ Fluid:
       nums: [1]
       mode: "allow_duplicate"
       label: ["wine_0"]
-  
+
   -
     common:
       xlim: [0.0, 0.0]
@@ -70,7 +70,7 @@ Fluid:
         index: [2]
 
     select_mode:
-      nums: [1] 
+      nums: [1]
       mode: "allow_duplicate"
       label: ["wine_1"]
 

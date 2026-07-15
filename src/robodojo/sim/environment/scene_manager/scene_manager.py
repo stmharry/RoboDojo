@@ -131,9 +131,7 @@ class SceneManager:
                 # objects also need to be present before the simulation starts.
                 self.spawn_scene_objects(
                     env_id=env_idx,
-                    exclude_types=list(
-                        set(self.spawnable_object_types) - {"rigid", "articulation", "geometry"}
-                    ),
+                    exclude_types=list(set(self.spawnable_object_types) - {"rigid", "articulation", "geometry"}),
                 )
             else:
                 self.spawn_scene_objects(
@@ -630,9 +628,7 @@ class SceneManager:
                 raise ValueError(f"invalid camera fixture frame: {frame!r}")
             prim_path = f"{prim_path}/{frame}"
             if not is_prim_path_valid(prim_path):
-                raise ValueError(
-                    f"camera fixture frame {frame!r} does not exist below fixture {fixture_label!r}"
-                )
+                raise ValueError(f"camera fixture frame {frame!r} does not exist below fixture {fixture_label!r}")
         return prim_path
 
     def close(self):

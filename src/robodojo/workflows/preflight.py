@@ -1,11 +1,11 @@
-"""Read-only experiment validation and explicit policy setup orchestration."""
+"""Read-only experiment validation."""
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 from pathlib import Path
+import shlex
 import shutil
 import subprocess
 import sys
@@ -14,8 +14,7 @@ from typing import Iterable
 import yaml
 
 from robodojo.core.models import (
-    EvaluationRequest,
-    PolicyServerLaunchRequest,
+    ExperimentRequest,
     PreflightCheck,
     PreflightReport,
     PreflightRequest,
@@ -23,16 +22,62 @@ from robodojo.core.models import (
 )
 from robodojo.core.paths import RepositoryPaths
 from robodojo.core.processes import free_port, start, terminate_process_group, wait_for_port
-from robodojo.core.profiles import EnvironmentProfile, SceneProfile, load_environment_profile
+from robodojo.core.profiles import (
+    EnvironmentProfile,
+    SceneProfile,
+    load_environment_profile,
+    validate_scene_environment_compatibility,
+)
 from robodojo.core.storage import assets_root, s3_uri
 from robodojo.policy.adapter import policy_hook_command, policy_launch_environment, policy_server_command
 from robodojo.sim.launcher import resolve_scene_profile
+from robodojo.sim.scene_assets import inspect_scene_assets
+from robodojo.workflows.assets import (
+    generated_fixture_error,
+    generated_robot_error,
+    required_fixture_builds,
+    required_robot_builds,
+)
+from robodojo.workflows.setup import root_environment_error
 from robodojo.workflows.task_inventory import build_inventory
 
 HOOK_WARNING_EXIT = 3
+ROOT_SETUP_REMEDIATION = "make setup; or " + shlex.join(
+    ["uv", "run", "--locked", "robodojo", "setup", "--only", "root"]
+)
 
 
-def request_from_evaluation(request: EvaluationRequest, *, task: str | None = None) -> PreflightRequest:
+def _setup_remediation(request: PreflightRequest, stage: str) -> str:
+    arguments = ["uv", "run", "--locked", "robodojo", "setup", "--only", stage]
+    if stage == "assets":
+        arguments += ["--task", request.task, "--env-cfg", request.env_config]
+        if request.scene_config:
+            arguments += ["--scene", request.scene_config]
+    elif stage == "policy":
+        arguments += [
+            "--policy-dir",
+            str(request.policy_dir),
+            "--dataset",
+            request.dataset,
+            "--task",
+            request.task,
+            "--ckpt",
+            request.checkpoint,
+            "--policy-env",
+            request.policy_env,
+            "--env-cfg",
+            request.env_config,
+            "--action-type",
+            request.action_type,
+            "--seed",
+            str(request.seed),
+            "--policy-gpu",
+            str(request.policy_gpu),
+        ]
+    return f"make setup; or {shlex.join(arguments)}"
+
+
+def request_from_evaluation(request: ExperimentRequest, *, task: str | None = None) -> PreflightRequest:
     """Project an evaluation request onto the shared fast-preflight contract."""
     return PreflightRequest(
         policy_dir=request.policy_dir,
@@ -46,7 +91,7 @@ def request_from_evaluation(request: EvaluationRequest, *, task: str | None = No
         seed=request.seed,
         policy_gpu=request.policy_gpu,
         env_gpu=request.env_gpu,
-        publish=request.publish,
+        publish=getattr(request, "publish", False),
     )
 
 
@@ -89,41 +134,9 @@ def _command_detail(result: subprocess.CompletedProcess[str]) -> str:
 
 
 def _root_runtime_check(paths: RepositoryPaths) -> PreflightCheck:
-    uv = shutil.which("uv")
+    if error := root_environment_error(paths):
+        return _check("root_sim_environment", "FAIL", error, ROOT_SETUP_REMEDIATION)
     python = paths.root / ".venv" / "bin" / "python"
-    if uv is None:
-        return _check("root_sim_environment", "FAIL", "uv is not installed", "make sync")
-    if not python.is_file():
-        return _check("root_sim_environment", "FAIL", f"locked environment is missing: {python}", "make sync")
-    if not (paths.root / "uv.lock").is_file():
-        return _check("root_sim_environment", "FAIL", "uv.lock is missing", "make sync")
-    lock = subprocess.run(
-        [uv, "lock", "--check", "--offline"],
-        cwd=paths.root,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if lock.returncode != 0:
-        return _check("root_sim_environment", "FAIL", f"uv.lock is stale: {_command_detail(lock)}", "make sync")
-    probe = subprocess.run(
-        [
-            str(python),
-            "-c",
-            ("from importlib.metadata import version; [version(name) for name in ('robodojo','torch','isaaclab')]"),
-        ],
-        cwd=paths.root,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if probe.returncode != 0:
-        return _check(
-            "root_sim_environment",
-            "FAIL",
-            f"locked simulator packages are incomplete: {_command_detail(probe)}",
-            "make sync",
-        )
     return _check("root_sim_environment", "PASS", f"uv.lock and simulator packages are ready in {python.parent.parent}")
 
 
@@ -135,9 +148,23 @@ def _configuration_checks(
     inventory = build_inventory()
     record = next((item for item in inventory["tasks"] if item["name"] == request.task), None)
     if record is None:
-        checks.append(_check("task", "FAIL", f"unknown task: {request.task}", "make tasks-check"))
+        checks.append(
+            _check(
+                "task",
+                "FAIL",
+                f"unknown task: {request.task}",
+                "run make tasks and update TASK in .env",
+            )
+        )
     elif not record["runnable"]:
-        checks.append(_check("task", "FAIL", f"task is not runnable: {request.task}", "make tasks-check"))
+        checks.append(
+            _check(
+                "task",
+                "FAIL",
+                f"task is not runnable: {request.task}",
+                "run make tasks and select a runnable TASK",
+            )
+        )
     else:
         checks.append(_check("task", "PASS", f"{request.task} code and YAML are runnable"))
 
@@ -145,7 +172,7 @@ def _configuration_checks(
         profile = load_environment_profile(paths, request.env_config)
         checks.append(_check("environment", "PASS", str(profile.path)))
     except Exception as exc:
-        checks.append(_check("environment", "FAIL", str(exc), "make tasks-check"))
+        checks.append(_check("environment", "FAIL", str(exc), "update ENV_CFG in .env"))
         return checks, None, None
 
     simulator_request = SimulatorLaunchRequest(
@@ -160,16 +187,17 @@ def _configuration_checks(
     )
     try:
         scene = resolve_scene_profile(paths, simulator_request)
+        validate_scene_environment_compatibility(scene, profile)
         checks.append(_check("scene", "PASS", f"{scene.name} -> {scene.component_path}"))
     except Exception as exc:
-        checks.append(_check("scene", "FAIL", str(exc), "make tasks-check"))
+        checks.append(_check("scene", "FAIL", str(exc), "update SCENE or ENV_CFG in .env"))
         return checks, profile, None
     return checks, profile, scene
 
 
 def _layout_check(paths: RepositoryPaths, request: PreflightRequest, scene: SceneProfile | None) -> PreflightCheck:
     if scene is None:
-        return _check("layout", "FAIL", "scene did not resolve", "make tasks-check")
+        return _check("layout", "FAIL", "scene did not resolve", "update SCENE or ENV_CFG in .env")
     relative = Path(scene.document.layout_set) / str(request.seed)
     candidates = (
         assets_root() / "Eval_Layout" / request.dataset / relative,
@@ -183,65 +211,49 @@ def _layout_check(paths: RepositoryPaths, request: PreflightRequest, scene: Scen
             for path in matches:
                 json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
-            return _check("layout", "FAIL", f"invalid layout {path}: {exc}", "make assets")
+            return _check("layout", "FAIL", f"invalid layout {path}: {exc}", _setup_remediation(request, "assets"))
         return _check("layout", "PASS", f"{len(matches)} layout(s) in {directory}")
     searched = ", ".join(str(path) for path in candidates)
     return _check(
         "layout",
         "FAIL",
         f"no {request.task}_*.json layout for seed {request.seed}; searched {searched}",
-        "make assets",
+        _setup_remediation(request, "assets"),
     )
 
 
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def _robot_asset_check(profile: EnvironmentProfile | None) -> PreflightCheck:
+def _robot_asset_check(
+    profile: EnvironmentProfile | None,
+    request: PreflightRequest | None = None,
+) -> PreflightCheck:
+    remediation = _setup_remediation(request, "assets") if request else "make setup"
     if profile is None:
-        return _check("robot_assets", "FAIL", "environment did not resolve", "make sync")
-    robot_config = yaml.safe_load(profile.component_paths["robot"].read_text(encoding="utf-8")) or {}
-    robot_names = sorted({str(item.get("robot_name", "")) for item in robot_config.get("robots", [])})
-    generated = [name for name in robot_names if name in {"yam", "openarm"}]
+        return _check("robot_assets", "FAIL", "environment did not resolve", remediation)
+    generated = required_robot_builds(profile)
     if not generated:
-        return _check("robot_assets", "PASS", f"no generated manifest required for {', '.join(robot_names)}")
-    verified: list[str] = []
+        return _check("robot_assets", "PASS", "environment requires no generated robot manifests")
     for name in generated:
-        root = assets_root() / "Robots" / name
-        manifest_path = root / "manifest.json"
-        remediation = (
-            "make assets-yam" if name == "yam" else "uv run --extra sim --locked robodojo assets build-openarm"
-        )
-        if not manifest_path.is_file():
-            return _check("robot_assets", "FAIL", f"generated {name} manifest is missing: {manifest_path}", remediation)
-        try:
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            return _check("robot_assets", "FAIL", f"invalid {name} manifest: {exc}", remediation)
-        outputs = manifest.get("outputs")
-        if isinstance(outputs, dict):
-            for relative, expected in outputs.items():
-                output = root / relative
-                if not output.is_file():
-                    return _check("robot_assets", "FAIL", f"generated asset is missing: {output}", remediation)
-                if _sha256(output) != expected:
-                    return _check("robot_assets", "FAIL", f"generated asset checksum mismatch: {output}", remediation)
-        else:
-            output_name = manifest.get("output")
-            if output_name and not (root / str(output_name)).is_file():
-                return _check(
-                    "robot_assets",
-                    "FAIL",
-                    f"generated asset is missing: {root / str(output_name)}",
-                    remediation,
-                )
-        verified.append(name)
-    return _check("robot_assets", "PASS", f"verified generated manifest(s): {', '.join(verified)}")
+        if error := generated_robot_error(name):
+            return _check("robot_assets", "FAIL", error, remediation)
+    return _check("robot_assets", "PASS", f"verified generated manifest(s): {', '.join(generated)}")
+
+
+def _scene_asset_check(paths: RepositoryPaths, request: PreflightRequest, scene: SceneProfile | None) -> PreflightCheck:
+    remediation = _setup_remediation(request, "assets")
+    if scene is None:
+        return _check("scene_assets", "FAIL", "scene did not resolve", remediation)
+    for name in required_fixture_builds(scene):
+        if error := generated_fixture_error(paths, name):
+            return _check("scene_assets", "FAIL", error, remediation)
+    try:
+        prepared = inspect_scene_assets(scene, request.task)
+    except (FileNotFoundError, RuntimeError, ValueError) as exc:
+        return _check("scene_assets", "FAIL", str(exc), remediation)
+    return _check(
+        "scene_assets",
+        "PASS",
+        f"verified {len(prepared.artifacts)} task-derived asset(s) and {len(scene.document.asset_builds)} fixture(s)",
+    )
 
 
 def _gpu_check(request: PreflightRequest) -> PreflightCheck:
@@ -349,6 +361,7 @@ def _resolve_policy_python(request: PreflightRequest) -> tuple[Path | None, Path
 
 
 def _policy_runtime_checks(paths: RepositoryPaths, request: PreflightRequest) -> list[PreflightCheck]:
+    remediation = _setup_remediation(request, "policy")
     if policy_hook_command(request.policy_request(), "check_eval_policy.sh") is not None:
         return [
             _check(
@@ -359,16 +372,16 @@ def _policy_runtime_checks(paths: RepositoryPaths, request: PreflightRequest) ->
         ]
     python, environment_root, error = _resolve_policy_python(request)
     if error or python is None:
-        return [_check("policy_runtime", "FAIL", error or "policy runtime did not resolve", "make policy-setup")]
+        return [_check("policy_runtime", "FAIL", error or "policy runtime did not resolve", remediation)]
     checks: list[PreflightCheck] = []
     if environment_root and (environment_root / "pyproject.toml").is_file():
         lock_path = environment_root / "uv.lock"
         uv = shutil.which("uv")
         if not lock_path.is_file():
-            checks.append(_check("policy_runtime", "FAIL", f"uv.lock is missing: {lock_path}", "make policy-setup"))
+            checks.append(_check("policy_runtime", "FAIL", f"uv.lock is missing: {lock_path}", remediation))
             return checks
         if uv is None:
-            checks.append(_check("policy_runtime", "FAIL", "uv is unavailable", "make policy-setup"))
+            checks.append(_check("policy_runtime", "FAIL", "uv is unavailable", remediation))
             return checks
         locked = subprocess.run(
             [uv, "lock", "--check", "--offline"],
@@ -383,12 +396,12 @@ def _policy_runtime_checks(paths: RepositoryPaths, request: PreflightRequest) ->
                     "policy_runtime",
                     "FAIL",
                     f"policy uv.lock is stale: {_command_detail(locked)}",
-                    "make policy-setup",
+                    remediation,
                 )
             )
             return checks
     checks.append(_check("policy_runtime", "PASS", str(python)))
-    import_env = os.environ.copy()
+    import_env = {**os.environ, **policy_launch_environment(request.checkpoint)}
     import_env["PYTHONPATH"] = os.pathsep.join(filter(None, (str(paths.root), import_env.get("PYTHONPATH", ""))))
     probe = subprocess.run(
         [str(python), "-c", "import XPolicyLab, client_server, utils"],
@@ -399,13 +412,14 @@ def _policy_runtime_checks(paths: RepositoryPaths, request: PreflightRequest) ->
         check=False,
     )
     if probe.returncode != 0:
-        checks.append(_check("xpolicylab_import", "FAIL", _command_detail(probe), "make policy-setup"))
+        checks.append(_check("xpolicylab_import", "FAIL", _command_detail(probe), remediation))
     else:
         checks.append(_check("xpolicylab_import", "PASS", "XPolicyLab server imports succeeded in the policy runtime"))
     return checks
 
 
 def _checkpoint_check(request: PreflightRequest) -> PreflightCheck:
+    remediation = _setup_remediation(request, "policy")
     raw = request.checkpoint.strip()
     policy_dir = request.policy_dir.expanduser().resolve()
     expanded = Path(os.path.expanduser(raw))
@@ -414,7 +428,7 @@ def _checkpoint_check(request: PreflightRequest) -> PreflightCheck:
         path = expanded if expanded.is_absolute() else policy_dir / expanded
         path = path.resolve()
         if not path.exists():
-            return _check("checkpoint", "FAIL", f"explicit checkpoint does not exist: {path}", "make policy-setup")
+            return _check("checkpoint", "FAIL", f"explicit checkpoint does not exist: {path}", remediation)
         return _check("checkpoint", "PASS", f"explicit checkpoint exists: {path}")
     if policy_hook_command(request.policy_request(), "check_eval_policy.sh") is not None:
         return _check("checkpoint", "PASS", f"opaque alias {raw!r} delegated to the policy-specific hook")
@@ -422,7 +436,7 @@ def _checkpoint_check(request: PreflightRequest) -> PreflightCheck:
         "checkpoint",
         "WARN",
         f"opaque checkpoint alias {raw!r} requires a policy-specific hook for integrity validation",
-        "make policy-setup",
+        remediation,
     )
 
 
@@ -435,7 +449,7 @@ def _policy_hook_check(paths: RepositoryPaths, request: PreflightRequest) -> Pre
             "adapter has no read-only check_eval_policy.sh; generic checks only",
             "add check_eval_policy.sh using the documented eight-argument contract",
         )
-    environment = os.environ.copy()
+    environment = {**os.environ, **policy_launch_environment(request.checkpoint)}
     environment["ROBODOJO_ROOT"] = str(paths.root)
     try:
         result = subprocess.run(
@@ -448,13 +462,18 @@ def _policy_hook_check(paths: RepositoryPaths, request: PreflightRequest) -> Pre
             timeout=120,
         )
     except subprocess.TimeoutExpired:
-        return _check("policy_specific", "FAIL", "policy check timed out after 120s", "make policy-setup")
+        return _check(
+            "policy_specific",
+            "FAIL",
+            "policy check timed out after 120s",
+            _setup_remediation(request, "policy"),
+        )
     detail = _command_detail(result)
     if result.returncode == 0:
         return _check("policy_specific", "PASS", detail)
     if result.returncode == HOOK_WARNING_EXIT:
-        return _check("policy_specific", "WARN", detail, "make policy-setup")
-    return _check("policy_specific", "FAIL", detail, "make policy-setup")
+        return _check("policy_specific", "WARN", detail, _setup_remediation(request, "policy"))
+    return _check("policy_specific", "FAIL", detail, _setup_remediation(request, "policy"))
 
 
 def run_fast_preflight(paths: RepositoryPaths, request: PreflightRequest) -> PreflightReport:
@@ -463,7 +482,8 @@ def run_fast_preflight(paths: RepositoryPaths, request: PreflightRequest) -> Pre
     config_checks, profile, scene = _configuration_checks(paths, request)
     checks.extend(config_checks)
     checks.append(_layout_check(paths, request, scene))
-    checks.append(_robot_asset_check(profile))
+    checks.append(_robot_asset_check(profile, request))
+    checks.append(_scene_asset_check(paths, request, scene))
     checks.append(_gpu_check(request))
     checks.append(_publication_check(request))
     checks.append(_adapter_files_check(request))
@@ -493,6 +513,8 @@ def run_sweep_preflight(
         )
         layout = _layout_check(paths, task_request, scene)
         checks.append(layout.model_copy(update={"name": f"layout[{task}]"}))
+        scene_assets = _scene_asset_check(paths, task_request, scene)
+        checks.append(scene_assets.model_copy(update={"name": f"scene_assets[{task}]"}))
     return build_report(checks)
 
 
@@ -514,7 +536,7 @@ def run_deep_preflight(paths: RepositoryPaths, request: PreflightRequest) -> Pre
         wait_for_port(process, "127.0.0.1", port, timeout=request.timeout)
         check = _check("deep_policy_server", "PASS", f"normal policy server became ready on temporary port {port}")
     except (OSError, RuntimeError, TimeoutError) as exc:
-        check = _check("deep_policy_server", "FAIL", str(exc), "make policy-setup")
+        check = _check("deep_policy_server", "FAIL", str(exc), _setup_remediation(request, "policy"))
     finally:
         if process is not None:
             terminate_process_group(process)
@@ -530,41 +552,3 @@ def run_preflight(
     report = run_deep_preflight(paths, request) if request.deep else run_fast_preflight(paths, request)
     emit_report(report, output_format)
     return 1 if report.status == "FAIL" else 0
-
-
-def run_policy_setup(
-    paths: RepositoryPaths,
-    request: PolicyServerLaunchRequest,
-) -> tuple[PreflightReport, str]:
-    """Run the one explicit policy-owned setup mutation hook."""
-    command = policy_hook_command(request, "prepare_eval_policy.sh")
-    if command is None:
-        report = build_report(
-            [
-                _check(
-                    "policy_setup",
-                    "WARN",
-                    "adapter has no prepare_eval_policy.sh; no changes were made",
-                    "follow the adapter README for legacy setup",
-                )
-            ]
-        )
-        return report, ""
-    environment = os.environ.copy()
-    environment["ROBODOJO_ROOT"] = str(paths.root)
-    result = subprocess.run(
-        command,
-        cwd=request.policy_dir.expanduser().resolve(),
-        env=environment,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    transcript = "\n".join(part.rstrip() for part in (result.stdout, result.stderr) if part and part.strip())
-    if result.returncode == 0:
-        detail = transcript.splitlines()[-1] if transcript else "policy setup completed successfully"
-        report = build_report([_check("policy_setup", "PASS", detail)])
-    else:
-        detail = transcript[-4000:] if transcript else f"prepare_eval_policy.sh exited {result.returncode}"
-        report = build_report([_check("policy_setup", "FAIL", detail, "make policy-setup")])
-    return report, transcript

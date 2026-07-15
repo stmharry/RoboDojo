@@ -40,8 +40,7 @@ def load_hardware_calibration(config_root: Path, name: str) -> dict[str, Any]:
         raise ValueError(f"hardware calibration profile_id must be {name}: {path}")
     if payload.get("status") != "measured":
         raise ValueError(
-            f"hardware calibration is not release-ready: {name} "
-            f"(status={payload.get('status', 'missing')})"
+            f"hardware calibration is not release-ready: {name} (status={payload.get('status', 'missing')})"
         )
     missing = [section for section in REQUIRED_MEASURED_SECTIONS if not payload.get(section)]
     if missing:

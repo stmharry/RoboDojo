@@ -67,9 +67,7 @@ class CameraSpec:
             if not isinstance(translation, (list, tuple)) or len(translation) != 3:
                 raise ValueError(f"{self.observation_key}: mount calibration translation_m must have 3 values")
             if not isinstance(rotation, (list, tuple)) or len(rotation) != 3:
-                raise ValueError(
-                    f"{self.observation_key}: mount calibration rotation_rotvec_deg must have 3 values"
-                )
+                raise ValueError(f"{self.observation_key}: mount calibration rotation_rotvec_deg must have 3 values")
         roll = float(self.mount.get("optical_roll_deg", 0.0))
         if roll not in (-180.0, -90.0, 0.0, 90.0, 180.0):
             raise ValueError(f"{self.observation_key}: optical roll must be a right-angle rotation")

@@ -16,7 +16,7 @@ Rigid:
       nums: 3
       mode: "unique"
       label: ["block_0", "block_1", "block_2"]
- 
+
 ProhibitedArea:
   -
     [0.1, -0.23, -0.1, -0.17]

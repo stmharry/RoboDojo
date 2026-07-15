@@ -11,7 +11,7 @@ Geometry:
       -
         name: "key_slot"
         index: [0] # asset index
- 
+
     select_mode:
       nums: 1
       mode: "unique"
@@ -30,7 +30,7 @@ Rigid:
       -
         name: "key"
         index: [0] # asset index
- 
+
     select_mode:
       nums: 1
       mode: "unique"

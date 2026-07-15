@@ -230,7 +230,7 @@ Rigid:
       -
         name: yogurt
         index: [1]
-    
+
     select_mode:
       nums: 1 # spawn count
       mode: "unique" # asset uniqueness mode

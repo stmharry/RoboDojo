@@ -7,12 +7,7 @@ from robodojo.workflows.openarm_jaw import JAW_CAD_TO_FINGER, register_enlarged_
 def box_vertices(bounds):
     lower, upper = np.asarray(bounds, dtype=np.float64)
     return np.asarray(
-        [
-            [x, y, z]
-            for x in (lower[0], upper[0])
-            for y in (lower[1], upper[1])
-            for z in (lower[2], upper[2])
-        ]
+        [[x, y, z] for x in (lower[0], upper[0]) for y in (lower[1], upper[1]) for z in (lower[2], upper[2])]
     )
 
 

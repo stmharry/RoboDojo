@@ -705,7 +705,6 @@ class LayoutManager:
 
     @staticmethod
     def required_keys(data: dict, keys: str | List[str], sep: str = "/") -> bool:
-
         def _is_missing(value) -> bool:
             return value is None or value == {}
 

@@ -10,17 +10,17 @@ Articulation:
       relative_plane: "Table"
 
     category:
-      - 
+      -
         name: "toaster"
         index: [0, 1]
-    
+
     select_mode:
       nums: 1
       mode: "unique"
       label: ["toaster"]
 
 Geometry:
-  - 
+  -
     common:
       # xlim: [0.0, 0.35]
       xlim: [-0.35, 0.0]
@@ -30,16 +30,16 @@ Geometry:
       relative_plane: "Table"
 
     category:
-      - 
+      -
         name: "bread_shelf"
-    
+
     select_mode:
       nums: 1
       mode: "allow_duplicate"
       label: ["bread_shelf"]
 
 Rigid:
-  - 
+  -
     common:
       xlim: [-0.02, -0.02]
       ylim: [-0.007, -0.007]
@@ -49,16 +49,16 @@ Rigid:
       place_tag: "up"
 
     category:
-      - 
+      -
         name: "bread"
         index: [0]
-    
+
     select_mode:
       nums: 1
       mode: "allow_duplicate"
       label: ["bread_0"]
 
-  - 
+  -
     common:
       xlim: [-0.02, -0.02]
       ylim: [-0.007, -0.007]
@@ -68,16 +68,16 @@ Rigid:
       place_tag: "up"
 
     category:
-      - 
+      -
         name: "bread"
         index: [0]
-    
+
     select_mode:
       nums: 1
       mode: "allow_duplicate"
       label: ["bread_1"]
 
-  - 
+  -
     common:
       xlim: [-0.02, -0.02]
       ylim: [-0.007, -0.007]
@@ -87,16 +87,16 @@ Rigid:
       place_tag: "up"
 
     category:
-      - 
+      -
         name: "bread"
         index: [0]
-    
+
     select_mode:
       nums: 1
       mode: "allow_duplicate"
       label: ["bread_2"]
 
-  - 
+  -
     common:
       xlim: [-0.02, -0.02]
       ylim: [-0.007, -0.007]
@@ -106,10 +106,10 @@ Rigid:
       place_tag: "up"
 
     category:
-      - 
+      -
         name: "bread"
         index: [0]
-    
+
     select_mode:
       nums: 1
       mode: "allow_duplicate"

@@ -57,9 +57,7 @@ class SeedManager:
             resolved.directory,
             self.layout_set_hash,
         )
-        self.seed_info = {
-            layout.layout_id: {"scene_layout": str(layout.path)} for layout in resolved.layouts
-        }
+        self.seed_info = {layout.layout_id: {"scene_layout": str(layout.path)} for layout in resolved.layouts}
 
         all_layout_ids = sorted(self.seed_info)
         excluded = set(int(s) for s in (completed_layout_ids or [])) | set(int(s) for s in (abandoned_layout_ids or []))

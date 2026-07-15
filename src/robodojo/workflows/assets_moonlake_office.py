@@ -100,9 +100,7 @@ def _material(stage: Usd.Stage, path: str, color, *, roughness: float, metallic:
     material = UsdShade.Material.Define(stage, path)
     shader = UsdShade.Shader.Define(stage, f"{path}/PreviewSurface")
     shader.CreateIdAttr("UsdPreviewSurface")
-    shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).Set(
-        Gf.Vec3f(*[float(value) for value in color])
-    )
+    shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).Set(Gf.Vec3f(*[float(value) for value in color]))
     shader.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(float(roughness))
     shader.CreateInput("metallic", Sdf.ValueTypeNames.Float).Set(float(metallic))
     material.CreateSurfaceOutput().ConnectToSource(shader.ConnectableAPI(), "surface")
@@ -197,9 +195,7 @@ def _validate_static_fixture(stage: Usd.Stage, root_path: str, mount_frame: str)
         if prim.IsA(UsdGeom.Camera):
             raise RuntimeError(f"generated Moonlake fixture contains a camera sensor at {prim.GetPath()}")
         drive_attributes = [
-            attribute.GetName()
-            for attribute in prim.GetAttributes()
-            if attribute.GetName().startswith("drive:")
+            attribute.GetName() for attribute in prim.GetAttributes() if attribute.GetName().startswith("drive:")
         ]
         if drive_attributes:
             raise RuntimeError(f"generated Moonlake fixture contains drive attributes at {prim.GetPath()}")
@@ -247,12 +243,8 @@ def author_fixture(extrusion_stl: Path, output_root: Path, manifest: dict) -> di
     looks = f"{root_path}/Looks"
     table_leg = _material(stage, f"{looks}/TableLeg", colors["table_leg"], roughness=0.4)
     motor_black = _material(stage, f"{looks}/MotorBlack", colors["motor_black"], roughness=0.3)
-    camera_body = _material(
-        stage, f"{looks}/CameraBody", colors["camera_body"], roughness=0.25, metallic=0.25
-    )
-    camera_face = _material(
-        stage, f"{looks}/CameraFace", colors["camera_face"], roughness=0.22, metallic=0.3
-    )
+    camera_body = _material(stage, f"{looks}/CameraBody", colors["camera_body"], roughness=0.25, metallic=0.25)
+    camera_face = _material(stage, f"{looks}/CameraFace", colors["camera_face"], roughness=0.22, metallic=0.3)
     lens = _material(stage, f"{looks}/LensGlass", colors["lens_glass"], roughness=0.06, metallic=0.75)
 
     table = fixture["table"]
@@ -289,9 +281,7 @@ def author_fixture(extrusion_stl: Path, output_root: Path, manifest: dict) -> di
         colors["motor_black"],
     )
     rail_prim = stage.GetPrimAtPath(f"{root_path}/ArmRail/Extrusion2060")
-    UsdGeom.Xformable(rail_prim).AddTranslateOp().Set(
-        Gf.Vec3d(*[float(value) for value in rail["translation_m"]])
-    )
+    UsdGeom.Xformable(rail_prim).AddTranslateOp().Set(Gf.Vec3d(*[float(value) for value in rail["translation_m"]]))
 
     camera = fixture["top_camera"]
     stand_y = float(camera["stand_y_m"])

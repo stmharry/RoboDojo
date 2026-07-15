@@ -85,8 +85,7 @@ def register_enlarged_jaw(
         raise ValueError("enlarged jaw registration is not a proper rotation")
     if base_error > 0.0005 or center_error > 0.0005:
         raise ValueError(
-            "enlarged jaw base does not align with stock jaw: "
-            f"base={base_error:.6f}m center={center_error:.6f}m"
+            f"enlarged jaw base does not align with stock jaw: base={base_error:.6f}m center={center_error:.6f}m"
         )
     if width_error > 0.001 or thickness_error > 0.001:
         raise ValueError(

@@ -9,10 +9,10 @@ Rigid:
       place_tag: "side"
 
     category:
-      - 
+      -
         name: "test_tube"
         index: [2]
-    
+
     select_mode:
       nums: 3
       mode: "same"
@@ -28,7 +28,7 @@ Geometry:
       relative_plane: "Table"
 
     category:
-      - 
+      -
         name: "test_tube_slot"
         index: [0]
 

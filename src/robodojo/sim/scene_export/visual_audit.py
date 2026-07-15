@@ -188,9 +188,7 @@ def _robot_runtime(env) -> list[dict[str, Any]]:
         targets = _as_numpy(getattr(articulation.data, "joint_pos_target", None))
         end_effector_pose = None
         try:
-            end_effector_pose = _as_numpy(
-                manager.get_real_endpose(robot, env_idx_list=[0], is_relative=False).get(0)
-            )
+            end_effector_pose = _as_numpy(manager.get_real_endpose(robot, env_idx_list=[0], is_relative=False).get(0))
             if end_effector_pose is not None:
                 end_effector_pose = end_effector_pose.reshape(-1).tolist()
         except (AttributeError, IndexError, KeyError, TypeError, ValueError):
@@ -380,15 +378,11 @@ def _robot_drift(reset: list[dict[str, Any]], held: list[dict[str, Any]]) -> dic
         rows.append(
             {
                 "arm_name": before["arm_name"],
-                "arm_joint_position": vector_drift(
-                    before["arm_joint_positions"], after["arm_joint_positions"]
-                ),
+                "arm_joint_position": vector_drift(before["arm_joint_positions"], after["arm_joint_positions"]),
                 "finger_joint_position": vector_drift(
                     before["finger_joint_positions"], after["finger_joint_positions"]
                 ),
-                "arm_position_target": vector_drift(
-                    before["arm_position_targets"], after["arm_position_targets"]
-                ),
+                "arm_position_target": vector_drift(before["arm_position_targets"], after["arm_position_targets"]),
                 "finger_position_target": vector_drift(
                     before["finger_position_targets"], after["finger_position_targets"]
                 ),

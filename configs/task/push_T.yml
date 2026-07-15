@@ -8,15 +8,15 @@ Rigid:
       relative_plane: "Table"
 
     category:
-      - 
+      -
         name: "t"
         index: [0]
-    
+
     select_mode:
       nums: 1
       mode: "allow_duplicate"
       label: ["t"]
-      
+
 Geometry:
   -
     common:
@@ -27,9 +27,9 @@ Geometry:
       relative_plane: "Table"
 
     category:
-      - 
+      -
         name: "t_cushion"
-    
+
     select_mode:
       nums: 1
       mode: "allow_duplicate"

@@ -191,9 +191,9 @@ if enable_monitor:
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
-from robodojo.sim.scene_assets import prepare_scene_assets
+from robodojo.sim.scene_assets import inspect_scene_assets
 
-PREPARED_SCENE_ASSETS = prepare_scene_assets(SCENE_PROFILE, args_cli.task_name)
+PREPARED_SCENE_ASSETS = inspect_scene_assets(SCENE_PROFILE, args_cli.task_name)
 
 from omegaconf import OmegaConf
 

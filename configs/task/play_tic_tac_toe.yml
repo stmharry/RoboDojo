@@ -15,7 +15,7 @@ Geometry:
       nums: 1
       mode: "unique"
       label: ["checkerboard"]
-      
+
 Rigid:
   -
     common:

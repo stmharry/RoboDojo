@@ -346,3 +346,36 @@ def prepare_scene_assets(
         ]
     )
     return PreparedSceneAssets(artifacts=artifacts, identity_hash=identity)
+
+
+def inspect_scene_assets(
+    profile: SceneProfile,
+    task_name: str,
+    *,
+    root: Path | None = None,
+) -> PreparedSceneAssets:
+    """Return prepared scene assets without creating or repairing any files."""
+
+    root = (root or runtime_assets_root()).resolve()
+    recipes = validate_scene_assets(profile, task_name, root=root)
+    artifacts: list[PreparedSceneAsset] = []
+    for recipe in recipes:
+        contract = _derivation_contract(recipe, root)
+        verified = _valid_manifest(recipe.destination_root, contract["identity_hash"])
+        if verified is None:
+            raise FileNotFoundError(
+                f"prepared scene asset is missing or stale: {recipe.destination_root}; run make setup"
+            )
+        _, manifest_hash = verified
+        artifacts.append(PreparedSceneAsset(recipe.destination_root, contract["identity_hash"], manifest_hash))
+    identity = _canonical_hash(
+        [
+            {
+                "destination": artifact.destination_root.relative_to(root).as_posix(),
+                "derivation_hash": artifact.derivation_hash,
+                "manifest_hash": artifact.manifest_hash,
+            }
+            for artifact in artifacts
+        ]
+    )
+    return PreparedSceneAssets(artifacts=tuple(artifacts), identity_hash=identity)

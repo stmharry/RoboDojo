@@ -106,9 +106,9 @@ def test_preview_appearance_is_deterministic_and_render_only(tmp_path: Path):
         f"/yam/{link}/visuals" for link in sorted(YAM_VISUAL_LINKS)
     ]
     assert generated["link_materials"] == appearance["link_materials"]
-    assert {
-        name: material["sha256"] for name, material in generated["palette"].items()
-    } == {name: material["sha256"] for name, material in appearance["palette"].items()}
+    assert {name: material["sha256"] for name, material in generated["palette"].items()} == {
+        name: material["sha256"] for name, material in appearance["palette"].items()
+    }
 
     bound_targets = set()
     for binding in generated["bindings"]:
@@ -117,9 +117,7 @@ def test_preview_appearance_is_deterministic_and_render_only(tmp_path: Path):
             bound = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial()[0]
             assert str(bound.GetPath()) == f"/yam/Looks/{binding['material']}"
             display_color = UsdGeom.PrimvarsAPI(prim).FindPrimvarWithInheritance("displayColor").Get()
-            assert tuple(display_color[0]) == pytest.approx(
-                appearance["palette"][binding["material"]]["diffuse_color"]
-            )
+            assert tuple(display_color[0]) == pytest.approx(appearance["palette"][binding["material"]]["diffuse_color"])
             bound_targets.add(str(prim.GetPath()))
     assert bound_targets == set(visual_paths)
 
@@ -175,7 +173,5 @@ def test_d405_proxy_is_deterministic_identity_optical_frame_without_physics(tmp_
         assert not prim.IsA(UsdPhysics.Joint)
 
     referenced = Usd.Stage.CreateInMemory()
-    referenced.DefinePrim("/Holder", "Xform").GetReferences().AddReference(
-        str(tmp_path / "D405_proxy.usd")
-    )
+    referenced.DefinePrim("/Holder", "Xform").GetReferences().AddReference(str(tmp_path / "D405_proxy.usd"))
     assert referenced.GetPrimAtPath("/Holder/OpticalFrame").IsValid()

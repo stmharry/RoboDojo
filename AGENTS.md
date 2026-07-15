@@ -39,7 +39,7 @@ src/robodojo/core/           settings, paths, models, storage, processes
 src/robodojo/policy/         policy adapter validation and launching
 src/robodojo/sim/            simulator managers, tasks, evaluation, scene export
 src/robodojo/orchestration/  coordinated policy/simulator process lifecycle
-src/robodojo/workflows/      install, download, storage, result, Docker workflows
+src/robodojo/workflows/      setup, assets, storage, result, Docker workflows
 configs/                     environment, task, robot, scene, simulator, and camera YAML
 scripts/eval_policy.sh       private XPolicyLab compatibility shim
 docker/                      container evaluation support
@@ -54,7 +54,7 @@ project. cuRobo remains a narrow compatibility submodule because Isaac Sim's
 bundled Warp 1.8 requires source-level overload-registration fixes.
 
 RoboDojo owns `src/robodojo/`, root configuration, task definitions, the Typer
-CLI, and root install/assets/storage workflows. XPolicyLab owns policy code,
+CLI, and root setup/assets/storage workflows. XPolicyLab owns policy code,
 policy-specific dependencies and training, checkpoints, `deploy.yml`, policy
 servers, and `XPolicyLab/policy/<POLICY>/setup_eval_*` scripts.
 
@@ -82,8 +82,9 @@ their own dependency tooling.
 ## Evaluation Boundary And Flow
 
 Run native commands as `uv run --extra sim --locked robodojo <command>` when
-simulator dependencies are required. The main commands are `doctor`, `eval`,
-`server`, `client`, `smoke`, `benchmark`, `summarize`, and `tasks`.
+simulator dependencies are required. The main commands are `setup`, `doctor`,
+`eval`, `preflight`, `server`, `client`, `smoke`, `benchmark`, `results`, and
+`tasks`.
 
 Single-machine evaluation follows this boundary:
 

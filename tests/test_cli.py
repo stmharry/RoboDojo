@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 
@@ -26,7 +27,7 @@ def test_cli_exposes_the_unified_command_surface():
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
     for command in (
-        "policy-setup",
+        "setup",
         "preflight",
         "eval",
         "server",
@@ -36,8 +37,12 @@ def test_cli_exposes_the_unified_command_surface():
         "assets",
         "data",
         "docker",
+        "results",
     ):
         assert command in result.stdout
+    commands = get_command(app).commands
+    for removed in ("install", "policy-setup", "summarize"):
+        assert removed not in commands
     assert "upstream" not in result.stdout
 
 
@@ -91,9 +96,17 @@ def test_make_eval_publishes_by_default_and_allows_local_override():
         "make",
         "-n",
         "eval",
+        "DATASET=RoboDojo",
+        "TASK=general_pickup",
+        "ENV_CFG=bimanual_yam",
+        "ACTION_TYPE=joint",
+        "SEED=0",
+        "ENV_GPU=1",
         "POLICY_DIR=XPolicyLab/policy/demo_policy",
         "POLICY_ENV=base",
         "CKPT=demo",
+        "POLICY_GPU=0",
+        "EVAL_NUM=1",
     ]
     default = subprocess.run(common, cwd=ROOT, check=True, capture_output=True, text=True)
     local_only = subprocess.run(
@@ -104,7 +117,7 @@ def test_make_eval_publishes_by_default_and_allows_local_override():
         text=True,
     )
     invalid = subprocess.run(
-        ["make", "-n", "help", "PUBLISH=maybe"],
+        [*common, "PUBLISH=maybe"],
         cwd=ROOT,
         check=False,
         capture_output=True,
@@ -117,8 +130,9 @@ def test_make_eval_publishes_by_default_and_allows_local_override():
     assert "PUBLISH must be true or false" in invalid.stderr
 
 
-def test_make_policy_setup_and_preflight_forward_experiment_contract():
+def test_make_setup_and_preflight_forward_experiment_contract():
     common = [
+        "DATASET=RoboDojo",
         "POLICY_DIR=XPolicyLab/policy/Pi_05",
         "POLICY_ENV=uv",
         "CKPT=pi05_yam_molmoact2",
@@ -126,12 +140,14 @@ def test_make_policy_setup_and_preflight_forward_experiment_contract():
         "ENV_CFG=bimanual_yam",
         "SCENE=molmo_yam",
         "ACTION_TYPE=joint",
+        "SEED=0",
         "POLICY_GPU=0",
         "ENV_GPU=1",
+        "EVAL_NUM=1",
         "PUBLISH=false",
     ]
     setup = subprocess.run(
-        ["make", "-n", "policy-setup", *common],
+        ["make", "-n", "setup", *common],
         cwd=ROOT,
         check=True,
         capture_output=True,
@@ -145,12 +161,76 @@ def test_make_policy_setup_and_preflight_forward_experiment_contract():
         text=True,
     )
 
-    assert "--no-sync robodojo policy-setup" in setup.stdout
+    assert "uv run --locked robodojo setup" in setup.stdout
     assert '--dataset "RoboDojo"' in setup.stdout
     assert "--no-sync robodojo preflight" in deep.stdout
     assert '--scene "molmo_yam"' in deep.stdout
     assert '--env-gpu "1"' in deep.stdout
     assert "--deep" in deep.stdout
+    assert "--publish" not in deep.stdout
+
+
+def test_make_dry_run_toggle_and_local_sweeps():
+    experiment = [
+        "DATASET=RoboDojo",
+        "TASK=general_pickup",
+        "ENV_CFG=bimanual_yam",
+        "SCENE=molmo_yam",
+        "ACTION_TYPE=joint",
+        "SEED=0",
+        "ENV_GPU=1",
+        "POLICY_DIR=XPolicyLab/policy/Pi_05",
+        "POLICY_ENV=uv",
+        "CKPT=pi05_yam_molmoact2",
+        "POLICY_GPU=0",
+        "EVAL_NUM=1",
+    ]
+
+    rendered = {
+        target: subprocess.run(
+            ["make", "-n", target, *experiment, "DRY_RUN=true", "PUBLISH=true"],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+        for target in ("eval", "smoke", "benchmark")
+    }
+
+    assert "--dry-run" in rendered["eval"]
+    assert "--publish" in rendered["eval"]
+    for target in ("smoke", "benchmark"):
+        assert "--dry-run" in rendered[target]
+        assert "--publish" not in rendered[target]
+
+
+def test_make_init_creates_preserves_and_validates_dotenv(tmp_path):
+    shutil.copy2(ROOT / "Makefile", tmp_path / "Makefile")
+    shutil.copy2(ROOT / ".env.example", tmp_path / ".env.example")
+
+    created = subprocess.run(["make", "init"], cwd=tmp_path, check=False, capture_output=True, text=True)
+    assert created.returncode == 0
+    dotenv = tmp_path / ".env"
+    original = dotenv.read_text(encoding="utf-8")
+    assert "Created .env" in created.stdout
+
+    preserved = subprocess.run(["make", "init"], cwd=tmp_path, check=False, capture_output=True, text=True)
+    assert preserved.returncode == 0
+    assert dotenv.read_text(encoding="utf-8") == original
+    assert "Preserved existing .env" in preserved.stdout
+
+    dotenv.write_text("TASK=stack_bowls\n", encoding="utf-8")
+    invalid = subprocess.run(["make", "init"], cwd=tmp_path, check=False, capture_output=True, text=True)
+    assert invalid.returncode != 0
+    assert "ENV_CFG is required" in invalid.stderr
+
+
+def test_make_help_exposes_only_the_supported_target_surface():
+    result = subprocess.run(["make", "help"], cwd=ROOT, check=True, capture_output=True, text=True)
+    for target in ("init", "setup", "preflight", "eval", "smoke", "benchmark", "results", "check"):
+        assert target in result.stdout
+    for removed in ("policy-setup", "eval-dry-run", "storage-publish", "docker-build", "assets-yam"):
+        assert removed not in result.stdout
 
 
 def test_task_inventory_reads_the_simulator_task_package():
@@ -368,6 +448,7 @@ def test_simulator_command_uses_the_domain_module_path():
     assert command[command.index("--device") + 1] == "cuda:0"
     assert command[command.index("--device_id") + 1] == "1"
     assert command[command.index("--experience") + 1] == "isaaclab.python.kit"
+    assert "--/app/extensions/registryEnabled=0" in command[command.index("--kit_args") + 1]
     assert environment["CUDA_VISIBLE_DEVICES"] == "1"
 
 

@@ -5,7 +5,7 @@ import pytest
 
 from robodojo.core.models import EvaluationRequest, SimulatorLaunchRequest
 from robodojo.core.paths import RepositoryPaths
-from robodojo.orchestration import evaluation
+from robodojo.orchestration import evaluation, split
 from robodojo.workflows import storage as storage_workflow
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -46,7 +46,7 @@ def test_evaluation_coordinates_policy_readiness_simulator_and_cleanup(monkeypat
     monkeypatch.setattr(
         evaluation,
         "run_simulator_session",
-        lambda paths, request, environment, *, publish: calls.append(("simulator", request, environment, publish)) or 7,
+        lambda paths, request, environment: calls.append(("simulator", request, environment)) or 7,
     )
     monkeypatch.setattr(
         evaluation,
@@ -60,7 +60,6 @@ def test_evaluation_coordinates_policy_readiness_simulator_and_cleanup(monkeypat
     assert [call[0] for call in calls] == ["start", "wait", "simulator", "terminate"]
     assert calls[0][2] == policy_dir
     assert calls[1][1:] == (process, "127.0.0.1", 19000, 600)
-    assert calls[2][3] is False
 
 
 def test_evaluation_cleans_up_when_policy_readiness_fails(monkeypatch, tmp_path):
@@ -123,68 +122,66 @@ def test_publish_dry_run_skips_s3_prerequisites(monkeypatch, tmp_path, capsys):
     assert "setup_eval_policy_server.sh" in capsys.readouterr().out
 
 
-def test_simulator_session_publishes_only_when_requested(monkeypatch, tmp_path):
+def test_simulator_session_never_performs_publication(monkeypatch):
     request = SimulatorLaunchRequest(
         task="stack_bowls",
         policy_name="TestPolicy",
         port=19000,
         additional_info="test",
     )
-    calls: list[list[str]] = []
-    monkeypatch.setenv("ROBODOJO_S3_URI", "s3://bucket/robodojo")
     monkeypatch.setattr(evaluation, "run_simulator", lambda paths, request, environment: 0)
-    monkeypatch.setattr(storage_workflow, "main", lambda argv: calls.append(argv) or 0)
-    environment = {"ROBODOJO_RUN_ID": "2026-07-14_12-00-00"}
-
-    assert evaluation.run_simulator_session(RepositoryPaths.resolve(ROOT), request, environment) == 0
-    assert calls == []
-
-    assert (
-        evaluation.run_simulator_session(
-            RepositoryPaths.resolve(ROOT),
-            request,
-            environment,
-            publish=True,
-        )
-        == 0
+    monkeypatch.setattr(
+        storage_workflow,
+        "publish_evaluation_run",
+        lambda run_id: pytest.fail("simulator session invoked publication"),
     )
-    assert calls == [["publish-eval", ".", "--run-id", "2026-07-14_12-00-00"]]
+    assert evaluation.run_simulator_session(RepositoryPaths.resolve(ROOT), request) == 0
 
 
-def test_simulator_session_does_not_publish_incomplete_runs(monkeypatch):
-    calls: list[list[str]] = []
-    monkeypatch.setattr(storage_workflow, "main", lambda argv: calls.append(argv) or 0)
-    base = SimulatorLaunchRequest(
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_client_reachability_is_owned_by_orchestration(monkeypatch, caplog, dry_run):
+    request = SimulatorLaunchRequest(
         task="stack_bowls",
         policy_name="TestPolicy",
+        host="policy.example",
         port=19000,
         additional_info="test",
+        dry_run=dry_run,
     )
+    reachability: list[tuple[str, int, float]] = []
+    monkeypatch.setattr(
+        split,
+        "warn_if_server_unreachable",
+        lambda host, port, timeout: reachability.append((host, port, timeout)) or "warning: not ready",
+    )
+    monkeypatch.setattr(evaluation, "run_simulator_session", lambda paths, request: 0)
 
-    monkeypatch.setattr(evaluation, "run_simulator", lambda paths, request, environment: 7)
-    assert (
-        evaluation.run_simulator_session(
-            RepositoryPaths.resolve(ROOT),
-            base,
-            {"ROBODOJO_RUN_ID": "failed"},
-            publish=True,
-        )
-        == 7
-    )
+    assert split.run_client(RepositoryPaths.resolve(ROOT), request, connect_timeout=2.5) == 0
+    assert reachability == ([] if dry_run else [("policy.example", 19000, 2.5)])
+    assert ("not ready" in caplog.text) == (not dry_run)
 
-    monkeypatch.setattr(evaluation, "run_simulator", lambda paths, request, environment: 0)
-    dry_run = base.model_copy(update={"dry_run": True})
-    assert evaluation.run_simulator_session(RepositoryPaths.resolve(ROOT), dry_run, publish=True) == 0
-    assert (
-        evaluation.run_simulator_session(
-            RepositoryPaths.resolve(ROOT),
-            base,
-            {"ROBODOJO_RUN_ID": "scene", "ROBODOJO_EXPORT_SCENE_ONLY": "true"},
-            publish=True,
-        )
-        == 0
-    )
-    assert calls == []
+
+def test_evaluation_publishes_once_only_after_success(monkeypatch, tmp_path):
+    policy_dir = _policy_dir(tmp_path)
+    published: list[str] = []
+    process = object()
+    simulator_code = 0
+    monkeypatch.setenv("ROBODOJO_S3_URI", "s3://bucket/robodojo")
+    monkeypatch.setattr(evaluation.shutil, "which", lambda name: "/usr/bin/aws")
+    monkeypatch.setattr(evaluation, "free_port", lambda: 19000)
+    monkeypatch.setattr(evaluation, "start", lambda *args, **kwargs: process)
+    monkeypatch.setattr(evaluation, "wait_for_port", lambda *args, **kwargs: None)
+    monkeypatch.setattr(evaluation, "terminate_process_group", lambda process: None)
+    monkeypatch.setattr(evaluation, "run_simulator_session", lambda *args, **kwargs: simulator_code)
+    monkeypatch.setattr(evaluation, "_publish_evaluation", lambda run_id: published.append(run_id) or 0)
+
+    request = _request(policy_dir).model_copy(update={"publish": True})
+    assert evaluation.run_evaluation(RepositoryPaths.resolve(ROOT), request, preflight=False) == 0
+    assert len(published) == 1
+
+    simulator_code = 7
+    assert evaluation.run_evaluation(RepositoryPaths.resolve(ROOT), request, preflight=False) == 7
+    assert len(published) == 1
 
 
 @pytest.mark.parametrize(
@@ -205,25 +202,13 @@ def test_publication_failure_returns_nonzero_and_preserves_local_result(
 ):
     local_result = tmp_path / "_result.json"
     local_result.write_text('{"eval_time": 1}\n', encoding="utf-8")
-    request = SimulatorLaunchRequest(
-        task="stack_bowls",
-        policy_name="TestPolicy",
-        port=19000,
-        additional_info="test",
-    )
-    monkeypatch.setattr(evaluation, "run_simulator", lambda paths, request, environment: 0)
 
-    def fail_publish(argv):
+    def fail_publish(run_id):
         raise failure
 
-    monkeypatch.setattr(storage_workflow, "main", fail_publish)
+    monkeypatch.setattr(storage_workflow, "publish_evaluation_run", fail_publish)
 
-    code = evaluation.run_simulator_session(
-        RepositoryPaths.resolve(ROOT),
-        request,
-        {"ROBODOJO_RUN_ID": "publish-failure"},
-        publish=True,
-    )
+    code = evaluation._publish_evaluation("publish-failure")
 
     assert code == expected_code
     assert message in caplog.text

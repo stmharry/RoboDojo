@@ -8,9 +8,9 @@ Rigid:
       relative_plane: "Table"
 
     category:
-      - 
+      -
         name: "triangular_prism"
-    
+
     select_mode:
       nums: 1
       mode: "allow_duplicate"
@@ -24,10 +24,10 @@ Rigid:
       relative_plane: "Table"
 
     category:
-      - 
+      -
         name: "cube"
         index: [0]
-    
+
     select_mode:
       nums: 3
       mode: "same"

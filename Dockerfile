@@ -55,7 +55,7 @@ ARG PYPI_INDEX_URL="https://pypi.org/simple"
 ENV UV_DEFAULT_INDEX=${PYPI_INDEX_URL}
 
 # ── System dependencies ──────────────────────────────────────────────────────
-# robodojo install system dependencies plus
+# RoboDojo machine prerequisites plus
 # the headless OpenGL/EGL/Vulkan runtime libraries Isaac Sim needs, and
 # netcat for the policy-server connectivity check documented in docker/README.md.
 RUN if [ -n "${UBUNTU_MIRROR}" ]; then \

@@ -32,8 +32,12 @@ wrist camera instead uses its own rigid camera-to-link-7 transform and native
 OpenCV fisheye parameters fitted from pinned training-video jaw landmarks.
 
 ```bash
-uv run --extra sim --locked robodojo assets build-openarm
+make setup
 ```
+
+The setup workflow infers this builder from `ENV_CFG=openarm_lerobot`. For a
+granular support operation, run
+`uv run --extra sim --locked robodojo assets build-openarm`.
 
 The asset manifest at `configs/tooling/openarm.yml` accepts `jaw: stock|enlarged`.
 `enlarged` is the default and replaces each stock finger's visual and collision
