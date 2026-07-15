@@ -8,10 +8,13 @@ import sys
 
 from isaaclab.app import AppLauncher
 
+from robodojo.core.layouts import resolve_layout_set
 from robodojo.core.logging import configure_logging
 from robodojo.core.models import SimulatorLaunchRequest
 from robodojo.core.paths import RepositoryPaths
 from robodojo.core.profiles import load_environment_profile, load_scene_profile
+from robodojo.core.scene_identity import require_matching_scene_identity
+from robodojo.core.storage import assets_root
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +138,15 @@ RESOLVED_SCENE_CONFIG = resolve_scene_config(
     profile=ENVIRONMENT_PROFILE,
 )
 SCENE_PROFILE = load_scene_profile(REPOSITORY_PATHS, RESOLVED_SCENE_CONFIG)
+RESOLVED_LAYOUT_SET = resolve_layout_set(
+    config_root=REPOSITORY_PATHS.environment_configs,
+    assets_root=assets_root(),
+    benchmark="RoboDojo",
+    layout_set=SCENE_PROFILE.document.layout_set,
+    layout_source=SCENE_PROFILE.document.layout_source,
+    task=args_cli.task_name,
+    seed=args_cli.seed,
+)
 
 
 def _physx_monitor_needed(task_name) -> bool:
@@ -179,9 +191,9 @@ if enable_monitor:
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
-from robodojo.sim.scene_preparation import prepare_scene_assets
+from robodojo.sim.scene_assets import prepare_scene_assets
 
-prepare_scene_assets(SCENE_PROFILE, args_cli.task_name)
+PREPARED_SCENE_ASSETS = prepare_scene_assets(SCENE_PROFILE, args_cli.task_name)
 
 from omegaconf import OmegaConf
 
@@ -229,13 +241,7 @@ def _load_resume_manifest(eval_cfg, run_id):
     except Exception as e:
         logger.warning("[main] failed to load resume manifest at %s: %s; ignoring.", path, e)
         return None
-    for field in ("scene_config", "scene_component", "scene_profile_hash", "layout_config_name"):
-        resumed_value = data.get(field)
-        current_value = eval_cfg.get(field)
-        if resumed_value != current_value:
-            raise ValueError(
-                f"resume manifest {field} mismatch: expected {current_value!r}, found {resumed_value!r} at {path}"
-            )
+    require_matching_scene_identity(eval_cfg, data, context=f"resume manifest at {path}")
     logger.info(
         "[main] resuming from manifest %s (success=%s fail=%s completed=%s abandoned=%s restart_count=%s)",
         path,
@@ -331,6 +337,9 @@ def main():
     eval_cfg["scene_component"] = SCENE_PROFILE.document.component
     eval_cfg["scene_profile_hash"] = SCENE_PROFILE.identity_hash
     eval_cfg["layout_config_name"] = SCENE_PROFILE.document.layout_set
+    eval_cfg["layout_source"] = SCENE_PROFILE.document.layout_source
+    eval_cfg["layout_set_hash"] = RESOLVED_LAYOUT_SET.identity_hash
+    eval_cfg["scene_asset_hash"] = PREPARED_SCENE_ASSETS.identity_hash
     eval_cfg["task_name"] = task_name
     eval_cfg["num_envs"] = num_envs
     eval_cfg["device_id"] = args_cli.device_id

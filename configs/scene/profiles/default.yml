@@ -1,3 +1,4 @@
 config_name: default
 component: default
 layout_set: arx_x5
+layout_source: assets

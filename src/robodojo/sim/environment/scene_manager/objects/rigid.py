@@ -15,6 +15,7 @@ import omni.usd
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade
 import torch
 
+from robodojo.sim.environment.scene_manager.appearance import normalize_rgb_color
 from robodojo.sim.environment.scene_manager.layout_manager import LayoutManager
 
 logger = logging.getLogger(__name__)
@@ -109,9 +110,7 @@ class RigidObject(SingleRigidPrim, SingleGeometryPrim):
 
     def _apply_color_material(self, color_rgb):
         """Apply an opt-in PreviewSurface color override to a rigid asset."""
-        color = np.asarray(color_rgb, dtype=np.float32)
-        if color.shape != (3,) or not np.isfinite(color).all() or ((color < 0) | (color > 1)).any():
-            raise ValueError("rigid visual color must contain three finite values in [0, 1]")
+        color = normalize_rgb_color(color_rgb, field="rigid visual color")
         self.color_material_path = find_unique_string_name(
             initial_name=self.usd_prim_path + "/Looks/color_material",
             is_unique_fn=lambda path: not is_prim_path_valid(path),

@@ -19,6 +19,22 @@ from robodojo.sim.scene_export.contracts import (
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def _identity(**overrides) -> ExportIdentity:
+    values = {
+        "task": "fold_clothes",
+        "profile": "arx_x5",
+        "scene_config": "default",
+        "seed": 0,
+        "layout_id": 0,
+        "repository_revision": "abc123",
+        "scene_profile_hash": "a" * 64,
+        "layout_set_hash": "b" * 64,
+        "scene_asset_hash": "c" * 64,
+    }
+    values.update(overrides)
+    return ExportIdentity(**values)
+
+
 def _complete_manifest(identity: ExportIdentity) -> dict[str, object]:
     return {
         "format_version": SCENE_EXPORT_FORMAT_VERSION,
@@ -58,7 +74,7 @@ def test_openarm_fisheye_intrinsics_match_fitted_and_published_diagonal_fov():
 
 
 def test_completed_export_requires_exact_identity(tmp_path):
-    identity = ExportIdentity("fold_clothes", "openarm_wowrobo_v1_1", "default", 0, 0, "abc123")
+    identity = _identity(profile="openarm_wowrobo_v1_1")
     assert not completed_export_matches(tmp_path, identity)
     (tmp_path / "scene_manifest.json").write_text(
         json.dumps(_complete_manifest(identity)),
@@ -70,16 +86,24 @@ def test_completed_export_requires_exact_identity(tmp_path):
     assert completed_export_matches(tmp_path, identity)
     assert not completed_export_matches(
         tmp_path,
-        ExportIdentity("fold_clothes", "openarm_wowrobo_v1_1", "default", 0, 1, "abc123"),
+        _identity(profile="openarm_wowrobo_v1_1", layout_id=1),
     )
     assert not completed_export_matches(
         tmp_path,
-        ExportIdentity("fold_clothes", "openarm_wowrobo_v1_1", "molmo_yam", 0, 0, "abc123"),
+        _identity(profile="openarm_wowrobo_v1_1", scene_config="molmo_yam"),
+    )
+    assert not completed_export_matches(
+        tmp_path,
+        _identity(profile="openarm_wowrobo_v1_1", layout_set_hash="d" * 64),
+    )
+    assert not completed_export_matches(
+        tmp_path,
+        _identity(profile="openarm_wowrobo_v1_1", scene_asset_hash="e" * 64),
     )
 
 
-def test_completed_export_rejects_incomplete_v3_manifest(tmp_path):
-    identity = ExportIdentity("fold_clothes", "arx_x5", "default", 0, 0, "abc123")
+def test_completed_export_rejects_incomplete_v4_manifest(tmp_path):
+    identity = _identity()
     for name in ("scene_referenced.usda", "scene_flattened.usdc", "scene_preview.usdz"):
         (tmp_path / name).touch()
     incomplete = _complete_manifest(identity)
@@ -89,7 +113,7 @@ def test_completed_export_rejects_incomplete_v3_manifest(tmp_path):
 
 
 def test_completed_export_rejects_legacy_manifest(tmp_path):
-    identity = ExportIdentity("fold_clothes", "arx_x5", "default", 0, 0, "abc123")
+    identity = _identity()
     for name in ("scene_referenced.usda", "scene_flattened.usdc", "scene_preview.usdz"):
         (tmp_path / name).touch()
     (tmp_path / "scene_manifest.json").write_text(

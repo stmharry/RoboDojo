@@ -211,13 +211,55 @@ class EnvironmentConfigDocument(BaseModel):
         return value
 
 
+class SceneCatalogAsset(StrictModel):
+    """One object in RoboDojo's indexed runtime asset catalog."""
+
+    object_type: Literal["Garment"]
+    category: str
+    index: NonNegativeInt
+
+    @field_validator("category")
+    @classmethod
+    def safe_category(cls, value: str) -> str:
+        if not value or "\\" in value or Path(value).name != value or value in {".", ".."}:
+            raise ValueError("must be one safe catalog path segment")
+        if any(ord(character) < 32 or ord(character) == 127 for character in value):
+            raise ValueError("must not contain control characters")
+        return value
+
+
+class SceneGarmentVariantRecipe(StrictModel):
+    """Declarative, versioned derivation of a topology-compatible garment."""
+
+    kind: Literal["garment_mesh_variant"]
+    transform: Literal["yam_short_sleeve_v1"]
+    source: SceneCatalogAsset
+    destination: SceneCatalogAsset
+
+    @model_validator(mode="after")
+    def distinct_catalog_entries(self) -> SceneGarmentVariantRecipe:
+        if self.source == self.destination:
+            raise ValueError("scene asset recipe source and destination must differ")
+        return self
+
+
 class SceneConfigDocument(StrictModel):
     """Scene selection owns world composition, saved layouts, and their assets."""
 
     config_name: str
     component: str
     layout_set: str
-    task_asset_preparers: dict[str, list[str]] = Field(default_factory=dict)
+    layout_source: Literal["assets", "bundled"] = "assets"
+    task_assets: dict[str, list[SceneGarmentVariantRecipe]] = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_opaque_asset_preparers(cls, value: Any) -> Any:
+        if isinstance(value, dict) and "task_asset_preparers" in value:
+            raise ValueError(
+                "task_asset_preparers is no longer supported; use task_assets with typed scene asset recipes"
+            )
+        return value
 
     @field_validator("config_name", "component", "layout_set")
     @classmethod
@@ -227,12 +269,18 @@ class SceneConfigDocument(StrictModel):
             raise ValueError("must contain only letters, digits, and underscores")
         return value
 
-    @field_validator("task_asset_preparers")
+    @field_validator("task_assets")
     @classmethod
-    def valid_preparers(cls, value: dict[str, list[str]]) -> dict[str, list[str]]:
-        for task, preparers in value.items():
-            if not task.strip() or not preparers or any(not preparer.strip() for preparer in preparers):
-                raise ValueError("task asset preparers require non-empty task and preparer names")
+    def valid_task_assets(
+        cls,
+        value: dict[str, list[SceneGarmentVariantRecipe]],
+    ) -> dict[str, list[SceneGarmentVariantRecipe]]:
+        for task, recipes in value.items():
+            if not task.strip() or not recipes:
+                raise ValueError("task assets require non-empty task names and recipe lists")
+            destinations = [recipe.destination for recipe in recipes]
+            if len({destination.model_dump_json() for destination in destinations}) != len(destinations):
+                raise ValueError(f"task assets for {task} contain duplicate destinations")
         return value
 
 

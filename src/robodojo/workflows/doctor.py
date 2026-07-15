@@ -8,11 +8,13 @@ import shutil
 import subprocess
 
 from robodojo.core.calibration import load_hardware_calibration
+from robodojo.core.layouts import resolve_layout_set
 from robodojo.core.models import SimulatorLaunchRequest
 from robodojo.core.paths import RepositoryPaths
 from robodojo.core.profiles import load_environment_profile
 from robodojo.core.storage import assets_root
 from robodojo.sim.launcher import resolve_scene_profile
+from robodojo.sim.scene_assets import validate_scene_assets
 from robodojo.workflows.task_inventory import build_inventory
 
 
@@ -24,6 +26,7 @@ def run_doctor(
     scene_config: str | None = None,
 ) -> int:
     checks: list[tuple[str, bool, str]] = []
+    selected_scene = None
 
     def record(name: str, ok: bool, detail: str) -> None:
         checks.append((name, ok, detail))
@@ -55,7 +58,28 @@ def run_doctor(
             except ValueError as exc:
                 record("hardware calibration", False, str(exc))
         record("scene profile", True, str(selected_scene.path))
-        record("layout set", True, selected_scene.document.layout_set)
+        try:
+            layouts = resolve_layout_set(
+                config_root=paths.environment_configs,
+                assets_root=assets_root(),
+                benchmark="RoboDojo",
+                layout_set=selected_scene.document.layout_set,
+                layout_source=selected_scene.document.layout_source,
+                task=task,
+                seed=0,
+            )
+            record(
+                "layout set",
+                True,
+                f"{selected_scene.document.layout_source}:{layouts.directory} sha256={layouts.identity_hash}",
+            )
+        except (OSError, ValueError) as exc:
+            record("layout set", False, str(exc))
+        try:
+            recipes = validate_scene_assets(selected_scene, task)
+            record("scene asset inputs", True, f"{len(recipes)} typed recipe(s)")
+        except (OSError, ValueError) as exc:
+            record("scene asset inputs", False, str(exc))
         component_paths = dict(profile.component_paths)
         component_paths["scene"] = selected_scene.component_path
         for kind, referenced in component_paths.items():
@@ -69,7 +93,9 @@ def run_doctor(
     broken = [item["name"] for item in inventory["tasks"] if not item["runnable"]]
     record("task inventory", not broken, ", ".join(broken) if broken else f"{inventory['counts']['runnable']} runnable")
 
-    required_assets = ["Robots", "Object", "Material", "Eval_Layout"]
+    required_assets = ["Robots", "Object", "Material"]
+    if selected_scene is None or selected_scene.document.layout_source == "assets":
+        required_assets.append("Eval_Layout")
     assets = assets_root()
     missing_assets = [name for name in required_assets if not (assets / name).is_dir()]
     record("assets", not missing_assets, ", ".join(missing_assets) if missing_assets else str(assets))

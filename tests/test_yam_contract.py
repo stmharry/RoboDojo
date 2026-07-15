@@ -69,8 +69,12 @@ def test_task_instruction_is_independent_of_environment_and_scene_profiles():
 def test_molmo_yam_scene_profile_uses_model_aligned_bundled_layouts():
     profile = load_scene_profile(RepositoryPaths.resolve(ROOT), "molmo_yam")
     assert profile.document.layout_set == "molmo_yam"
+    assert profile.document.layout_source == "bundled"
     assert profile.document.component == "molmo_yam"
-    assert profile.document.task_asset_preparers == {"fold_clothes": ["yam_short_sleeve_garment"]}
+    [recipe] = profile.document.task_assets["fold_clothes"]
+    assert recipe.transform == "yam_short_sleeve_v1"
+    assert recipe.source.index == 9
+    assert recipe.destination.index == 12
     layout_root = ROOT / "configs/layout/molmo_yam/0"
     assert {path.name for path in layout_root.glob("*.json")} == {
         "fold_clothes_0.json",

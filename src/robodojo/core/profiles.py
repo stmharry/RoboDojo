@@ -43,6 +43,7 @@ class SceneProfile:
     component: dict[str, Any]
     identity_hash: str
 
+
 def _profile_path(config_root: Path, relative: str, *, field: str) -> Path:
     root = config_root.resolve()
     path = (root / relative).resolve()
@@ -124,8 +125,12 @@ def load_scene_profile(paths: RepositoryPaths, name: str) -> SceneProfile:
     )
     component: dict[str, Any] = yaml.safe_load(component_path.read_text(encoding="utf-8")) or {}
     digest = hashlib.sha256()
+    digest.update(b"robodojo-scene-profile-v1\0")
     for input_path in (path, component_path):
+        digest.update(input_path.relative_to(paths.environment_configs).as_posix().encode())
+        digest.update(b"\0")
         digest.update(input_path.read_bytes())
+        digest.update(b"\0")
     return SceneProfile(
         name=name,
         path=path,

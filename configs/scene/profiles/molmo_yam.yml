@@ -1,7 +1,17 @@
 config_name: molmo_yam
 component: molmo_yam
 layout_set: molmo_yam
+layout_source: bundled
 
-task_asset_preparers:
+task_assets:
   fold_clothes:
-    - yam_short_sleeve_garment
+    - kind: garment_mesh_variant
+      transform: yam_short_sleeve_v1
+      source:
+        object_type: Garment
+        category: Top_Long
+        index: 9
+      destination:
+        object_type: Garment
+        category: Top_Long
+        index: 12

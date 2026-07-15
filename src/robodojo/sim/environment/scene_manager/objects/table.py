@@ -23,6 +23,8 @@ import omni.usd
 from pxr import Gf, Usd, UsdGeom, UsdShade
 import torch
 
+from robodojo.sim.environment.scene_manager.appearance import normalize_rgb_color
+
 logger = logging.getLogger(__name__)
 
 
@@ -251,9 +253,7 @@ class Table(SingleGeometryPrim, SingleRigidPrim):
 
     def apply_visual_color(self, color):
         """Apply an opt-in deterministic PreviewSurface appearance fallback."""
-        color = np.asarray(color, dtype=np.float32)
-        if color.shape != (3,) or not np.all(np.isfinite(color)) or np.any((color < 0.0) | (color > 1.0)):
-            raise ValueError("table visual_color must contain three finite values in [0, 1]")
+        color = normalize_rgb_color(color, field="table visual_color")
         material_path = find_unique_string_name(
             self.prim_path + "/VisualColor",
             lambda path: not is_prim_path_valid(path),

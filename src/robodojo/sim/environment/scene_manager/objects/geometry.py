@@ -16,6 +16,9 @@ import omni.usd
 from pxr import Sdf, UsdGeom, UsdPhysics, UsdShade
 import torch
 
+from robodojo.sim.environment.scene_manager.appearance import normalize_rgb_color
+from robodojo.sim.environment.scene_manager.state import make_root_pose_relative
+
 logger = logging.getLogger(__name__)
 
 
@@ -146,6 +149,7 @@ class GeometryObject(SingleGeometryPrim):
 
     def _apply_color_material(self, color_rgb):
         """Creates or updates a simple PreviewSurface material with the given color and binds it."""
+        color_rgb = normalize_rgb_color(color_rgb, field="geometry visual color")
         if self.color_material_path is None:
             self.color_material_path = find_unique_string_name(
                 initial_name=self.usd_prim_path + "/Looks/color_material",
@@ -275,18 +279,7 @@ class GeometryObject(SingleGeometryPrim):
             orientation = orientation.squeeze()
         root_pose = torch.cat([translation, orientation])
         if is_relative and hasattr(self, "env_origin"):
-            env_origin_tensor = torch.as_tensor(
-                self.env_origin,
-                dtype=root_pose.dtype,
-                device=root_pose.device,
-            )
-            if env_origin_tensor.dim() == 0:
-                env_origin_tensor = env_origin_tensor.unsqueeze(0)
-            if env_origin_tensor.shape[0] < 3:
-                env_origin_tensor = torch.cat(
-                    [env_origin_tensor, torch.zeros(3 - env_origin_tensor.shape[0], device=env_origin_tensor.device)]
-                )
-            root_pose[:3] -= env_origin_tensor[:3]
+            root_pose = make_root_pose_relative(root_pose, self.env_origin)
         return {"root_pose": root_pose}
 
     def initialize(self):

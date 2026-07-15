@@ -12,6 +12,7 @@ import numpy as np
 import transforms3d as t3d
 import websockets
 
+from robodojo.core.scene_identity import require_matching_scene_identity, scene_identity
 from robodojo.core.storage import eval_work_root
 from robodojo.sim import tasks_registry
 from robodojo.sim.environment.observation_manager.obs_manager import ObsManager
@@ -62,6 +63,9 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
             self.scene_component = self.eval_cfg.get("scene_component")
             self.scene_profile_hash = self.eval_cfg.get("scene_profile_hash")
             self.layout_config_name = self.eval_cfg.get("layout_config_name")
+            self.layout_source = self.eval_cfg.get("layout_source")
+            self.layout_set_hash = self.eval_cfg.get("layout_set_hash")
+            self.scene_asset_hash = self.eval_cfg.get("scene_asset_hash")
             self.task_name = self.eval_cfg.get("task_name", None)
             self.eval_batch = self.eval_cfg.get("eval_batch", False)
             self.eval_num = int(self.eval_cfg.get("eval_num", 50))
@@ -138,10 +142,7 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
                 "success_rate": 0.0,
                 "eval_time": 0,
                 "score": 0.0,
-                "scene_config": self.scene_config,
-                "scene_component": self.scene_component,
-                "scene_profile_hash": self.scene_profile_hash,
-                "layout_config_name": self.layout_config_name,
+                **scene_identity(self.eval_cfg),
                 "details": {},
             }
 
@@ -151,19 +152,7 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
             completed_layout_ids: list[int] = []
             abandoned_layout_ids: list[int] = []
             if resume_state is not None:
-                expected_scene_identity = {
-                    "scene_config": self.scene_config,
-                    "scene_component": self.scene_component,
-                    "scene_profile_hash": self.scene_profile_hash,
-                    "layout_config_name": self.layout_config_name,
-                }
-                for field, expected_value in expected_scene_identity.items():
-                    resumed_value = resume_state.get(field)
-                    if resumed_value != expected_value:
-                        raise ValueError(
-                            f"resume manifest {field} mismatch: expected {expected_value!r}, "
-                            f"found {resumed_value!r}"
-                        )
+                require_matching_scene_identity(self.eval_cfg, resume_state, context="resume manifest")
                 self.success_nums = int(resume_state.get("success_nums", 0))
                 self.fail_nums = int(resume_state.get("fail_nums", 0))
                 self.total_score = float(resume_state.get("total_score", 0.0))
@@ -762,10 +751,7 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
                 "task_name": self.task_name,
                 "policy_name": self.policy_name,
                 "config_name": self.config_name,
-                "scene_config": self.scene_config,
-                "scene_component": self.scene_component,
-                "scene_profile_hash": self.scene_profile_hash,
-                "layout_config_name": self.layout_config_name,
+                **scene_identity(self.eval_cfg),
                 "eval_seed": self.eval_seed,
                 "additional_info": self.additional_info,
                 "success_nums": int(self.success_nums),
@@ -882,9 +868,8 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
 
                 # seed_list was filtered by completed/abandoned ids on resume,
                 # so seed_list.index(seed) no longer yields the original
-                # layout id. Since init_eval populates seed_list as
-                # range(N_layouts), seed == layout_id by construction; use
-                # env_seeds[env_idx] directly.
+                # layout id. init_eval populates seed_list with numeric ids
+                # parsed from filenames, so env_seeds[env_idx] is stable.
                 layout_id = int(self.env_seeds[env_idx])
                 layout_path = Path(self.seed_manager.seed_info[layout_id]["scene_layout"])
                 self.eval_result["details"][index] = {

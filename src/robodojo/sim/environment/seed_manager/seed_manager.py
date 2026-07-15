@@ -3,9 +3,9 @@ from copy import deepcopy
 import logging
 import os
 from pathlib import Path
-import re
 from typing import Any, Dict, List
 
+from robodojo.core.layouts import resolve_layout_set
 from robodojo.sim.environment.global_configs import ASSETS_PATH, BENCHMARK, ENV_CONFIG_PATH
 from robodojo.sim.utils.load_file import load_json
 
@@ -21,6 +21,7 @@ class SeedManager:
         self.task_name: str = str(self.config["task_name"])
         self.config_name: str = str(self.config["config_name"])
         self.layout_config_name: str = str(self.config.get("layout_config_name", self.config_name))
+        self.layout_source: str = str(self.config.get("layout_source", "assets"))
 
         self.st_idx: int
         self.ed_idx: int
@@ -34,24 +35,33 @@ class SeedManager:
         abandoned_layout_ids: Iterable[int] | None = None,
     ):
         self.eval_seed = self.config.get("seed", 0)
-        layout_dir = Path(ASSETS_PATH, "Eval_Layout", BENCHMARK, self.layout_config_name, str(self.eval_seed))
-        pattern = re.compile(rf"{re.escape(self.task_name)}_\d+\.json")
-        matching_files = [p for p in layout_dir.iterdir() if pattern.fullmatch(p.name)] if layout_dir.is_dir() else []
-        if not matching_files:
-            bundled_dir = Path(ENV_CONFIG_PATH, "layout", self.layout_config_name, str(self.eval_seed))
-            matching_files = (
-                [p for p in bundled_dir.iterdir() if pattern.fullmatch(p.name)] if bundled_dir.is_dir() else []
+        resolved = resolve_layout_set(
+            config_root=Path(ENV_CONFIG_PATH),
+            assets_root=Path(ASSETS_PATH),
+            benchmark=BENCHMARK,
+            layout_set=self.layout_config_name,
+            layout_source=self.layout_source,
+            task=self.task_name,
+            seed=int(self.eval_seed),
+        )
+        self.layout_set_hash = resolved.identity_hash
+        expected_hash = self.config.get("layout_set_hash")
+        if expected_hash is not None and expected_hash != self.layout_set_hash:
+            raise ValueError(
+                f"resolved layout hash mismatch: expected {expected_hash}, found {self.layout_set_hash} "
+                f"in {resolved.directory}"
             )
-            if matching_files:
-                logger.info("[SeedManager] using bundled evaluation layouts from %s", bundled_dir)
-        matching_files.sort(key=lambda p: int(p.stem.rsplit("_", 1)[-1]))
+        logger.info(
+            "[SeedManager] using %s evaluation layouts from %s (sha256=%s)",
+            self.layout_source,
+            resolved.directory,
+            self.layout_set_hash,
+        )
+        self.seed_info = {
+            layout.layout_id: {"scene_layout": str(layout.path)} for layout in resolved.layouts
+        }
 
-        matching_files = [str(p) for p in matching_files]
-        self.seed_info = {}
-        for idx, file_path in enumerate(matching_files):
-            self.seed_info[idx] = {"scene_layout": file_path}
-
-        all_layout_ids = list(range(len(matching_files)))
+        all_layout_ids = sorted(self.seed_info)
         excluded = set(int(s) for s in (completed_layout_ids or [])) | set(int(s) for s in (abandoned_layout_ids or []))
         if excluded:
             self.seed_list: List[int] = [s for s in all_layout_ids if s not in excluded]

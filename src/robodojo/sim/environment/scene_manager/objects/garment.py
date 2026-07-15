@@ -15,7 +15,9 @@ import omni.kit.commands
 from pxr import Usd, UsdGeom, UsdShade, Vt
 import torch
 
+from robodojo.sim.environment.scene_manager.appearance import normalize_rgb_color
 from robodojo.sim.environment.scene_manager.garment_contract import resolve_particle_mass
+from robodojo.sim.environment.scene_manager.state import make_root_pose_relative
 
 logger = logging.getLogger(__name__)
 
@@ -188,6 +190,7 @@ class GarmentObject(SingleClothPrim):
 
     def _apply_color_material(self, color):
         """Creates or updates the PreviewSurface material with the specified color."""
+        color = normalize_rgb_color(color, field="garment visual color")
         material_path = find_unique_string_name(
             initial_name=f"{self.usd_prim_path}/Looks/color_material",
             is_unique_fn=lambda x: not is_prim_path_valid(x),
@@ -431,25 +434,7 @@ class GarmentObject(SingleClothPrim):
 
             # Apply relative transformation if needed
             if is_relative and hasattr(self, "env_origin"):
-                env_origin_tensor = (
-                    torch.tensor(self.env_origin, dtype=torch.float32, device=root_pose.device)
-                    if isinstance(self.env_origin, np.ndarray)
-                    else self.env_origin
-                )
-                if env_origin_tensor.dim() == 0:
-                    env_origin_tensor = env_origin_tensor.unsqueeze(0)
-                if env_origin_tensor.shape[0] < 3:
-                    env_origin_tensor = torch.cat(
-                        [
-                            env_origin_tensor,
-                            torch.zeros(
-                                3 - env_origin_tensor.shape[0],
-                                device=env_origin_tensor.device,
-                                dtype=torch.float32,
-                            ),
-                        ]
-                    )
-                root_pose[:3] -= env_origin_tensor[:3]
+                root_pose = make_root_pose_relative(root_pose, self.env_origin)
         except (AttributeError, RuntimeError, Exception):
             # If get_world_pose fails, return zeros
             root_pose = torch.zeros(7, dtype=torch.float32)

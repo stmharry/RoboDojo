@@ -572,6 +572,9 @@ def export_scene_snapshot(env, output_dir: str | os.PathLike[str], layout_id: in
         seed=int(env.eval_seed),
         layout_id=int(layout_id),
         repository_revision=revision,
+        scene_profile_hash=str(env.scene_profile_hash),
+        layout_set_hash=str(env.layout_set_hash),
+        scene_asset_hash=str(env.scene_asset_hash),
     )
     if output.exists():
         if completed_export_matches(output, identity):
@@ -626,7 +629,10 @@ def export_scene_snapshot(env, output_dir: str | os.PathLike[str], layout_id: in
             "scene_profile": {
                 "component": env.scene_component,
                 "layout_set": env.layout_config_name,
+                "layout_source": env.layout_source,
                 "sha256": env.scene_profile_hash,
+                "layout_set_sha256": env.layout_set_hash,
+                "scene_asset_sha256": env.scene_asset_hash,
             },
             "seed": int(env.eval_seed),
             "layout": {

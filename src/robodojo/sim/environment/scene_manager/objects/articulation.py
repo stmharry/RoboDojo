@@ -17,6 +17,8 @@ import omni.usd
 from pxr import PhysxSchema, Usd, UsdGeom, UsdPhysics, UsdShade
 import torch
 
+from robodojo.sim.environment.scene_manager.appearance import normalize_rgb_color
+
 logger = logging.getLogger(__name__)
 
 
@@ -146,6 +148,7 @@ class ArticulationObject(SingleArticulation):
 
     def _apply_color_material(self, color):
         """Creates or updates the PreviewSurface material with the specified color."""
+        color = normalize_rgb_color(color, field="articulation visual color")
         if self.color_material_path is None:
             self.color_material_path = find_unique_string_name(
                 initial_name=f"{self.usd_prim_path}/Looks/color_material",

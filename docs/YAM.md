@@ -36,10 +36,13 @@ policy adapter and are intentionally absent from that reference.
 
 Scene selection comes from task metadata or the explicit `--scene` option; it
 is not stored in an environment profile. The typed `molmo_yam` scene profile
-selects its rendering component, bundled layout set, and any assets required by
-those layouts. It can be composed with any compatible policy and embodiment.
-Its geometry, fixture transforms, physics materials, camera stand, HDR, and
-intensity match `default`; only visible room and tabletop appearance differs.
+selects its rendering component, an explicitly bundled layout source, and typed
+asset recipes required by those layouts. Bundled layouts are never silently
+shadowed by a downloaded layout with the same name; `default` and `conveyor`
+instead select their downloaded asset layouts explicitly. A scene can be
+composed with any compatible policy and embodiment. Its geometry, fixture
+transforms, physics materials, camera stand, HDR, and intensity match `default`;
+only visible room and tabletop appearance differs.
 
 The referenced room receives an off-white PreviewSurface. Replayed layouts
 retain their geometry and physics but replace the legacy white tabletop
@@ -50,14 +53,24 @@ For `general_pickup`, `molmo_yam` selects a bundled, training-aligned
 single-ball layout. The task's upstream instruction, lift reward, labels, and
 episode limit remain unchanged.
 
-The scene's `fold_clothes` asset hook derives a topology-preserving short-sleeve shirt
-from the downloaded `Top_Long/00009` garment before scene construction. It
-retains the source mesh and reward-point vertex indices, places the garment at
-the table center in its native frame, and uses the cloth spring parameters from
+The scene's typed `fold_clothes` recipe derives a topology-preserving
+short-sleeve shirt from the downloaded `Top_Long/00009` garment before scene
+construction. The generated catalog entry includes `object.usd`, inherited
+metadata, and `derivation.json`. The derivation manifest pins source and output
+hashes plus the transform and builder versions; generated USD references stay
+catalog-relative so the artifact is portable across storage roots. Valid
+outputs are reused, while changed inputs rebuild under a lock and publish
+atomically. The recipe retains the source mesh topology and reward-point vertex
+indices, places the garment at the table center in its native frame, and uses
+the cloth spring parameters from
 Isaac Sim 5.1's particle-cloth example. The canonical task instruction, reward,
 labels, and episode limit remain unchanged. Newton VBD was also investigated,
 but is not part of this profile because the pinned Isaac Sim 5.1 runtime does
 not provide that backend.
+
+Evaluation results, resume manifests, and scene exports record separate hashes
+for the scene profile, the exact ordered layout set, and prepared scene assets.
+A resumed run is rejected if any of those inputs changed.
 
 For example, a YAM evaluation may opt into that workspace explicitly:
 

@@ -7,8 +7,9 @@ from isaacsim.core.prims import SingleGeometryPrim
 from isaacsim.core.utils.prims import is_prim_path_valid
 from isaacsim.core.utils.stage import add_reference_to_stage
 from isaacsim.core.utils.string import find_unique_string_name
-import numpy as np
 from pxr import Gf, Usd, UsdGeom, UsdShade
+
+from robodojo.sim.environment.scene_manager.appearance import normalize_rgb_color
 
 
 class Room(SingleGeometryPrim):
@@ -58,9 +59,7 @@ class Room(SingleGeometryPrim):
 
     def apply_visual_color(self, color):
         """Apply an opt-in stronger material without changing room geometry."""
-        color = np.asarray(color, dtype=np.float32)
-        if color.shape != (3,) or not np.all(np.isfinite(color)) or np.any((color < 0.0) | (color > 1.0)):
-            raise ValueError("room visual_color must contain three finite values in [0, 1]")
+        color = normalize_rgb_color(color, field="room visual_color")
         material_path = find_unique_string_name(
             self.prim_path + "/VisualColor",
             lambda path: not is_prim_path_valid(path),

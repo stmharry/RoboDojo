@@ -15,7 +15,7 @@ import numpy as np
 from robodojo.core.paths import RepositoryPaths
 from robodojo.core.profiles import load_scene_profile
 
-SCENE_EXPORT_FORMAT_VERSION = 3
+SCENE_EXPORT_FORMAT_VERSION = 4
 REQUIRED_EXPORT_ARTIFACTS = (
     "scene_referenced.usda",
     "scene_flattened.usdc",
@@ -45,6 +45,9 @@ class ExportIdentity:
     seed: int
     layout_id: int
     repository_revision: str
+    scene_profile_hash: str
+    layout_set_hash: str
+    scene_asset_hash: str
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
