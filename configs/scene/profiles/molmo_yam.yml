@@ -2,6 +2,7 @@ config_name: molmo_yam
 component: molmo_yam
 layout_set: molmo_yam
 layout_source: bundled
+compatible_environments: [bimanual_yam_molmoact2]
 
 task_assets:
   fold_clothes:

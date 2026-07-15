@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 import hashlib
 from pathlib import Path
@@ -24,6 +25,8 @@ class EnvironmentProfile:
     sim: dict[str, Any]
     calibration: dict[str, Any] | None
     matched_replay_manifest: Path | None
+    source_paths: tuple[Path, ...]
+    identity_hash: str
 
     @property
     def num_envs(self) -> int:
@@ -31,6 +34,10 @@ class EnvironmentProfile:
         if value < 1:
             raise ValueError(f"environment profile {self.name} must configure at least one environment")
         return value
+
+    @property
+    def policy_contract(self) -> str:
+        return self.document.policy_contract or self.name
 
 
 @dataclass(frozen=True)
@@ -64,21 +71,55 @@ def _profile_path(config_root: Path, relative: str, *, field: str) -> Path:
     return path
 
 
+def _merge_profile_payload(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
+    merged = deepcopy(base)
+    for key, value in overlay.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = _merge_profile_payload(merged[key], value)
+        else:
+            merged[key] = deepcopy(value)
+    return merged
+
+
+def _environment_payload(
+    paths: RepositoryPaths,
+    name: str,
+    stack: tuple[str, ...] = (),
+) -> tuple[dict[str, Any], tuple[Path, ...]]:
+    if name in stack:
+        raise ValueError(f"environment profile inheritance cycle: {' -> '.join((*stack, name))}")
+    path = paths.environment_profiles / f"{name}.yml"
+    if not path.is_file():
+        raise ValueError(f"environment config not found: {path}")
+    payload: dict[str, Any] = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    parent = payload.get("extends")
+    if parent is None:
+        return payload, (path,)
+    if not isinstance(parent, str) or not parent:
+        raise ValueError(f"environment profile extends must be a non-empty profile name: {path}")
+    base, source_paths = _environment_payload(paths, parent, (*stack, name))
+    return _merge_profile_payload(base, payload), (*source_paths, path)
+
+
 def load_environment_profile(
     paths: RepositoryPaths,
     name: str,
     *,
     validate_calibration: bool = True,
+    require_selectable: bool = True,
 ) -> EnvironmentProfile:
     """Load and validate an additive RoboDojo environment profile."""
     config_root = paths.environment_configs
     path = paths.environment_profiles / f"{name}.yml"
-    if not path.is_file():
-        raise ValueError(f"environment config not found: {path}")
-    payload: dict[str, Any] = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    payload, source_paths = _environment_payload(paths, name)
     document = EnvironmentConfigDocument.model_validate(payload)
     if document.config_name != name:
         raise ValueError(f"environment config_name must be {name}: {path}")
+    if require_selectable and not document.selectable:
+        raise ValueError(
+            f"environment profile {name!r} is an internal contract and cannot be selected; "
+            "choose a named selectable setup profile"
+        )
 
     component_paths: dict[str, Path] = {}
     for section, component_name in document.config.model_dump().items():
@@ -101,6 +142,14 @@ def load_environment_profile(
             field="matched replay manifest",
         )
 
+    digest = hashlib.sha256()
+    digest.update(b"robodojo-environment-profile-v1\0")
+    identity_inputs = (*source_paths, *(component_paths[key] for key in sorted(component_paths)))
+    for input_path in identity_inputs:
+        digest.update(input_path.relative_to(paths.environment_configs).as_posix().encode())
+        digest.update(b"\0")
+        digest.update(input_path.read_bytes())
+        digest.update(b"\0")
     profile = EnvironmentProfile(
         name=name,
         path=path,
@@ -110,9 +159,22 @@ def load_environment_profile(
         sim=sim,
         calibration=calibration,
         matched_replay_manifest=matched_replay_manifest,
+        source_paths=source_paths,
+        identity_hash=digest.hexdigest(),
     )
     profile.num_envs
     return profile
+
+
+def bind_policy_contract(paths: RepositoryPaths, request):
+    """Return a request whose adapter environment names the shared policy contract."""
+
+    if request.env_config is None:
+        return request
+    if not (paths.environment_profiles / f"{request.env_config}.yml").is_file():
+        return request
+    profile = load_environment_profile(paths, request.env_config)
+    return request.model_copy(update={"policy_contract": profile.policy_contract})
 
 
 def load_scene_profile(paths: RepositoryPaths, name: str) -> SceneProfile:

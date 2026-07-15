@@ -7,6 +7,14 @@
         "arm_dim": [6, 6],
         "ee_dim": [1, 1]
     },
+    "dual_yam_molmoact2": {
+        "arm_dim": [6, 6],
+        "ee_dim": [1, 1]
+    },
+    "dual_yam_moonlake_office": {
+        "arm_dim": [6, 6],
+        "ee_dim": [1, 1]
+    },
     "dual_openarm_lerobot": {
         "arm_dim": [7, 7],
         "ee_dim": [1, 1]

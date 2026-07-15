@@ -37,11 +37,20 @@ class PolicyExperimentBase(StrictModel):
     policy_env: str | None = None
     dataset: str = "RoboDojo"
     env_config: str | None = None
+    policy_contract: str | None = None
     action_type: str | None = None
     seed: NonNegativeInt = 0
     policy_gpu: GpuSelector = "auto"
 
-    @field_validator("task", "checkpoint", "policy_env", "dataset", "env_config", "action_type")
+    @field_validator(
+        "task",
+        "checkpoint",
+        "policy_env",
+        "dataset",
+        "env_config",
+        "policy_contract",
+        "action_type",
+    )
     @classmethod
     def experiment_value_non_empty(cls, value: str | None) -> str | None:
         if value is not None and not value.strip():
@@ -71,6 +80,7 @@ class PolicyExperimentRequest(PolicyExperimentBase):
             policy_env=self.policy_env,
             dataset=self.dataset,
             env_config=self.env_config,
+            policy_contract=self.policy_contract,
             action_type=self.action_type,
             seed=self.seed,
             policy_gpu=self.policy_gpu,
@@ -179,6 +189,7 @@ class SetupRequest(PolicyExperimentBase):
             policy_env=self.policy_env,
             dataset=self.dataset,
             env_config=self.env_config,
+            policy_contract=self.policy_contract,
             action_type=self.action_type,
             seed=self.seed,
             policy_gpu=self.policy_gpu,
@@ -260,10 +271,23 @@ class EnvironmentConfigDocument(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     config_name: str
+    extends: str | None = None
+    selectable: bool = True
+    policy_contract: str | None = None
     hardware_calibration: str | None = None
     diagnostics: EnvironmentDiagnostics | None = None
     config: EnvironmentConfigReferences
     observation: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("config_name", "extends", "policy_contract")
+    @classmethod
+    def safe_profile_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        allowed = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
+        if not value or any(character not in allowed for character in value):
+            raise ValueError("must contain only letters, digits, and underscores")
+        return value
 
     @model_validator(mode="before")
     @classmethod

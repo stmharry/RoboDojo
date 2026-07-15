@@ -26,6 +26,7 @@ from robodojo.core.processes import free_port, start, terminate_process_group, w
 from robodojo.core.profiles import (
     EnvironmentProfile,
     SceneProfile,
+    bind_policy_contract,
     load_environment_profile,
     validate_scene_environment_compatibility,
 )
@@ -87,6 +88,7 @@ def request_from_evaluation(request: ExperimentRequest, *, task: str | None = No
         policy_env=request.policy_env,
         dataset=request.dataset,
         env_config=request.env_config,
+        policy_contract=request.policy_contract,
         scene_config=request.scene_config,
         action_type=request.action_type,
         seed=request.seed,
@@ -520,6 +522,7 @@ def _run_fast_preflight_resolved(
 
 def run_fast_preflight(paths: RepositoryPaths, request: PreflightRequest) -> PreflightReport:
     """Run every read-only experiment check without starting a process."""
+    request = bind_policy_contract(paths, request)
     resolved, gpu_check = _resolve_preflight_gpus(request)
     if resolved is None:
         return build_report([_root_runtime_check(paths), gpu_check])
@@ -528,6 +531,7 @@ def run_fast_preflight(paths: RepositoryPaths, request: PreflightRequest) -> Pre
 
 def run_simulator_preflight(paths: RepositoryPaths, request: PreflightRequest) -> PreflightReport:
     """Validate only the simulator-side contract for scene-only export."""
+    request = bind_policy_contract(paths, request)
     resolved, gpu_check = _resolve_preflight_gpus(request, simulator_only=True)
     if resolved is None:
         return build_report([_root_runtime_check(paths), gpu_check])
@@ -561,6 +565,7 @@ def run_sweep_preflight(
 
 def run_deep_preflight(paths: RepositoryPaths, request: PreflightRequest) -> PreflightReport:
     """Run fast checks, then start and always stop the normal policy server."""
+    request = bind_policy_contract(paths, request)
     resolved, gpu_check = _resolve_preflight_gpus(request)
     if resolved is None:
         return build_report([_root_runtime_check(paths), gpu_check])

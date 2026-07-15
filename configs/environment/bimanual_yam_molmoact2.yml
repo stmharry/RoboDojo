@@ -1,0 +1,7 @@
+config_name: bimanual_yam_molmoact2
+extends: bimanual_yam
+selectable: true
+
+config:
+  robot: dual_yam_molmoact2
+  camera: bimanual_yam_molmoact2

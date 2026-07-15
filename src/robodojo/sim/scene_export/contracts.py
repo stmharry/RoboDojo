@@ -13,9 +13,9 @@ import zipfile
 import numpy as np
 
 from robodojo.core.paths import RepositoryPaths
-from robodojo.core.profiles import load_scene_profile
+from robodojo.core.profiles import load_environment_profile, load_scene_profile
 
-SCENE_EXPORT_FORMAT_VERSION = 4
+SCENE_EXPORT_FORMAT_VERSION = 5
 REQUIRED_EXPORT_ARTIFACTS = (
     "scene_referenced.usda",
     "scene_flattened.usdc",
@@ -45,6 +45,8 @@ class ExportIdentity:
     seed: int
     layout_id: int
     repository_revision: str
+    environment_profile_hash: str
+    policy_contract: str
     scene_profile_hash: str
     layout_set_hash: str
     scene_asset_hash: str
@@ -64,8 +66,9 @@ def scene_config_paths(
     repository_paths = RepositoryPaths.resolve(repo_root)
     config_root = repository_paths.environment_configs
     scene_profile = load_scene_profile(repository_paths, scene_config)
+    environment_profile = load_environment_profile(repository_paths, profile)
     return [
-        repository_paths.environment_profiles / f"{profile}.yml",
+        *environment_profile.source_paths,
         config_root / "camera" / f"{components['camera']}.yml",
         scene_profile.path,
         scene_profile.component_path,

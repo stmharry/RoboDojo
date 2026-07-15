@@ -593,6 +593,8 @@ def export_scene_snapshot(env, output_dir: str | os.PathLike[str], layout_id: in
         seed=int(env.eval_seed),
         layout_id=int(layout_id),
         repository_revision=revision,
+        environment_profile_hash=str(env.environment_profile_hash),
+        policy_contract=str(env.policy_contract),
         scene_profile_hash=str(env.scene_profile_hash),
         layout_set_hash=str(env.layout_set_hash),
         scene_asset_hash=str(env.scene_asset_hash),
@@ -645,7 +647,12 @@ def export_scene_snapshot(env, output_dir: str | os.PathLike[str], layout_id: in
             "created_at": datetime.now(UTC).isoformat(),
             "snapshot_boundary": "post_reset_pre_rollout",
             "task": env.task_name,
-            "profile": {"config_name": env.config_name, "camera_profile_id": env.camera_rig.profile_id},
+            "profile": {
+                "config_name": env.config_name,
+                "camera_profile_id": env.camera_rig.profile_id,
+                "policy_contract": env.policy_contract,
+                "sha256": env.environment_profile_hash,
+            },
             "scene_config": env.scene_config,
             "scene_profile": {
                 "component": env.scene_component,

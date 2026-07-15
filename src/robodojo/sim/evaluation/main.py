@@ -1,4 +1,5 @@
 import argparse
+from copy import deepcopy
 from datetime import datetime
 import json
 import logging
@@ -332,7 +333,9 @@ def main():
     """
     task_name = args_cli.task_name
     num_envs = 1 if SCENE_EXPORT_ONLY else args_cli.num_envs
-    eval_cfg = load_yaml(ENVIRONMENT_PROFILE.path)
+    eval_cfg = deepcopy(ENVIRONMENT_PROFILE.payload)
+    eval_cfg["environment_profile_hash"] = ENVIRONMENT_PROFILE.identity_hash
+    eval_cfg["policy_contract"] = ENVIRONMENT_PROFILE.policy_contract
     eval_cfg["scene_config"] = RESOLVED_SCENE_CONFIG
     eval_cfg["scene_component"] = SCENE_PROFILE.document.component
     eval_cfg["scene_profile_hash"] = SCENE_PROFILE.identity_hash

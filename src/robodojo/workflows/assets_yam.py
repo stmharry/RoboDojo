@@ -115,46 +115,66 @@ def _visual_proxy_contracts(build_manifest: dict, appearance: dict) -> dict:
     """Validate standalone render-only hardware proxies generated with YAM."""
 
     proxies = build_manifest.get("asset", {}).get("visual_proxies")
-    if not isinstance(proxies, dict) or set(proxies) != {"d405"}:
-        raise ValueError("YAM tooling must declare exactly one d405 visual proxy")
-    source = proxies["d405"]
-    if not isinstance(source, dict):
-        raise ValueError("YAM d405 visual proxy must be a mapping")
-    output = source.get("output")
-    if not isinstance(output, str) or Path(output).name != output or Path(output).suffix.lower() != ".usd":
-        raise ValueError(f"invalid D405 visual proxy output: {output!r}")
-    if source.get("default_prim") != "D405" or source.get("optical_frame") != "OpticalFrame":
-        raise ValueError("D405 visual proxy must publish an identity OpticalFrame below its D405 default prim")
-    if source.get("physical") is not False:
-        raise ValueError("D405 visual proxy must be explicitly non-physical")
-    provenance_source = source.get("provenance_source")
-    provenance = build_manifest.get("sources", {}).get(provenance_source)
-    if not isinstance(provenance, dict) or provenance.get("usage") != "geometry_reference":
-        raise ValueError("D405 visual proxy must cite geometry-reference provenance")
-    dimensions = [float(value) for value in source.get("dimensions_m", [])]
-    if dimensions != [0.042, 0.042, 0.023]:
-        raise ValueError(f"D405 visual proxy must use nominal [width,height,depth] dimensions, got {dimensions}")
-    documented_dimensions = provenance.get("nominal_dimensions_m", {})
-    if [documented_dimensions.get(key) for key in ("width", "height", "depth")] != dimensions:
-        raise ValueError("D405 visual proxy dimensions differ from their cited provenance")
-    materials = {
-        "housing": source.get("housing_material"),
-        "detail": source.get("detail_material"),
-    }
-    unknown = sorted(set(materials.values()) - set(appearance["palette"]))
-    if unknown:
-        raise ValueError(f"D405 visual proxy references unknown materials: {unknown}")
-    contract = {
-        "output": output,
-        "default_prim": source["default_prim"],
-        "optical_frame": source["optical_frame"],
-        "provenance_source": provenance_source,
-        "dimensions_m": dimensions,
-        "materials": materials,
-        "physical": False,
-    }
-    contract["contract_sha256"] = _canonical_sha256(contract)
-    return {"d405": contract}
+    expected = {"molmoact2", "moonlake_office"}
+    if not isinstance(proxies, dict) or set(proxies) != expected:
+        raise ValueError(f"YAM tooling must declare D405 proxies for {sorted(expected)}")
+    contracts = {}
+    outputs = set()
+    for setup_name in sorted(proxies):
+        source = proxies[setup_name]
+        if not isinstance(source, dict):
+            raise ValueError(f"YAM {setup_name} D405 visual proxy must be a mapping")
+        output = source.get("output")
+        if not isinstance(output, str) or Path(output).name != output or Path(output).suffix.lower() != ".usd":
+            raise ValueError(f"invalid D405 visual proxy output: {output!r}")
+        if output in outputs:
+            raise ValueError(f"duplicate D405 visual proxy output: {output}")
+        outputs.add(output)
+        if source.get("default_prim") != "D405" or source.get("optical_frame") != "OpticalFrame":
+            raise ValueError("D405 visual proxy must publish an identity OpticalFrame below its D405 default prim")
+        if source.get("physical") is not False:
+            raise ValueError("D405 visual proxy must be explicitly non-physical")
+        provenance_source = source.get("provenance_source")
+        provenance = build_manifest.get("sources", {}).get(provenance_source)
+        if not isinstance(provenance, dict) or provenance.get("usage") != "geometry_reference":
+            raise ValueError("D405 visual proxy must cite geometry-reference provenance")
+        dimensions = [float(value) for value in source.get("dimensions_m", [])]
+        if dimensions != [0.042, 0.042, 0.023]:
+            raise ValueError(f"D405 visual proxy must use nominal [width,height,depth] dimensions, got {dimensions}")
+        documented_dimensions = provenance.get("nominal_dimensions_m", {})
+        if [documented_dimensions.get(key) for key in ("width", "height", "depth")] != dimensions:
+            raise ValueError("D405 visual proxy dimensions differ from their cited provenance")
+        materials = {"housing": source.get("housing_material"), "detail": source.get("detail_material")}
+        unknown = sorted(set(materials.values()) - set(appearance["palette"]))
+        if unknown:
+            raise ValueError(f"D405 visual proxy references unknown materials: {unknown}")
+        contract = {
+            "setup": setup_name,
+            "output": output,
+            "default_prim": source["default_prim"],
+            "optical_frame": source["optical_frame"],
+            "provenance_source": provenance_source,
+            "dimensions_m": dimensions,
+            "materials": materials,
+            "physical": False,
+        }
+        contract["contract_sha256"] = _canonical_sha256(contract)
+        contracts[setup_name] = contract
+    return contracts
+
+
+def _setup_asset_outputs(build_manifest: dict) -> dict[str, str]:
+    source = build_manifest.get("asset", {}).get("setup_outputs")
+    expected = {"molmoact2", "moonlake_office"}
+    if not isinstance(source, dict) or set(source) != expected:
+        raise ValueError(f"YAM tooling must declare robot outputs for {sorted(expected)}")
+    outputs = {str(name): str(output) for name, output in source.items()}
+    if len(set(outputs.values())) != len(outputs):
+        raise ValueError("YAM setup robot outputs must be unique")
+    for output in outputs.values():
+        if Path(output).name != output or Path(output).suffix.lower() != ".usd":
+            raise ValueError(f"invalid YAM setup robot output: {output!r}")
+    return outputs
 
 
 def _stage_physics_digest(stage) -> str:
@@ -638,13 +658,21 @@ def derive_yam_urdf(source_root: Path, output_root: Path, build_manifest: dict) 
     ]
     if any(not isinstance(name, str) or Path(name).name != name for name in visual_proxy_outputs):
         raise ValueError(f"invalid visual proxy outputs: {visual_proxy_outputs}")
+    setup_asset_outputs = list(_setup_asset_outputs(build_manifest).values())
 
     output_root.mkdir(parents=True, exist_ok=True)
     for relative in ("source", "meshes", "configuration"):
         destination = output_root / relative
         if destination.exists():
             shutil.rmtree(destination)
-    for relative in ("YAM.usd", "config.yaml", ".asset_hash", "manifest.json", *visual_proxy_outputs):
+    for relative in (
+        "YAM.usd",
+        "config.yaml",
+        ".asset_hash",
+        "manifest.json",
+        *setup_asset_outputs,
+        *visual_proxy_outputs,
+    ):
         (output_root / relative).unlink(missing_ok=True)
     source_snapshot = output_root / "source"
     (source_snapshot / "arm").mkdir(parents=True)
@@ -912,6 +940,19 @@ def _convert_to_usd(
         )
         if _stage_physics_digest(completed_stage) != physics_digest_before_appearance:
             raise RuntimeError("saved YAM appearance changed the physics or collision contract")
+        setup_assets = {}
+        for setup_name, setup_output in sorted(_setup_asset_outputs(build_manifest).items()):
+            destination = output_root / setup_output
+            shutil.copy2(output, destination)
+            setup_stage = Usd.Stage.Open(str(destination), load=Usd.Stage.LoadAll)
+            setup_physics = _stage_physics_digest(setup_stage)
+            if setup_physics != physics_digest_before_appearance:
+                raise RuntimeError(f"YAM setup asset {setup_name} changed the shared physics contract")
+            setup_assets[setup_name] = {
+                "output": setup_output,
+                "sha256": sha256(destination),
+                "physics_contract_sha256": setup_physics,
+            }
         for binding in generated_appearance["bindings"]:
             expected_material = f"{default_path}/{appearance['material_scope']}/{binding['material']}"
             for renderable_path in binding["renderable_paths"]:
@@ -938,6 +979,7 @@ def _convert_to_usd(
                 "physics_contract_sha256": physics_digest_before_appearance,
             },
             "visual_proxies": generated_visual_proxies,
+            "setup_assets": setup_assets,
             "validated_visual_paths": validated_visual_paths,
             "removed_empty_visual_prims": removed_empty_visual_prims,
         }

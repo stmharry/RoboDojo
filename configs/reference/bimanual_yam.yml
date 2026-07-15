@@ -144,7 +144,9 @@ camera_contract:
         tip_left: [0.00204980967513032, 0.0014503406143189645, -0.0016415822849309197, -0.4996359255700045, 0.7081368370462536, 0.4989049627914445]
         tip_right: [-0.00204980967513032, 0.0014503406143189645, -0.0016415822849309197, -0.4996359255700045, -0.7081368370462536, -0.4989049627914445]
   camera_housing:
-    asset: Robots/yam/D405_proxy.usd
+    setup_assets:
+      molmoact2: Robots/yam/D405_proxy_molmoact2.usd
+      moonlake_office: Robots/yam/D405_proxy_moonlake_office.usd
     optical_frame: OpticalFrame
     collision: false
     physics: none

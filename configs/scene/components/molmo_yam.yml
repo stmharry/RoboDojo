@@ -1,15 +1,12 @@
-# Reusable cloth-workspace rendering profile. Geometry, transforms, physics,
-# and lighting strength intentionally match default.yml; only deterministic
-# visible room and table appearance differs.
+# Reusable classic-workspace rendering profile. Geometry, transforms, physics,
+# room appearance, and lighting intentionally match default.yml. The explicit
+# tabletop replay override prevents saved white-table metadata from changing
+# the appearance used by the classic MolmoAct2 data.
 Room:
   default: "Simple_Room_nolight"
   default_pos: [0.0, 0.0, 0.0]
   default_ori: [1.0, 0.0, 0.0, 0.0]
   scale: [0.5, 0.5, 0.5]
-  # Override the referenced room's cabinet materials with an off-white wall
-  # appearance while preserving its geometry, transforms, and collisions.
-  visual_color: [0.75, 0.75, 0.72]
-
 Table:
   default: material_0122
   # Evaluation layouts pin a legacy white table material. Override only that

@@ -440,7 +440,7 @@ def test_sweep_preflights_once_and_children_skip_duplicate_gate(monkeypatch, tmp
         policy_dir=tmp_path / "Policy",
         checkpoint="alias",
         policy_env="uv",
-        env_config="bimanual_yam",
+        env_config="bimanual_yam_molmoact2",
         scene_config="molmo_yam",
         run_id="once",
     )

@@ -22,7 +22,7 @@ def _request(tmp_path: Path, *stages: SetupStage) -> SetupRequest:
         task="general_pickup",
         checkpoint="release",
         policy_env="uv",
-        env_config="bimanual_yam",
+        env_config="bimanual_yam_molmoact2",
         scene_config="molmo_yam",
         action_type="joint",
     )

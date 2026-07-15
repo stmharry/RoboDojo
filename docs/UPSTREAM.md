@@ -13,7 +13,7 @@ manifest or an enforced baseline.
   implementations or adapters.
 - Three corrected upstream task instructions were adopted. The upstream
   `fold_clothes` instruction was restored, with the existing two-arm wording
-  retained only for the `bimanual_yam` profile.
+  retained only for the classic `bimanual_yam_molmoact2` setup.
 - Official XPolicyLab `fe71eb5` was an ancestor of the configured local fork
   revision `20b0af3`, which contained 13 additional commits.
 

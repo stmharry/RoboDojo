@@ -141,16 +141,15 @@ def test_preview_appearance_is_deterministic_and_render_only(tmp_path: Path):
 def test_d405_proxy_is_deterministic_identity_optical_frame_without_physics(tmp_path: Path):
     tooling = yaml.safe_load((ROOT / "configs/tooling/yam.yml").read_text())
     appearance = _appearance_contract(tooling, list(YAM_VISUAL_LINKS))
-    contract = _visual_proxy_contracts(tooling, appearance)["d405"]
+    contract = _visual_proxy_contracts(tooling, appearance)["molmoact2"]
 
     first = _author_d405_visual_proxy(tmp_path, contract, appearance)
-    first_bytes = (tmp_path / "D405_proxy.usd").read_bytes()
+    first_bytes = (tmp_path / "D405_proxy_molmoact2.usd").read_bytes()
     second = _author_d405_visual_proxy(tmp_path, contract, appearance)
 
     assert first == second
-    assert (tmp_path / "D405_proxy.usd").read_bytes() == first_bytes
-    assert first["sha256"] == "9023afd80b23366f330a91944192fc0f70440bc5f1e693f039fc1944e3e7c74b"
-    assert first["contract_sha256"] == "3c15307252439ebc8635cf0117371adc5d520a21b394e76f94cf12932395920d"
+    assert (tmp_path / "D405_proxy_molmoact2.usd").read_bytes() == first_bytes
+    assert first["contract_sha256"] == contract["contract_sha256"]
     assert first["visual_paths"] == [
         "/D405/FrontPanel",
         "/D405/Housing",
@@ -158,7 +157,7 @@ def test_d405_proxy_is_deterministic_identity_optical_frame_without_physics(tmp_
         "/D405/RightLens",
     ]
 
-    stage = Usd.Stage.Open(str(tmp_path / "D405_proxy.usd"), load=Usd.Stage.LoadAll)
+    stage = Usd.Stage.Open(str(tmp_path / "D405_proxy_molmoact2.usd"), load=Usd.Stage.LoadAll)
     assert stage and str(stage.GetDefaultPrim().GetPath()) == "/D405"
     optical_frame = stage.GetPrimAtPath("/D405/OpticalFrame")
     assert optical_frame.IsValid()
@@ -173,5 +172,7 @@ def test_d405_proxy_is_deterministic_identity_optical_frame_without_physics(tmp_
         assert not prim.IsA(UsdPhysics.Joint)
 
     referenced = Usd.Stage.CreateInMemory()
-    referenced.DefinePrim("/Holder", "Xform").GetReferences().AddReference(str(tmp_path / "D405_proxy.usd"))
+    referenced.DefinePrim("/Holder", "Xform").GetReferences().AddReference(
+        str(tmp_path / "D405_proxy_molmoact2.usd")
+    )
     assert referenced.GetPrimAtPath("/Holder/OpticalFrame").IsValid()

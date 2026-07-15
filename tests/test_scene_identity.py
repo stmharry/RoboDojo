@@ -9,6 +9,8 @@ from robodojo.core.scene_identity import (
 
 def _identity():
     return {
+        "environment_profile_hash": "e" * 64,
+        "policy_contract": "bimanual_yam",
         "scene_config": "molmo_yam",
         "scene_component": "molmo_yam",
         "scene_profile_hash": "a" * 64,

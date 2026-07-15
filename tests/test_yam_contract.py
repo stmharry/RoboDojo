@@ -8,8 +8,9 @@ from omegaconf import OmegaConf
 import pytest
 import yaml
 
+from robodojo.core.models import PreflightRequest
 from robodojo.core.paths import RepositoryPaths
-from robodojo.core.profiles import load_environment_profile, load_scene_profile
+from robodojo.core.profiles import bind_policy_contract, load_environment_profile, load_scene_profile
 from robodojo.sim.camera_template import YAM_TOP, YAM_WRIST
 from robodojo.sim.environment.camera_manager.mount_registry import (
     apply_optical_roll,
@@ -21,6 +22,7 @@ from robodojo.sim.environment.camera_manager.mount_registry import (
 )
 from robodojo.sim.environment.camera_manager.rig_spec import normalize_camera_rig
 from robodojo.sim.environment.description_manager.desc_manager import DescManager
+from robodojo.sim.general_pickup_contract import STEP_LIMIT, instruction_templates
 from robodojo.sim.utils.pipeline_utils import process_config
 from robodojo.workflows.assets_yam import (
     _appearance_contract,
@@ -33,22 +35,40 @@ from robodojo.workflows.assets_yam import (
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_bimanual_yam_profile_preserves_30hz_component_graph():
-    profile = load_environment_profile(RepositoryPaths.resolve(ROOT), "bimanual_yam")
+def test_named_yam_profiles_inherit_one_30hz_policy_contract():
+    paths = RepositoryPaths.resolve(ROOT)
+    with pytest.raises(ValueError, match="internal contract"):
+        load_environment_profile(paths, "bimanual_yam")
+    profile = load_environment_profile(paths, "bimanual_yam_molmoact2")
     assert profile.document.config.model_dump() == {
         "sim": "real_time_30hz",
-        "robot": "dual_yam",
-        "camera": "bimanual_yam",
+        "robot": "dual_yam_molmoact2",
+        "camera": "bimanual_yam_molmoact2",
     }
+    assert profile.document.extends == "bimanual_yam"
+    assert profile.policy_contract == "bimanual_yam"
     assert profile.document.observation["collect_freq"] == 30
     assert profile.num_envs == 1
 
-    robot_info = yaml.safe_load((ROOT / "configs/robot/_robot_info.json").read_text())["dual_yam"]
-    assert robot_info == {"arm_dim": [6, 6], "ee_dim": [1, 1]}
+    robot_info = yaml.safe_load((ROOT / "configs/robot/_robot_info.json").read_text())
+    expected_dimensions = {"arm_dim": [6, 6], "ee_dim": [1, 1]}
+    assert robot_info["dual_yam"] == expected_dimensions
+    assert robot_info["dual_yam_molmoact2"] == expected_dimensions
+    assert robot_info["dual_yam_moonlake_office"] == expected_dimensions
+
+    request = PreflightRequest(
+        policy_dir=ROOT / "XPolicyLab/policy/MolmoACT2",
+        task="general_pickup",
+        checkpoint="molmoact2_bimanual_yam",
+        policy_env="molmoact2",
+        env_config="bimanual_yam_molmoact2",
+        action_type="joint",
+    )
+    assert bind_policy_contract(paths, request).policy_contract == "bimanual_yam"
 
 
 def test_task_instruction_is_independent_of_environment_and_scene_profiles():
-    profile = load_environment_profile(RepositoryPaths.resolve(ROOT), "bimanual_yam")
+    profile = load_environment_profile(RepositoryPaths.resolve(ROOT), "bimanual_yam_molmoact2")
     layout_manager = SimpleNamespace(get_label_descriptions=lambda **kwargs: [])
 
     class FakeEnv:
@@ -64,6 +84,21 @@ def test_task_instruction_is_independent_of_environment_and_scene_profiles():
     yam_manager = DescManager(num_envs=1, description_cfg={"seen": 1}, desc_type="seen")
     yam_manager.initialize(FakeEnv("fold_clothes", profile.payload))
     assert yam_manager.templates == [["Fold the clothes neatly."]]
+
+
+def test_general_pickup_preserves_public_checkpoint_prompt_contract():
+    assert STEP_LIMIT == 400
+    assert instruction_templates() == ["Put everything into the box."]
+
+    layout_manager = SimpleNamespace(get_label_descriptions=lambda **kwargs: [])
+
+    fake_env = SimpleNamespace(
+        scene_manager=SimpleNamespace(layout_manager=layout_manager),
+        gen_instruction=lambda env_idx: instruction_templates(),
+    )
+    manager = DescManager(num_envs=1, description_cfg={"seen": 1}, desc_type="seen")
+    manager.initialize(fake_env)
+    assert manager.get_one_description() == ["Put everything into the box."]
 
 
 def test_molmo_yam_scene_profile_uses_model_aligned_bundled_layouts():
@@ -82,7 +117,10 @@ def test_molmo_yam_scene_profile_uses_model_aligned_bundled_layouts():
     }
     pickup = json.loads((layout_root / "general_pickup_0.json").read_text())
     assert pickup["Rigid"]["ball"][0]["visual"]["color"] == [0.35, 0.65, 0.08]
-    assert "basket" not in pickup["Geometry"]
+    basket = pickup["Geometry"]["basket"][0]
+    assert basket["category_idx"] == 2
+    assert basket["label"] == "box"
+    assert basket["default_pos"] == [0.0, 0.05, 0.8036]
     fold = json.loads((layout_root / "fold_clothes_0.json").read_text())
     garment = fold["Garment"]["Top_Long"][0]
     assert garment["category_idx"] == 12
@@ -93,7 +131,7 @@ def test_molmo_yam_scene_profile_uses_model_aligned_bundled_layouts():
 
 
 def test_fold_clothes_does_not_replace_yam_profile_components():
-    profile = load_environment_profile(RepositoryPaths.resolve(ROOT), "bimanual_yam")
+    profile = load_environment_profile(RepositoryPaths.resolve(ROOT), "bimanual_yam_molmoact2")
     scene = load_scene_profile(RepositoryPaths.resolve(ROOT), "default")
     payload = profile.payload
     env_cfg = OmegaConf.create(
@@ -108,7 +146,7 @@ def test_fold_clothes_does_not_replace_yam_profile_components():
     )
     processed, eval_num = process_config(env_cfg, "fold_clothes")
     assert [robot.robot_name for robot in processed.robot.robots] == ["yam", "yam"]
-    assert processed.camera.camera_rig.profile_id == "bimanual_yam"
+    assert processed.camera.camera_rig.profile_id == "bimanual_yam_molmoact2"
     assert processed.sim.render_interval == 8
     assert processed.sim.frequency_settings["/app/runLoops/main/rateLimitFrequency"] == 150
     assert processed.sim.device == "cpu"
@@ -117,19 +155,20 @@ def test_fold_clothes_does_not_replace_yam_profile_components():
 
 
 def test_dual_yam_order_pose_and_no_planner_are_explicit():
-    robots = yaml.safe_load((ROOT / "configs/robot/dual_yam.yml").read_text())["robots"]
+    robots = yaml.safe_load((ROOT / "configs/robot/dual_yam_molmoact2.yml").read_text())["robots"]
     assert [robot["default_root_pos"] for robot in robots] == [
         [-0.24, -0.45, 0.765],
         [0.24, -0.45, 0.765],
     ]
     assert all(robot["default_root_rot"] == pytest.approx([0.0, 0.0, 0.0, 1.0]) for robot in robots)
     assert all(robot["robot_name"] == "yam" for robot in robots)
+    assert all(robot["usd_asset"] == "YAM_molmoact2.usd" for robot in robots)
     assert all(robot["coupled"] is False and robot["need_planner"] is False for robot in robots)
 
 
 def test_yam_camera_rig_matches_embodiment_contract_and_runtime_templates():
-    rig = normalize_camera_rig(yaml.safe_load((ROOT / "configs/camera/bimanual_yam.yml").read_text()))
-    assert rig.profile_id == "bimanual_yam"
+    rig = normalize_camera_rig(yaml.safe_load((ROOT / "configs/camera/bimanual_yam_molmoact2.yml").read_text()))
+    assert rig.profile_id == "bimanual_yam_molmoact2"
     assert rig.default_frequency == 30
     assert [camera.observation_key for camera in rig.cameras] == [
         "cam_head",
@@ -156,7 +195,7 @@ def test_yam_camera_rig_matches_embodiment_contract_and_runtime_templates():
         assert wrist.projection["horizontal_fov_deg"] == 87.0
         assert wrist.mount["hardware"] == {
             "enabled": True,
-            "asset": "Robots/yam/D405_proxy.usd",
+            "asset": "Robots/yam/D405_proxy_molmoact2.usd",
             "collision": False,
             "camera_frame": "OpticalFrame",
         }
@@ -257,14 +296,12 @@ def test_yam_tooling_and_embodiment_reference_are_revision_pinned():
         "nominal_dimensions_m": {"width": 0.042, "height": 0.042, "depth": 0.023},
     }
     visual_proxies = _visual_proxy_contracts(tooling, appearance)
-    assert visual_proxies["d405"]["output"] == "D405_proxy.usd"
-    assert visual_proxies["d405"]["default_prim"] == "D405"
-    assert visual_proxies["d405"]["dimensions_m"] == [0.042, 0.042, 0.023]
-    assert visual_proxies["d405"]["materials"] == {"housing": "charcoal", "detail": "charcoal"}
-    assert visual_proxies["d405"]["physical"] is False
-    assert visual_proxies["d405"]["contract_sha256"] == (
-        "9125eb7695aa7561e1dd7fb331ab4867994a79828dc7802922f903c727950511"
-    )
+    assert set(visual_proxies) == {"molmoact2", "moonlake_office"}
+    assert visual_proxies["molmoact2"]["output"] == "D405_proxy_molmoact2.usd"
+    assert visual_proxies["molmoact2"]["materials"] == {"housing": "light_gray", "detail": "charcoal"}
+    assert visual_proxies["moonlake_office"]["output"] == "D405_proxy_moonlake_office.usd"
+    assert visual_proxies["moonlake_office"]["materials"] == {"housing": "charcoal", "detail": "charcoal"}
+    assert all(proxy["physical"] is False for proxy in visual_proxies.values())
     assert "author_nonphysical_d405_visual_proxy" in tooling["asset"]["transformations"]
     assert _fixed_camera_frame_contract(tooling) == [
         {
@@ -372,7 +409,8 @@ def test_derived_yam_urdf_is_normalized_and_collision_complete(tmp_path):
         assert joint.find("limit").get("upper") == "0.0"
     assert (output / "LICENSE-I2RT").read_text() == "MIT fixture\n"
     assert yaml.safe_load((output / "robot_config.yml").read_text())["base_link"] == "base"
-    assert contract["visual_proxies"]["d405"]["output"] == "D405_proxy.usd"
+    assert contract["visual_proxies"]["molmoact2"]["output"] == "D405_proxy_molmoact2.usd"
+    assert contract["visual_proxies"]["moonlake_office"]["output"] == "D405_proxy_moonlake_office.usd"
 
 
 def test_yam_initial_state_and_control_seed_use_maximum_opening():
@@ -445,7 +483,7 @@ def test_sapien_camera_axes_are_converted_before_optical_roll():
 
 
 def test_camera_pose_convention_default_and_validation_are_backward_compatible():
-    config = yaml.safe_load((ROOT / "configs/camera/bimanual_yam.yml").read_text())
+    config = yaml.safe_load((ROOT / "configs/camera/bimanual_yam_molmoact2.yml").read_text())
     mount = config["camera_rig"]["cameras"]["cam_head"]["mount"]
     mount.pop("pose_convention")
     normalized = normalize_camera_rig(config)

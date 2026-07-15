@@ -5,7 +5,7 @@ annotator:
     rgb_capture: {type: rgb, device: cpu}
 
 camera_rig:
-  profile_id: bimanual_yam
+  profile_id: bimanual_yam_moonlake_office
   cameras:
     cam_head:
       role: top
@@ -19,13 +19,16 @@ camera_rig:
         fps: 30
         diagonal_fov_deg: 76.9315478867301
       mount:
-        kind: world
-        position: [-0.037, -0.30, 1.635]
-        orientation: [0.54167522, -0.45451948, 0.45451948, 0.54167522]
-        pose_convention: sapien_robotics
+        kind: scene_fixture
+        target: moonlake_office_fixture
+        frame: Mounts/D435OpticalFrame
+        position: [0.0, 0.0, 0.0]
+        orientation: [1.0, 0.0, 0.0, 0.0]
+        pose_convention: isaac_usd
         optical_roll_deg: 0.0
-        basis: yam_simulation_camera_contract_v1
-      projection:
+        near_clip_m: 0.1
+        basis: moonlake_office_source_a52ae9c
+      projection: &head_projection
         model: pinhole
         backend: native
         cx: 320.0
@@ -58,7 +61,7 @@ camera_rig:
           source: yam_hardware_calibration_v1
         hardware: &wrist_hardware
           enabled: true
-          asset: Robots/yam/D405_proxy_molmoact2.usd
+          asset: Robots/yam/D405_proxy_moonlake_office.usd
           collision: false
           camera_frame: OpticalFrame
       projection: &wrist_projection

@@ -59,6 +59,8 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
             super().__init__(config, app, **kwargs)
             self.eval_cfg = config.eval_cfg
             self.config_name = self.eval_cfg.get("config_name", None)
+            self.environment_profile_hash = self.eval_cfg.get("environment_profile_hash")
+            self.policy_contract = self.eval_cfg.get("policy_contract")
             self.scene_config = self.eval_cfg.get("scene_config")
             self.scene_component = self.eval_cfg.get("scene_component")
             self.scene_profile_hash = self.eval_cfg.get("scene_profile_hash")

@@ -14,6 +14,7 @@ from robodojo.core.gpu import GpuSelectionError, resolve_gpus
 from robodojo.core.models import EvaluationRequest, PolicyServerLaunchRequest, SimulatorLaunchRequest
 from robodojo.core.paths import RepositoryPaths
 from robodojo.core.processes import format_command, free_port, start, terminate_process_group, wait_for_port
+from robodojo.core.profiles import bind_policy_contract
 from robodojo.core.storage import checkpoint_label, s3_uri
 from robodojo.policy.adapter import policy_launch_environment, policy_server_command
 from robodojo.sim.launcher import run_simulator, simulator_command
@@ -62,6 +63,7 @@ def _publish_evaluation(run_id: str) -> int:
 
 def run_evaluation(paths: RepositoryPaths, request: EvaluationRequest, *, preflight: bool = True) -> int:
     """Run the policy adapter and simulator as one deterministic lifecycle."""
+    request = bind_policy_contract(paths, request)
     visual_audit = _env_flag(SCENE_VISUAL_AUDIT_ENV)
     if visual_audit and not request.export_scene_only:
         raise ValueError(f"{SCENE_VISUAL_AUDIT_ENV}=1 is valid only with --export-scene-only")
@@ -150,6 +152,7 @@ def run_evaluation(paths: RepositoryPaths, request: EvaluationRequest, *, prefli
         policy_env=request.policy_env,
         dataset=request.dataset,
         env_config=request.env_config,
+        policy_contract=request.policy_contract,
         action_type=request.action_type,
         seed=request.seed,
         policy_gpu=request.policy_gpu,

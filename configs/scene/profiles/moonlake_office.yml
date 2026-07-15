@@ -5,24 +5,4 @@ layout_source: bundled
 asset_builds: [moonlake_office]
 task_asset_builds:
   pack_item_into_container: [moonlake_packing]
-compatible_environments: [bimanual_yam]
-
-mounts:
-  robots:
-    robot0:
-      position: [-0.24, -0.40, 0.75]
-      orientation: [0.0, 0.0, 0.0, 1.0]
-    robot1:
-      position: [0.24, -0.40, 0.75]
-      orientation: [0.0, 0.0, 0.0, 1.0]
-  cameras:
-    cam_head:
-      kind: scene_fixture
-      target: moonlake_office_fixture
-      frame: Mounts/D435OpticalFrame
-      position: [0.0, 0.0, 0.0]
-      orientation: [1.0, 0.0, 0.0, 0.0]
-      pose_convention: isaac_usd
-      optical_roll_deg: 0.0
-      near_clip_m: 0.1
-      basis: moonlake_office_source_a52ae9c
+compatible_environments: [bimanual_yam_moonlake_office]

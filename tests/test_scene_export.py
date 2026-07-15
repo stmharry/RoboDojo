@@ -27,6 +27,8 @@ def _identity(**overrides) -> ExportIdentity:
         "seed": 0,
         "layout_id": 0,
         "repository_revision": "abc123",
+        "environment_profile_hash": "e" * 64,
+        "policy_contract": "arx_x5",
         "scene_profile_hash": "a" * 64,
         "layout_set_hash": "b" * 64,
         "scene_asset_hash": "c" * 64,

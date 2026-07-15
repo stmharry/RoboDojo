@@ -6,6 +6,8 @@ from collections.abc import Mapping
 from typing import Any
 
 SCENE_IDENTITY_FIELDS = (
+    "environment_profile_hash",
+    "policy_contract",
     "scene_config",
     "scene_component",
     "scene_profile_hash",

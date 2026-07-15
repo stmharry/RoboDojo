@@ -677,7 +677,7 @@ class RobotManager:
         if not isinstance(robots, tuple):
             robots = (robots,)
 
-        scene_cfg = self._get_robot_cfg(robot_name=robot_name)
+        scene_cfg = self._get_robot_cfg(robot_name=robot_name, usd_asset=cfg.get("usd_asset"))
 
         # Default rule:
         # - single robot: use robot.entity_origin_pose
@@ -731,7 +731,7 @@ class RobotManager:
             cfg=cfg,
         )
 
-    def _get_robot_cfg(self, robot_name=None):
+    def _get_robot_cfg(self, robot_name=None, usd_asset=None):
         if robot_name is None:
             raise ValueError("robot_name must be specified")
 
@@ -741,7 +741,7 @@ class RobotManager:
         module_name = ROBOT_CONFIG_REGISTRY[robot_name]
         module = import_module(f".robot_config.{module_name}", package=__package__)
 
-        return module.get_robot_config()
+        return module.get_robot_config(**({"usd_asset": usd_asset} if usd_asset is not None else {}))
 
 
 ROBOT_CLASS_REGISTRY = {

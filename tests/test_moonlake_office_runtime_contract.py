@@ -5,24 +5,18 @@ import pytest
 import yaml
 
 from robodojo.core.paths import RepositoryPaths
-from robodojo.core.profiles import load_scene_profile
+from robodojo.core.profiles import load_environment_profile
 from robodojo.sim.environment.camera_manager.mount_registry import CameraMountRegistry
 from robodojo.sim.environment.camera_manager.rig_spec import normalize_camera_rig
-from robodojo.sim.environment.robot_manager.mount_spec import (
-    apply_robot_mount_override,
-    normalize_robot_mount_overrides,
-)
 
 ROOT = Path(__file__).resolve().parents[1]
 PATHS = RepositoryPaths.resolve(ROOT)
 
 
-def test_scene_camera_override_changes_only_the_head_mount():
-    scene = load_scene_profile(PATHS, "moonlake_office")
-    camera_config = yaml.safe_load((ROOT / "configs/camera/bimanual_yam.yml").read_text(encoding="utf-8"))
-    overrides = scene.document.mounts.model_dump(mode="python", exclude_none=True)["cameras"]
-
-    rig = normalize_camera_rig(camera_config, mount_overrides=overrides)
+def test_moonlake_setup_owns_head_mount_and_dark_wrist_housings():
+    profile = load_environment_profile(PATHS, "bimanual_yam_moonlake_office")
+    camera_config = yaml.safe_load(profile.component_paths["camera"].read_text(encoding="utf-8"))
+    rig = normalize_camera_rig(camera_config)
     cameras = {camera.observation_key: camera.runtime_camera() for camera in rig.cameras}
     assert cameras["cam_head"]["mount_kind"] == "scene_fixture"
     assert cameras["cam_head"]["mount_target"] == "moonlake_office_fixture"
@@ -36,6 +30,7 @@ def test_scene_camera_override_changes_only_the_head_mount():
     assert cameras["cam_right_wrist"].get("near_clip_m") is None
     assert cameras["cam_head"]["stream_resolution"] == [640, 360]
     assert cameras["cam_head"]["fx"] == pytest.approx(462.1386898729645)
+    assert cameras["cam_left_wrist"]["mount_hardware_asset"].endswith("D405_proxy_moonlake_office.usd")
 
     with pytest.raises(ValueError, match="unknown cameras"):
         normalize_camera_rig(
@@ -71,22 +66,13 @@ def test_camera_mount_registry_forwards_the_named_fixture_frame():
     assert calls == [(2, "moonlake_office_fixture", "Mounts/D435OpticalFrame")]
 
 
-def test_robot_mount_override_updates_runtime_pose_without_mutating_config():
-    original = [-0.24, -0.45, 0.765, 0.0, 0.0, 0.0, 1.0]
-    robot = SimpleNamespace(
-        default_root_pos=original[:3],
-        default_root_rot=original[3:],
-        entity_origin_pose=list(original),
-    )
-    scene = load_scene_profile(PATHS, "moonlake_office")
-    override = scene.document.mounts.robots["robot0"].model_dump(mode="python")
+def test_named_setups_own_distinct_robot_roots_and_visual_assets():
+    classic = load_environment_profile(PATHS, "bimanual_yam_molmoact2")
+    office = load_environment_profile(PATHS, "bimanual_yam_moonlake_office")
+    classic_robots = yaml.safe_load(classic.component_paths["robot"].read_text(encoding="utf-8"))["robots"]
+    office_robots = yaml.safe_load(office.component_paths["robot"].read_text(encoding="utf-8"))["robots"]
 
-    pose = apply_robot_mount_override(robot, override)
-
-    assert pose == list(override["position"] + override["orientation"])
-    assert pose == [-0.24, -0.4, 0.75, 0.0, 0.0, 0.0, 1.0]
-    assert robot.entity_origin_pose == pose
-    assert original == [-0.24, -0.45, 0.765, 0.0, 0.0, 0.0, 1.0]
-
-    with pytest.raises(ValueError, match="unknown slots"):
-        normalize_robot_mount_overrides({"robot0": override}, robot_count=0)
+    assert classic_robots[0]["default_root_pos"] == [-0.24, -0.45, 0.765]
+    assert office_robots[0]["default_root_pos"] == [-0.24, -0.40, 0.75]
+    assert {robot["usd_asset"] for robot in classic_robots} == {"YAM_molmoact2.usd"}
+    assert {robot["usd_asset"] for robot in office_robots} == {"YAM_moonlake_office.usd"}

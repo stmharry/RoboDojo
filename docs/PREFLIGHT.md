@@ -97,7 +97,7 @@ uv run --extra sim --locked --no-sync robodojo preflight \
   --task general_pickup \
   --ckpt pi05_yam_molmoact2 \
   --policy-env uv \
-  --env-cfg bimanual_yam \
+  --env-cfg bimanual_yam_molmoact2 \
   --scene molmo_yam \
   --action-type joint \
   --policy-gpu auto \
@@ -111,10 +111,10 @@ run every stage or repeat `--only` to select stages:
 ```bash
 uv run --locked robodojo setup --only root
 uv run --locked robodojo setup --only assets \
-  --task general_pickup --env-cfg bimanual_yam --scene molmo_yam
+  --task general_pickup --env-cfg bimanual_yam_molmoact2 --scene molmo_yam
 uv run --locked robodojo setup --only policy \
   --policy-dir XPolicyLab/policy/Pi_05 --task general_pickup \
-  --ckpt pi05_yam_molmoact2 --policy-env uv --env-cfg bimanual_yam \
+  --ckpt pi05_yam_molmoact2 --policy-env uv --env-cfg bimanual_yam_molmoact2 \
   --action-type joint
 ```
 

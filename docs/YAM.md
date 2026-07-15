@@ -1,16 +1,19 @@
-# Bimanual YAM embodiment
+# Bimanual YAM setup contracts
 
-The `bimanual_yam` environment profile owns the YAM robot, camera rig,
-controllers, reset state, and state/action dimensions. It reuses the
-`fold_clothes` task and compatible saved layouts without selecting a policy or
-a policy-specific workspace.
+`bimanual_yam` is the internal shared policy contract for YAM and is not
+directly selectable. Use `bimanual_yam_molmoact2` for the classic MolmoAct2
+roots, world-mounted top camera, and light-gray D405 housings. Use
+`bimanual_yam_moonlake_office` for the Moonlake roots, fixture-mounted top
+camera, and charcoal D405 housings. Both setups share the same 30 Hz
+observation, 14-value action, controller, max-open reset, and finger-collision
+contract.
 
 The normal setup workflow infers and builds the licensed I2RT-derived runtime
-asset from `ENV_CFG=bimanual_yam` before launching the profile:
+asset from the selected YAM setup before launching the profile:
 
 ```bash
 make setup \
-  TASK=general_pickup ENV_CFG=bimanual_yam SCENE=molmo_yam \
+  TASK=general_pickup ENV_CFG=bimanual_yam_molmoact2 SCENE=molmo_yam \
   POLICY_DIR=XPolicyLab/policy/MolmoACT2 POLICY_ENV=molmoact2 \
   CKPT=molmoact2_bimanual_yam
 ```
@@ -30,7 +33,7 @@ publishes the generated `gripper/wrist_camera_mount` frame; an asset that still
 contains the historical `molmo_link6` prim is stale. The build retains the
 historical reference revision as provenance for the frame transform.
 
-The embodiment contract is 30 Hz RGB plus 14 absolute values ordered as left
+The shared policy contract is 30 Hz RGB plus 14 absolute values ordered as left
 six joints, left normalized gripper, right six joints, and right normalized
 gripper. Camera keys are `cam_head`, `cam_left_wrist`, and
 `cam_right_wrist`. The source, geometry, controller, reset, camera, and final
@@ -49,16 +52,21 @@ shadowed by a downloaded layout with the same name; `default` and `conveyor`
 instead select their downloaded asset layouts explicitly. A scene can be
 composed with any compatible policy and embodiment. Its geometry, fixture
 transforms, physics materials, camera stand, HDR, and intensity match `default`;
-only visible room and tabletop appearance differs.
+the room appearance also remains unchanged.
 
-The referenced room receives an off-white PreviewSurface. Replayed layouts
-retain their geometry and physics but replace the legacy white tabletop
-material with the packaged material-0122 Mahogany MDL. Scene selection never
-changes the robot, camera, task, or policy contract.
+Replayed layouts retain their geometry and physics but replace the legacy white
+tabletop material with the packaged material-0122 Mahogany MDL. This is the
+only scene-level appearance override: keeping the referenced room materials is
+required for the classic MolmoAct2 wrist-camera domain. Scene selection never
+changes the robot setup, camera, task, or policy contract. Moonlake robot roots
+and camera mounts belong to its environment profile, not its scene profile.
 
-For `general_pickup`, `molmo_yam` selects a bundled, training-aligned
-single-ball layout. The task's upstream instruction, lift reward, labels, and
-episode limit remain unchanged.
+For `general_pickup`, `molmo_yam` selects the green ball and white basket layout
+recorded by the successful `2026-07-14_20-19-56` classic rollout, including its
+exact object positions. The policy receives the checkpoint-aligned instruction
+to put everything into the box and 400 policy steps. The benchmark reward
+remains the canonical 10 cm target lift, so a successful placement satisfies it
+before the ball reaches the basket.
 
 The scene's typed `fold_clothes` recipe derives a topology-preserving
 short-sleeve shirt from the downloaded `Top_Long/00009` garment before scene
@@ -87,7 +95,7 @@ uv run --extra sim --locked robodojo eval \
   --task general_pickup \
   --ckpt molmoact2_bimanual_yam \
   --policy-env molmoact2 \
-  --env-cfg bimanual_yam \
+  --env-cfg bimanual_yam_molmoact2 \
   --action-type joint \
   --scene molmo_yam
 ```
@@ -100,7 +108,7 @@ uv run --extra sim --locked robodojo eval \
   --task fold_clothes \
   --ckpt molmoact2_bimanual_yam \
   --policy-env molmoact2 \
-  --env-cfg bimanual_yam \
+  --env-cfg bimanual_yam_molmoact2 \
   --action-type joint \
   --scene molmo_yam
 ```
@@ -116,20 +124,21 @@ uv run --extra sim --locked robodojo eval \
   --task general_pickup \
   --ckpt pi05_yam_molmoact2 \
   --policy-env uv \
-  --env-cfg bimanual_yam \
+  --env-cfg bimanual_yam_molmoact2 \
   --action-type joint \
   --scene molmo_yam
 ```
 
-`pi05_yam_molmoact2` requires `bimanual_yam`, but it does not require the
-`molmo_yam` scene. The latter is the recommended training-matched appearance.
+`pi05_yam_molmoact2` consumes the shared `bimanual_yam` policy contract, but it
+does not require the `molmo_yam` scene. The latter is the recommended
+training-matched appearance.
 
 ## Canonical appearance and hardware calibration
 
-The dark/light YAM skin and generated `D405_proxy.usd` housings are embodiment
-assets. Their historical public image and geometry references remain pinned as
-provenance in `configs/tooling/yam.yml`, but the generated material and prim
-names are hardware-oriented rather than policy-oriented.
+The generated arm aliases and D405 housings are setup-owned render assets.
+`YAM_molmoact2.usd` and `YAM_moonlake_office.usd` have the same physics hash;
+their D405 proxies provide the explicit light-gray and charcoal visual
+domains. Provenance remains pinned in `configs/tooling/yam.yml`.
 
 Both wrist mounts render a D405 housing with collision and physics disabled.
 The `D405` default prim publishes an identity `OpticalFrame` child so a
@@ -157,7 +166,7 @@ ROBODOJO_SCENE_VISUAL_AUDIT=1 uv run --extra sim --locked robodojo eval \
   --task fold_clothes \
   --ckpt molmoact2_bimanual_yam \
   --policy-env uv \
-  --env-cfg bimanual_yam \
+  --env-cfg bimanual_yam_molmoact2 \
   --action-type joint \
   --scene molmo_yam \
   --seed 0 \

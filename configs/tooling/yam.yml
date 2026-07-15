@@ -59,6 +59,9 @@ asset:
   gripper_meshes: i2rt/robot_models/gripper/linear_3507/assets
   derived_urdf: YAM.urdf
   output: YAM.usd
+  setup_outputs:
+    molmoact2: YAM_molmoact2.usd
+    moonlake_office: YAM_moonlake_office.usd
   transformations:
     - normalize_package_mesh_paths
     - source_linear_3507_gripper_meshes
@@ -77,8 +80,17 @@ asset:
       derivation_source: historical_camera_mount_reference
       physical: false
   visual_proxies:
-    d405:
-      output: D405_proxy.usd
+    molmoact2:
+      output: D405_proxy_molmoact2.usd
+      default_prim: D405
+      optical_frame: OpticalFrame
+      provenance_source: realsense_d405
+      dimensions_m: [0.042, 0.042, 0.023]
+      housing_material: light_gray
+      detail_material: charcoal
+      physical: false
+    moonlake_office:
+      output: D405_proxy_moonlake_office.usd
       default_prim: D405
       optical_frame: OpticalFrame
       provenance_source: realsense_d405

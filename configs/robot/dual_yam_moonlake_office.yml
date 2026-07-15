@@ -1,0 +1,33 @@
+robots:
+  - robot_type: arm
+    robot_name: yam
+    usd_asset: YAM_moonlake_office.usd
+    coupled: false
+    need_planner: false
+    enabled_self_collisions: false
+    default_root_pos: [-0.24, -0.40, 0.75]
+    default_root_rot: [0.0, 0.0, 0.0, 1.0]
+    grasp_perfect_direction: top_down_little_right
+    visual_calibration:
+      enabled: true
+      frame: gripper/wrist_camera_mount
+      source: yam_hardware_calibration_v1
+      visuals:
+        tip_left/visuals: [0.0014766420522317357, 0.00025120446006139137, -0.002599312326141951, -0.15068164338723466, 0.4066846516683395, 0.9010564002567725]
+        tip_right/visuals: [-0.0014766420522317357, 0.00025120446006139137, -0.002599312326141951, -0.15068164338723466, -0.4066846516683395, -0.9010564002567725]
+  - robot_type: arm
+    robot_name: yam
+    usd_asset: YAM_moonlake_office.usd
+    coupled: false
+    need_planner: false
+    enabled_self_collisions: false
+    default_root_pos: [0.24, -0.40, 0.75]
+    default_root_rot: [0.0, 0.0, 0.0, 1.0]
+    grasp_perfect_direction: top_down_little_left
+    visual_calibration:
+      enabled: true
+      frame: gripper/wrist_camera_mount
+      source: yam_hardware_calibration_v1
+      visuals:
+        tip_left/visuals: [0.00204980967513032, 0.0014503406143189645, -0.0016415822849309197, -0.4996359255700045, 0.7081368370462536, 0.4989049627914445]
+        tip_right/visuals: [-0.00204980967513032, 0.0014503406143189645, -0.0016415822849309197, -0.4996359255700045, -0.7081368370462536, -0.4989049627914445]

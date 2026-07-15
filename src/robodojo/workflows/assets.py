@@ -55,6 +55,12 @@ def generated_robot_error(name: str) -> str | None:
         output_name = manifest.get("output")
         if output_name and not (root / str(output_name)).is_file():
             return f"generated {name} asset is missing: {root / str(output_name)}"
+    if name == "yam" and "provenance" in manifest:
+        repository = RepositoryPaths.resolve(Path(__file__).resolve().parents[3])
+        expected_manifest_hash = _sha256(repository.yam_manifest)
+        actual_manifest_hash = manifest.get("provenance", {}).get("build_manifest_sha256")
+        if actual_manifest_hash != expected_manifest_hash:
+            return f"generated yam asset is stale: {manifest_path}"
     return None
 
 

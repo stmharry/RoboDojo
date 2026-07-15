@@ -1,4 +1,6 @@
 config_name: bimanual_yam
+selectable: false
+policy_contract: bimanual_yam
 
 config:
   sim: real_time_30hz

@@ -7,7 +7,7 @@ import yaml
 
 from robodojo.core.models import SceneConfigDocument, SimulatorLaunchRequest
 from robodojo.core.paths import RepositoryPaths
-from robodojo.core.profiles import load_scene_profile
+from robodojo.core.profiles import load_environment_profile, load_scene_profile
 from robodojo.sim.launcher import resolve_scene_config
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,21 +31,21 @@ def test_moonlake_office_profile_pins_fixture_and_adapts_molmo_yam_start():
     scene = load_scene_profile(PATHS, "moonlake_office")
     tooling = yaml.safe_load(PATHS.moonlake_office_manifest.read_text(encoding="utf-8"))
 
-    assert scene.document.compatible_environments == ["bimanual_yam"]
+    assert scene.document.compatible_environments == ["bimanual_yam_moonlake_office"]
     assert scene.document.layout_set == "moonlake_office"
-    assert scene.document.mounts.robots == {
-        name: type(scene.document.mounts.robots[name]).model_validate(mount)
-        for name, mount in tooling["embodiment_start"].items()
-        if name.startswith("robot")
+    assert scene.document.mounts.robots == {}
+    environment = load_environment_profile(PATHS, "bimanual_yam_moonlake_office")
+    robots = yaml.safe_load(environment.component_paths["robot"].read_text(encoding="utf-8"))["robots"]
+    assert {f"robot{index}": robot["default_root_pos"] for index, robot in enumerate(robots)} == {
+        name: mount["position"] for name, mount in tooling["embodiment_start"].items() if name.startswith("robot")
     }
     assert tooling["fixture"]["arm_mounts"]["robot0"]["position"] == [-0.2032, -0.32, 0.77]
-    head = scene.document.mounts.cameras["cam_head"]
-    assert head.kind == "scene_fixture"
-    assert head.target == "moonlake_office_fixture"
-    assert head.frame == tooling["fixture"]["top_camera"]["mount_frame"]
-    assert head.position == (0.0, 0.0, 0.0)
-    assert head.orientation == (1.0, 0.0, 0.0, 0.0)
-    assert head.near_clip_m == tooling["fixture"]["top_camera"]["near_clip_m"]
+    camera = yaml.safe_load(environment.component_paths["camera"].read_text(encoding="utf-8"))
+    head = camera["camera_rig"]["cameras"]["cam_head"]["mount"]
+    assert head["kind"] == "scene_fixture"
+    assert head["target"] == "moonlake_office_fixture"
+    assert head["frame"] == tooling["fixture"]["top_camera"]["mount_frame"]
+    assert head["near_clip_m"] == tooling["fixture"]["top_camera"]["near_clip_m"]
 
     component = scene.component
     assert component["Table"]["scale"] == [1.2, 0.7, 0.05]
@@ -56,7 +56,7 @@ def test_moonlake_office_profile_pins_fixture_and_adapts_molmo_yam_start():
 
 
 def test_moonlake_office_is_rejected_for_other_embodiments_before_isaac():
-    assert resolve_scene_config(PATHS, _request("bimanual_yam")) == "moonlake_office"
+    assert resolve_scene_config(PATHS, _request("bimanual_yam_moonlake_office")) == "moonlake_office"
     with pytest.raises(ValueError, match="compatible only with environment profiles"):
         resolve_scene_config(PATHS, _request("arx_x5"))
 
@@ -107,7 +107,7 @@ def test_scene_mount_schema_rejects_invalid_contracts(payload, message):
 
 def test_molmo_yam_retains_its_existing_fallback_mounts():
     scene = load_scene_profile(PATHS, "molmo_yam")
-    assert scene.document.compatible_environments == []
+    assert scene.document.compatible_environments == ["bimanual_yam_molmoact2"]
     assert scene.document.mounts.robots == {}
     assert scene.document.mounts.cameras == {}
 

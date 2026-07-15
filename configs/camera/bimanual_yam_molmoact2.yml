@@ -5,7 +5,7 @@ annotator:
     rgb_capture: {type: rgb, device: cpu}
 
 camera_rig:
-  profile_id: bimanual_yam
+  profile_id: bimanual_yam_molmoact2
   cameras:
     cam_head:
       role: top
@@ -25,7 +25,7 @@ camera_rig:
         pose_convention: sapien_robotics
         optical_roll_deg: 0.0
         basis: yam_simulation_camera_contract_v1
-      projection:
+      projection: &head_projection
         model: pinhole
         backend: native
         cx: 320.0

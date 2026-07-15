@@ -26,7 +26,7 @@ CALIBRATION_SOURCE = "yam_hardware_calibration_v1"
 
 
 def test_mast_pose_records_max_open_alignment():
-    config = yaml.safe_load((ROOT / "configs/camera/bimanual_yam.yml").read_text())
+    config = yaml.safe_load((ROOT / "configs/camera/bimanual_yam_molmoact2.yml").read_text())
     mast = config["camera_rig"]["cameras"]["cam_head"]["mount"]
     assert mast["position"] == [-0.037, -0.30, 1.635]
 
@@ -44,7 +44,7 @@ def test_mast_pose_records_max_open_alignment():
 
 
 def test_cloth_workspace_scene_is_independent_of_the_yam_profile():
-    profile = load_environment_profile(RepositoryPaths.resolve(ROOT), "bimanual_yam")
+    profile = load_environment_profile(RepositoryPaths.resolve(ROOT), "bimanual_yam_molmoact2")
     assert set(profile.component_paths) == {"sim", "robot", "camera"}
     assert profile.matched_replay_manifest is None
 
@@ -53,10 +53,9 @@ def test_cloth_workspace_scene_is_independent_of_the_yam_profile():
     workspace = load_scene_profile(paths, "molmo_yam").component
     comparable = deepcopy(workspace)
     assert comparable["Table"].pop("replay_material_override") == "material_0122"
-    assert comparable["Room"].pop("visual_color") == [0.75, 0.75, 0.72]
     assert comparable == default
     assert workspace["Table"]["default"] == "material_0122"
-    assert min(workspace["Room"]["visual_color"]) >= 0.7
+    assert "visual_color" not in workspace["Room"]
 
     replayed = {
         "default": "write_material",
@@ -72,7 +71,7 @@ def test_cloth_workspace_scene_is_independent_of_the_yam_profile():
 
 
 def test_final_wrist_camera_values_are_embodiment_owned():
-    config = yaml.safe_load((ROOT / "configs/camera/bimanual_yam.yml").read_text())
+    config = yaml.safe_load((ROOT / "configs/camera/bimanual_yam_molmoact2.yml").read_text())
     cameras = config["camera_rig"]["cameras"]
     expected = {
         "cam_left_wrist": {
@@ -124,12 +123,14 @@ def test_final_wrist_camera_values_are_embodiment_owned():
 
 
 def test_d405_proxy_is_wrist_only_and_preserves_normalized_optical_pose():
-    rig = normalize_camera_rig(yaml.safe_load((ROOT / "configs/camera/bimanual_yam.yml").read_text()))
+    rig = normalize_camera_rig(
+        yaml.safe_load((ROOT / "configs/camera/bimanual_yam_molmoact2.yml").read_text())
+    )
     top, left, right = rig.cameras
     assert "hardware" not in top.mount
     for wrist in (left, right):
         runtime = wrist.runtime_camera()
-        assert runtime["mount_hardware_asset"] == "Robots/yam/D405_proxy.usd"
+        assert runtime["mount_hardware_asset"] == "Robots/yam/D405_proxy_molmoact2.usd"
         assert runtime["mount_hardware_collision"] is False
         assert runtime["mount_hardware_camera_frame"] == "OpticalFrame"
         target_orientation = mount_orientation(

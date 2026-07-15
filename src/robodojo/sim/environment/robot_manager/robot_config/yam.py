@@ -5,10 +5,10 @@ import isaaclab.sim as sim_utils
 from robodojo.sim.environment.global_configs import ROBOTS_PATH
 
 
-def get_robot_config():
+def get_robot_config(usd_asset: str = "YAM.usd"):
     return ArticulationCfg(
         spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ROBOTS_PATH}/yam/YAM.usd",
+            usd_path=f"{ROBOTS_PATH}/yam/{usd_asset}",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 disable_gravity=True,
                 max_depenetration_velocity=5.0,
