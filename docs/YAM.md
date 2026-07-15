@@ -85,6 +85,25 @@ uv run --extra sim --locked robodojo eval \
   --scene molmo_yam
 ```
 
+The released PI0.5 fine-tune uses the same embodiment and dataset-frame
+contract. Prepare its pinned checkpoint once, then evaluate it with the scene
+selected independently:
+
+```bash
+bash XPolicyLab/policy/Pi_05/prepare_checkpoint.sh pi05_yam_molmoact2
+uv run --extra sim --locked robodojo eval \
+  --policy-dir XPolicyLab/policy/Pi_05 \
+  --task general_pickup \
+  --ckpt pi05_yam_molmoact2 \
+  --policy-env uv \
+  --env-cfg bimanual_yam \
+  --action-type joint \
+  --scene molmo_yam
+```
+
+`pi05_yam_molmoact2` requires `bimanual_yam`, but it does not require the
+`molmo_yam` scene. The latter is the recommended training-matched appearance.
+
 ## Canonical appearance and hardware calibration
 
 The dark/light YAM skin and generated `D405_proxy.usd` housings are embodiment
