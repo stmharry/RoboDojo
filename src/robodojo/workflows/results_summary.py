@@ -34,6 +34,7 @@ import re
 import statistics
 import sys
 
+from robodojo.core.scene_identity import ArtifactSchemaError, require_current_result_artifact
 from robodojo.core.storage import eval_root, summary_path
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -104,7 +105,6 @@ DIMENSIONS = {
 ALL_TASKS = sorted({task for tasks in DIMENSIONS.values() for task in tasks})
 GENERALIZATION_TASKS = set(DIMENSIONS["Generalization"])
 TOTAL_REQUIRED = len(ALL_TASKS) * len(EXPECTED_SEEDS)  # 42 x 3 = 126
-LEGACY_SCENE_CONFIG = "<unspecified>"
 
 
 def list_subdirs(path):
@@ -117,14 +117,16 @@ def load_completed_result(path):
     try:
         with open(path) as fh:
             data = json.load(fh)
-        return data if int(data.get("eval_time", 0)) >= 1 else None
+        require_current_result_artifact(data, context=f"evaluation result {path}")
+        return data
+    except ArtifactSchemaError:
+        raise
     except (json.JSONDecodeError, OSError, TypeError, ValueError):
         return None
 
 
 def result_scene_config(data):
-    value = data.get("scene_config")
-    return str(value) if value not in (None, "") else LEGACY_SCENE_CONFIG
+    return str(data["scene_config"])
 
 
 def load_entries(data):

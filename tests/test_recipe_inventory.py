@@ -60,14 +60,14 @@ def test_recipe_table_sorts_rows_and_shows_the_complete_mapping():
     assert [rendered.index(name) for name in recipe_names] == sorted(rendered.index(name) for name in recipe_names)
     recipe_line = next(line for line in rendered.splitlines() if LONG_RECIPE in line)
     assert "moonlake_office_general_pickup" in recipe_line
-    assert recipe_line.count("general_pickup") == 4
+    assert recipe_line.count("general_pickup") == 3
 
 
 def test_narrow_recipe_table_folds_without_truncating_recipe_names():
     stream = io.StringIO()
     console = Console(file=stream, width=48, color_system=None, force_terminal=False)
     row = next(row for row in _rows() if row["recipe"] == LONG_RECIPE)
-    isolated_row = {**row, "protocol": "", "task": "", "layout": ""}
+    isolated_row = {**row, "protocol": "", "task": ""}
 
     print_recipe_table([isolated_row], console=console)
 
@@ -84,9 +84,10 @@ def test_plain_and_json_recipe_formats_remain_machine_compatible():
     checked = RUNNER.invoke(app, ["recipes", "--format", "json", "--check", "--root", str(ROOT)])
 
     expected_plain = [
-        "\t".join(row[field] for field in ("recipe", "policy", "environment", "scene", "protocol", "task", "layout"))
+        "\t".join(row[field] for field in ("recipe", "policy", "environment", "scene", "protocol", "task"))
         for row in rows
     ]
+    assert all("layout" not in row for row in rows)
     assert default.exit_code == 0
     assert default.stdout == plain.stdout
     assert plain.exit_code == 0

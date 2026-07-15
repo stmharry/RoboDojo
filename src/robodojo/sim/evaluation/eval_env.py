@@ -70,7 +70,6 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
             self.scene_asset_hash = self.eval_cfg.get("scene_asset_hash")
             self.task_name = self.eval_cfg.get("task_name", None)
             self.protocol_name = self.eval_cfg.get("protocol_name", self.task_name)
-            self.layout_name = self.eval_cfg.get("layout_name", self.task_name)
             self.recipe_name = self.eval_cfg.get("recipe_name")
             self.contract_hash = self.eval_cfg.get("contract_hash")
             self.step_lim = int(self.eval_cfg["episode_horizon"])
@@ -876,6 +875,7 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
                 layout_path = Path(self.seed_manager.seed_info[layout_id]["scene_layout"])
                 detail = {
                     "layout_id": layout_id,
+                    "layout_file": layout_path.name,
                     "layout_sha256": hashlib.sha256(layout_path.read_bytes()).hexdigest(),
                     "success": bool(self.success[env_idx]),
                     "score": episode_score,

@@ -1,67 +1,66 @@
+schema_version: 2
 protocols:
-  align_blocks: {task: align_blocks, layout: align_blocks, episode_horizon: 200, evaluation_episodes: 50}
-  arrange_largest_number: {task: arrange_largest_number, layout: arrange_largest_number, episode_horizon: 1050, evaluation_episodes: 25}
-  arrange_largest_number_random: {task: arrange_largest_number_random, layout: arrange_largest_number_random, episode_horizon: 1050, evaluation_episodes: 25}
-  build_tower: {task: build_tower, layout: build_tower, episode_horizon: 1050, evaluation_episodes: 50}
-  classify_objects: {task: classify_objects, layout: classify_objects, episode_horizon: 1100, evaluation_episodes: 50}
-  classify_objects_by_language: {task: classify_objects_by_language, layout: classify_objects_by_language, episode_horizon: 1100, evaluation_episodes: 50}
-  cover_blocks: {task: cover_blocks, layout: cover_blocks, episode_horizon: 800, evaluation_episodes: 50}
-  deposit_coin: {task: deposit_coin, layout: deposit_coin, episode_horizon: 300, evaluation_episodes: 50}
-  fasten_screws: {task: fasten_screws, layout: fasten_screws, episode_horizon: 1900, evaluation_episodes: 50}
-  fill_egg_holder: {task: fill_egg_holder, layout: fill_egg_holder, episode_horizon: 700, evaluation_episodes: 50}
-  fill_pen_holder: {task: fill_pen_holder, layout: fill_pen_holder, episode_horizon: 1100, evaluation_episodes: 50}
-  fold_clothes: {task: fold_clothes, layout: fold_clothes, episode_horizon: 500, evaluation_episodes: 25}
-  fold_clothes_random: {task: fold_clothes_random, layout: fold_clothes_random, episode_horizon: 500, evaluation_episodes: 25}
-  general_pickup: {task: general_pickup, layout: general_pickup, episode_horizon: 200, evaluation_episodes: 50}
-  hang_mugs: {task: hang_mugs, layout: hang_mugs, episode_horizon: 800, evaluation_episodes: 25}
-  hang_mugs_random: {task: hang_mugs_random, layout: hang_mugs_random, episode_horizon: 800, evaluation_episodes: 25}
-  imitate_sorting_sequence: {task: imitate_sorting_sequence, layout: imitate_sorting_sequence, episode_horizon: 1600, evaluation_episodes: 50}
-  insert_key: {task: insert_key, layout: insert_key, episode_horizon: 300, evaluation_episodes: 50}
-  insert_tubes: {task: insert_tubes, layout: insert_tubes, episode_horizon: 500, evaluation_episodes: 50}
-  make_kong: {task: make_kong, layout: make_kong, episode_horizon: 600, evaluation_episodes: 50}
-  make_toast: {task: make_toast, layout: make_toast, episode_horizon: 1400, evaluation_episodes: 25}
-  make_toast_random: {task: make_toast_random, layout: make_toast_random, episode_horizon: 1400, evaluation_episodes: 25}
-  match_and_pick_from_conveyor: {task: match_and_pick_from_conveyor, layout: match_and_pick_from_conveyor, episode_horizon: 700, evaluation_episodes: 50}
+  align_blocks: {task: align_blocks, episode_horizon: 200, evaluation_episodes: 50}
+  arrange_largest_number: {task: arrange_largest_number, episode_horizon: 1050, evaluation_episodes: 25}
+  arrange_largest_number_random: {task: arrange_largest_number_random, episode_horizon: 1050, evaluation_episodes: 25}
+  build_tower: {task: build_tower, episode_horizon: 1050, evaluation_episodes: 50}
+  classify_objects: {task: classify_objects, episode_horizon: 1100, evaluation_episodes: 50}
+  classify_objects_by_language: {task: classify_objects_by_language, episode_horizon: 1100, evaluation_episodes: 50}
+  cover_blocks: {task: cover_blocks, episode_horizon: 800, evaluation_episodes: 50}
+  deposit_coin: {task: deposit_coin, episode_horizon: 300, evaluation_episodes: 50}
+  fasten_screws: {task: fasten_screws, episode_horizon: 1900, evaluation_episodes: 50}
+  fill_egg_holder: {task: fill_egg_holder, episode_horizon: 700, evaluation_episodes: 50}
+  fill_pen_holder: {task: fill_pen_holder, episode_horizon: 1100, evaluation_episodes: 50}
+  fold_clothes: {task: fold_clothes, episode_horizon: 500, evaluation_episodes: 25}
+  fold_clothes_random: {task: fold_clothes_random, episode_horizon: 500, evaluation_episodes: 25}
+  general_pickup: {task: general_pickup, episode_horizon: 200, evaluation_episodes: 50}
+  hang_mugs: {task: hang_mugs, episode_horizon: 800, evaluation_episodes: 25}
+  hang_mugs_random: {task: hang_mugs_random, episode_horizon: 800, evaluation_episodes: 25}
+  imitate_sorting_sequence: {task: imitate_sorting_sequence, episode_horizon: 1600, evaluation_episodes: 50}
+  insert_key: {task: insert_key, episode_horizon: 300, evaluation_episodes: 50}
+  insert_tubes: {task: insert_tubes, episode_horizon: 500, evaluation_episodes: 50}
+  make_kong: {task: make_kong, episode_horizon: 600, evaluation_episodes: 50}
+  make_toast: {task: make_toast, episode_horizon: 1400, evaluation_episodes: 25}
+  make_toast_random: {task: make_toast_random, episode_horizon: 1400, evaluation_episodes: 25}
+  match_and_pick_from_conveyor: {task: match_and_pick_from_conveyor, episode_horizon: 700, evaluation_episodes: 50}
   moonlake_office_general_pickup:
     task: general_pickup
-    layout: general_pickup
     episode_horizon: 400
     evaluation_episodes: 50
     compatible_scenes: [moonlake_office]
-  organize_table: {task: organize_table, layout: organize_table, episode_horizon: 1000, evaluation_episodes: 50}
+  organize_table: {task: organize_table, episode_horizon: 1000, evaluation_episodes: 50}
   pack_item_into_container:
     task: pack_item_into_container
-    layout: pack_item_into_container
     episode_horizon: 1300
     evaluation_episodes: 6
     compatible_scenes: [moonlake_office]
-  pack_objects_into_box: {task: pack_objects_into_box, layout: pack_objects_into_box, episode_horizon: 1300, evaluation_episodes: 25}
-  pack_objects_into_box_random: {task: pack_objects_into_box_random, layout: pack_objects_into_box_random, episode_horizon: 1300, evaluation_episodes: 25}
-  pick_from_conveyor_by_image: {task: pick_from_conveyor_by_image, layout: pick_from_conveyor_by_image, episode_horizon: 700, evaluation_episodes: 50}
-  play_Xylophone: {task: play_Xylophone, layout: play_Xylophone, episode_horizon: 500, evaluation_episodes: 50}
-  play_stacking_toy: {task: play_stacking_toy, layout: play_stacking_toy, episode_horizon: 1200, evaluation_episodes: 50}
-  play_tic_tac_toe: {task: play_tic_tac_toe, layout: play_tic_tac_toe, episode_horizon: 1100, evaluation_episodes: 50}
-  plug_in_charger: {task: plug_in_charger, layout: plug_in_charger, episode_horizon: 400, evaluation_episodes: 50}
-  pour_balls_into_vase: {task: pour_balls_into_vase, layout: pour_balls_into_vase, episode_horizon: 600, evaluation_episodes: 50}
-  pour_by_language: {task: pour_by_language, layout: pour_by_language, episode_horizon: 800, evaluation_episodes: 50}
-  pour_liquid_into_cup: {task: pour_liquid_into_cup, layout: pour_liquid_into_cup, episode_horizon: 400, evaluation_episodes: 25}
-  pour_liquid_into_cup_random: {task: pour_liquid_into_cup_random, layout: pour_liquid_into_cup_random, episode_horizon: 400, evaluation_episodes: 25}
-  press_by_number: {task: press_by_number, layout: press_by_number, episode_horizon: 700, evaluation_episodes: 50}
-  push_T: {task: push_T, layout: push_T, episode_horizon: 600, evaluation_episodes: 25}
-  push_T_random: {task: push_T_random, layout: push_T_random, episode_horizon: 600, evaluation_episodes: 25}
-  put_bottles_into_dustbin: {task: put_bottles_into_dustbin, layout: put_bottles_into_dustbin, episode_horizon: 700, evaluation_episodes: 50}
-  solve_equation: {task: solve_equation, layout: solve_equation, episode_horizon: 300, evaluation_episodes: 50}
-  sort_nesting_dolls_by_size: {task: sort_nesting_dolls_by_size, layout: sort_nesting_dolls_by_size, episode_horizon: 1050, evaluation_episodes: 25}
-  sort_nesting_dolls_by_size_random: {task: sort_nesting_dolls_by_size_random, layout: sort_nesting_dolls_by_size_random, episode_horizon: 1050, evaluation_episodes: 25}
-  stack_blocks: {task: stack_blocks, layout: stack_blocks, episode_horizon: 550, evaluation_episodes: 25}
-  stack_blocks_by_language: {task: stack_blocks_by_language, layout: stack_blocks_by_language, episode_horizon: 400, evaluation_episodes: 50}
-  stack_blocks_random: {task: stack_blocks_random, layout: stack_blocks_random, episode_horizon: 550, evaluation_episodes: 25}
-  stack_bowls: {task: stack_bowls, layout: stack_bowls, episode_horizon: 800, evaluation_episodes: 25}
-  stack_bowls_random: {task: stack_bowls_random, layout: stack_bowls_random, episode_horizon: 800, evaluation_episodes: 25}
-  store_laptop_and_headphones: {task: store_laptop_and_headphones, layout: store_laptop_and_headphones, episode_horizon: 800, evaluation_episodes: 25}
-  store_laptop_and_headphones_random: {task: store_laptop_and_headphones_random, layout: store_laptop_and_headphones_random, episode_horizon: 800, evaluation_episodes: 25}
-  store_tools_in_toolbox: {task: store_tools_in_toolbox, layout: store_tools_in_toolbox, episode_horizon: 900, evaluation_episodes: 50}
-  swap_T: {task: swap_T, layout: swap_T, episode_horizon: 400, evaluation_episodes: 50}
-  swap_blocks: {task: swap_blocks, layout: swap_blocks, episode_horizon: 700, evaluation_episodes: 50}
-  sweep_blocks: {task: sweep_blocks, layout: sweep_blocks, episode_horizon: 1000, evaluation_episodes: 25}
-  sweep_blocks_random: {task: sweep_blocks_random, layout: sweep_blocks_random, episode_horizon: 1000, evaluation_episodes: 25}
+  pack_objects_into_box: {task: pack_objects_into_box, episode_horizon: 1300, evaluation_episodes: 25}
+  pack_objects_into_box_random: {task: pack_objects_into_box_random, episode_horizon: 1300, evaluation_episodes: 25}
+  pick_from_conveyor_by_image: {task: pick_from_conveyor_by_image, episode_horizon: 700, evaluation_episodes: 50}
+  play_Xylophone: {task: play_Xylophone, episode_horizon: 500, evaluation_episodes: 50}
+  play_stacking_toy: {task: play_stacking_toy, episode_horizon: 1200, evaluation_episodes: 50}
+  play_tic_tac_toe: {task: play_tic_tac_toe, episode_horizon: 1100, evaluation_episodes: 50}
+  plug_in_charger: {task: plug_in_charger, episode_horizon: 400, evaluation_episodes: 50}
+  pour_balls_into_vase: {task: pour_balls_into_vase, episode_horizon: 600, evaluation_episodes: 50}
+  pour_by_language: {task: pour_by_language, episode_horizon: 800, evaluation_episodes: 50}
+  pour_liquid_into_cup: {task: pour_liquid_into_cup, episode_horizon: 400, evaluation_episodes: 25}
+  pour_liquid_into_cup_random: {task: pour_liquid_into_cup_random, episode_horizon: 400, evaluation_episodes: 25}
+  press_by_number: {task: press_by_number, episode_horizon: 700, evaluation_episodes: 50}
+  push_T: {task: push_T, episode_horizon: 600, evaluation_episodes: 25}
+  push_T_random: {task: push_T_random, episode_horizon: 600, evaluation_episodes: 25}
+  put_bottles_into_dustbin: {task: put_bottles_into_dustbin, episode_horizon: 700, evaluation_episodes: 50}
+  solve_equation: {task: solve_equation, episode_horizon: 300, evaluation_episodes: 50}
+  sort_nesting_dolls_by_size: {task: sort_nesting_dolls_by_size, episode_horizon: 1050, evaluation_episodes: 25}
+  sort_nesting_dolls_by_size_random: {task: sort_nesting_dolls_by_size_random, episode_horizon: 1050, evaluation_episodes: 25}
+  stack_blocks: {task: stack_blocks, episode_horizon: 550, evaluation_episodes: 25}
+  stack_blocks_by_language: {task: stack_blocks_by_language, episode_horizon: 400, evaluation_episodes: 50}
+  stack_blocks_random: {task: stack_blocks_random, episode_horizon: 550, evaluation_episodes: 25}
+  stack_bowls: {task: stack_bowls, episode_horizon: 800, evaluation_episodes: 25}
+  stack_bowls_random: {task: stack_bowls_random, episode_horizon: 800, evaluation_episodes: 25}
+  store_laptop_and_headphones: {task: store_laptop_and_headphones, episode_horizon: 800, evaluation_episodes: 25}
+  store_laptop_and_headphones_random: {task: store_laptop_and_headphones_random, episode_horizon: 800, evaluation_episodes: 25}
+  store_tools_in_toolbox: {task: store_tools_in_toolbox, episode_horizon: 900, evaluation_episodes: 50}
+  swap_T: {task: swap_T, episode_horizon: 400, evaluation_episodes: 50}
+  swap_blocks: {task: swap_blocks, episode_horizon: 700, evaluation_episodes: 50}
+  sweep_blocks: {task: sweep_blocks, episode_horizon: 1000, evaluation_episodes: 25}
+  sweep_blocks_random: {task: sweep_blocks_random, episode_horizon: 1000, evaluation_episodes: 25}

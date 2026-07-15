@@ -1,3 +1,4 @@
+schema_version: 2
 recipes:
   molmoact2-bimanual_yam-default-deposit_coin: {policy: molmoact2_bimanual_yam, environment: bimanual_yam_molmoact2, scene: default, protocol: deposit_coin}
   molmoact2-bimanual_yam-default-fasten_screws: {policy: molmoact2_bimanual_yam, environment: bimanual_yam_molmoact2, scene: default, protocol: fasten_screws}

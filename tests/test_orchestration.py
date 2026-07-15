@@ -21,7 +21,6 @@ def _request(policy_dir: Path) -> EvaluationRequest:
         env_config="arx_x5",
         policy_contract="arx_x5",
         protocol="stack_bowls",
-        layout="stack_bowls",
         episode_horizon=800,
         native_eval_num=25,
         scene_config="default",
@@ -141,7 +140,6 @@ def test_split_server_resolves_auto_before_policy_launch(monkeypatch, tmp_path):
         env_config="arx_x5",
         policy_contract="arx_x5",
         protocol="stack_bowls",
-        layout="stack_bowls",
         episode_horizon=800,
         native_eval_num=25,
         scene_config="default",
@@ -196,7 +194,6 @@ def test_simulator_session_never_performs_publication(monkeypatch):
     request = SimulatorLaunchRequest(
         task="stack_bowls",
         protocol_name="stack_bowls",
-        layout="stack_bowls",
         episode_horizon=800,
         native_eval_num=25,
         policy_name="TestPolicy",
@@ -218,7 +215,6 @@ def test_client_reachability_is_owned_by_orchestration(monkeypatch, caplog, dry_
     request = SimulatorLaunchRequest(
         task="stack_bowls",
         protocol_name="stack_bowls",
-        layout="stack_bowls",
         episode_horizon=800,
         native_eval_num=25,
         policy_name="TestPolicy",

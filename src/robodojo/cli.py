@@ -89,7 +89,6 @@ def doctor(
         repository,
         contract["task"],
         contract["protocol"],
-        contract["layout"],
         contract["episode_horizon"],
         contract["native_eval_num"],
         contract["env_config"],
@@ -158,7 +157,7 @@ def recipes(
         for row in rows:
             typer.echo(
                 f"{row['recipe']}\t{row['policy']}\t{row['environment']}\t"
-                f"{row['scene']}\t{row['protocol']}\t{row['task']}\t{row['layout']}"
+                f"{row['scene']}\t{row['protocol']}\t{row['task']}"
             )
     elif format == "table":
         from robodojo.workflows.recipe_inventory import print_recipe_table
@@ -461,7 +460,6 @@ def _client(
         SimulatorLaunchRequest,
         task=contract["task"],
         protocol_name=contract["protocol"],
-        layout=contract["layout"],
         episode_horizon=contract["episode_horizon"],
         native_eval_num=contract["native_eval_num"],
         recipe=contract["recipe"],
@@ -689,7 +687,6 @@ def adapter_client(
     root_dir: Path = typer.Option(..., "--root-dir", "--root_dir"),
     task_name: str = typer.Option(..., "--task-name", "--task_name"),
     task_protocol: str = typer.Option(..., "--task-protocol", "--task_protocol"),
-    layout_name: str = typer.Option(..., "--layout-name", "--layout_name"),
     episode_horizon: int = typer.Option(..., "--episode-horizon", "--episode_horizon"),
     native_eval_num: int = typer.Option(..., "--native-eval-num", "--native_eval_num"),
     scene_config: str = typer.Option(..., "--scene-config", "--scene_config"),
@@ -710,7 +707,6 @@ def adapter_client(
         SimulatorLaunchRequest,
         task=task_name,
         protocol_name=task_protocol,
-        layout=layout_name,
         episode_horizon=episode_horizon,
         native_eval_num=native_eval_num,
         policy_name=policy_name,

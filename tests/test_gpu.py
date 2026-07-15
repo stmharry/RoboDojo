@@ -137,7 +137,6 @@ def test_selection_models_default_to_auto_but_launch_models_require_indices(tmp_
         env_config="arx_x5",
         policy_contract="arx_x5",
         protocol="stack_bowls",
-        layout="stack_bowls",
         episode_horizon=800,
         native_eval_num=25,
         scene_config="default",
@@ -158,7 +157,6 @@ def test_selection_models_default_to_auto_but_launch_models_require_indices(tmp_
         SimulatorLaunchRequest(
             task="stack_bowls",
             protocol_name="stack_bowls",
-            layout="stack_bowls",
             episode_horizon=800,
             native_eval_num=25,
             policy_name="TestPolicy",

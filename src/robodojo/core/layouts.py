@@ -78,7 +78,7 @@ def resolve_layout_set(
 
     layouts = tuple(ResolvedLayout(layout_id, by_id[layout_id]) for layout_id in sorted(by_id))
     digest = hashlib.sha256()
-    digest.update(f"layout-set-v1\0{layout_source}\0{benchmark}\0{layout_set}\0{task}\0{seed}\0".encode())
+    digest.update(f"layout-set-v2\0{layout_source}\0{benchmark}\0{layout_set}\0{task}\0{seed}\0".encode())
     for layout in layouts:
         digest.update(f"{layout.layout_id}\0{layout.path.name}\0".encode())
         digest.update(layout.path.read_bytes())

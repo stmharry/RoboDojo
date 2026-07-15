@@ -589,7 +589,6 @@ def export_scene_snapshot(env, output_dir: str | os.PathLike[str], layout_id: in
     identity = ExportIdentity(
         task=str(env.task_name),
         protocol=str(env.protocol_name),
-        layout=str(env.layout_name),
         episode_horizon=int(env.step_lim),
         native_eval_num=int(env.eval_cfg["native_eval_num"]),
         recipe=env.recipe_name,
@@ -654,7 +653,6 @@ def export_scene_snapshot(env, output_dir: str | os.PathLike[str], layout_id: in
             "snapshot_boundary": "post_reset_pre_rollout",
             "task": env.task_name,
             "protocol": env.protocol_name,
-            "layout_name": env.layout_name,
             "episode_horizon": int(env.step_lim),
             "native_eval_num": int(env.eval_cfg["native_eval_num"]),
             "recipe": env.recipe_name,

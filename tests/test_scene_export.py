@@ -1,3 +1,4 @@
+from dataclasses import fields
 import json
 import os
 from pathlib import Path
@@ -24,7 +25,6 @@ def _identity(**overrides) -> ExportIdentity:
     values = {
         "task": "fold_clothes",
         "protocol": "fold_clothes",
-        "layout": "fold_clothes",
         "episode_horizon": 500,
         "native_eval_num": 25,
         "recipe": "pi05-arx_x5-default-fold_clothes",
@@ -111,7 +111,13 @@ def test_completed_export_requires_exact_identity(tmp_path):
     )
 
 
-def test_completed_export_rejects_incomplete_v4_manifest(tmp_path):
+def test_scene_export_v7_identity_has_no_protocol_layout_selector():
+    assert SCENE_EXPORT_FORMAT_VERSION == 7
+    assert "layout" not in {field.name for field in fields(ExportIdentity)}
+    assert "layout" not in _identity().to_dict()
+
+
+def test_completed_export_rejects_incomplete_v7_manifest(tmp_path):
     identity = _identity()
     for name in ("scene_referenced.usda", "scene_flattened.usdc", "scene_preview.usdz"):
         (tmp_path / name).touch()
@@ -126,7 +132,14 @@ def test_completed_export_rejects_legacy_manifest(tmp_path):
     for name in ("scene_referenced.usda", "scene_flattened.usdc", "scene_preview.usdz"):
         (tmp_path / name).touch()
     (tmp_path / "scene_manifest.json").write_text(
-        json.dumps({"format_version": 1, "complete": True, "identity": identity.to_dict()}),
+        json.dumps(
+            {
+                **_complete_manifest(identity),
+                "format_version": 6,
+                "identity": {**identity.to_dict(), "layout": "fold_clothes"},
+                "layout_name": "fold_clothes",
+            }
+        ),
         encoding="utf-8",
     )
     assert not completed_export_matches(tmp_path, identity)
@@ -240,7 +253,6 @@ def test_scene_visual_audit_rejects_non_scene_only_evaluation(monkeypatch, tmp_p
         env_config="arx_x5",
         policy_contract="arx_x5",
         protocol="fold_clothes",
-        layout="fold_clothes",
         episode_horizon=500,
         native_eval_num=25,
         scene_config="default",

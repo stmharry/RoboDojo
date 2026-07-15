@@ -5,6 +5,7 @@ import pytest
 from typer.testing import CliRunner
 
 from robodojo.cli import app
+from robodojo.core.scene_identity import ARTIFACT_SCHEMA_VERSION, ArtifactSchemaError
 from robodojo.workflows import results_stats, results_summary
 
 RUNNER = CliRunner()
@@ -14,6 +15,7 @@ def _write_result(
     root: Path,
     *,
     task: str,
+    base_task: str | None = None,
     embodiment: str,
     scene: str | None,
     count: int,
@@ -22,16 +24,33 @@ def _write_result(
     seed: int = 0,
     timestamp: str = "2026-07-14_00-00-00",
 ) -> Path:
+    base_task = base_task or task
     run = root / task / policy / embodiment / f"{seed}_ckpt_name=test,action_type=joint" / timestamp
     run.mkdir(parents=True)
     payload = {
+        "artifact_schema_version": ARTIFACT_SCHEMA_VERSION,
+        "task_name": base_task,
+        "protocol_name": task,
+        "episode_horizon": 200,
+        "native_eval_num": count,
+        "scene_config": scene,
+        "layout_config_name": scene,
+        "layout_source": "bundled",
+        "layout_set_hash": "a" * 64,
         "eval_time": count,
         "success_rate": 1.0,
         "score": score,
-        "details": {str(index): {"layout_id": index, "success": score > 0.0, "score": score} for index in range(count)},
+        "details": {
+            str(index): {
+                "layout_id": index,
+                "layout_file": f"{base_task}_{index}.json",
+                "layout_sha256": f"{index:064x}",
+                "success": score > 0.0,
+                "score": score,
+            }
+            for index in range(count)
+        },
     }
-    if scene is not None:
-        payload["scene_config"] = scene
     (run / "_result.json").write_text(json.dumps(payload), encoding="utf-8")
     return run
 
@@ -67,6 +86,7 @@ def test_summary_reports_named_protocols_without_folding_them_into_the_upstream_
     _write_result(
         tmp_path,
         task="moonlake_office_general_pickup",
+        base_task="general_pickup",
         embodiment="bimanual_yam_moonlake_office",
         scene="moonlake_office",
         count=1,
@@ -171,6 +191,32 @@ def test_paired_results_require_the_same_environment_and_scene(tmp_path):
         scene_config="default",
     )
     assert matched["aggregated"] == {"fold_clothes": {"TestPolicy": {"1": 50}}}
+
+
+@pytest.mark.parametrize("loader", [results_summary.load_completed_result, results_stats.load_completed_result])
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        (lambda payload: payload.pop("artifact_schema_version"), "artifact_schema_version mismatch"),
+        (lambda payload: payload.update(artifact_schema_version=1), "artifact_schema_version mismatch"),
+        (lambda payload: payload.update(layout_name="fold_clothes"), "removed layout_name selector"),
+    ],
+)
+def test_result_loaders_strictly_reject_legacy_artifacts(tmp_path, loader, mutation, message):
+    run = _write_result(
+        tmp_path,
+        task="fold_clothes",
+        embodiment="arx_x5",
+        scene="default",
+        count=1,
+    )
+    result_path = run / "_result.json"
+    payload = json.loads(result_path.read_text(encoding="utf-8"))
+    mutation(payload)
+    result_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ArtifactSchemaError, match=message):
+        loader(str(result_path))
 
 
 @pytest.mark.parametrize("command", [["results", "summarize", "--help"], ["results", "stats", "--help"]])

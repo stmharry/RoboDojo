@@ -44,7 +44,6 @@ def _request(scene: str = "explicit_scene") -> SimulatorLaunchRequest:
     return SimulatorLaunchRequest(
         task="special",
         protocol_name="special_protocol",
-        layout="special_layout",
         episode_horizon=400,
         native_eval_num=50,
         policy_name="TestPolicy",
@@ -61,7 +60,9 @@ def test_scene_resolution_uses_only_the_explicit_request(tmp_path):
     command, _ = simulator_command(paths, _request())
     assert command[command.index("--scene_config") + 1] == "explicit_scene"
     assert command[command.index("--protocol_name") + 1] == "special_protocol"
-    assert command[command.index("--layout_name") + 1] == "special_layout"
+    assert command[command.index("--task_name") + 1] == "special"
+    assert "--layout_name" not in command
+    assert "--layout-name" not in command
 
 
 def test_invalid_explicit_scene_fails_before_isaac(tmp_path):

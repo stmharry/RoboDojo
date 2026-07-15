@@ -15,6 +15,7 @@ import yaml
 
 from robodojo.core.contracts import load_protocol_catalog
 from robodojo.core.gpu import GpuSelectionError, resolve_gpus, validate_gpu_assignment
+from robodojo.core.layouts import resolve_layout_set
 from robodojo.core.models import (
     ExperimentRequest,
     PreflightCheck,
@@ -73,7 +74,6 @@ def request_from_evaluation(request: ExperimentRequest, *, task: str | None = No
         recipe=request.recipe,
         contract_hash=request.contract_hash,
         protocol=request.protocol,
-        layout=request.layout,
         episode_horizon=request.episode_horizon,
         native_eval_num=request.native_eval_num,
         scene_config=request.scene_config,
@@ -180,30 +180,19 @@ def _configuration_checks(
 
     try:
         protocol = load_protocol_catalog(paths).protocols[request.protocol]
-        actual = (
-            request.task,
-            request.layout,
-            request.episode_horizon,
-            request.native_eval_num,
-        )
-        expected = (
-            protocol.task,
-            protocol.layout,
-            protocol.episode_horizon,
-            protocol.evaluation_episodes,
-        )
+        actual = (request.task, request.episode_horizon, request.native_eval_num)
+        expected = (protocol.task, protocol.episode_horizon, protocol.evaluation_episodes)
         if actual != expected:
             raise ValueError(f"resolved fields {actual} do not match catalog {expected}")
         if protocol.compatible_scenes and request.scene_config not in protocol.compatible_scenes:
             raise ValueError(f"compatible scenes are {protocol.compatible_scenes}, received {request.scene_config!r}")
-        checks.append(_check("protocol", "PASS", f"{request.protocol} -> task={request.task} layout={request.layout}"))
+        checks.append(_check("protocol", "PASS", f"{request.protocol} -> task={request.task}"))
     except (KeyError, TypeError, ValueError) as exc:
         checks.append(_check("protocol", "FAIL", str(exc), "select a valid recipe or complete manual contract"))
 
     simulator_request = SimulatorLaunchRequest(
         task=request.task,
         protocol_name=request.protocol,
-        layout=request.layout,
         episode_horizon=request.episode_horizon,
         native_eval_num=request.native_eval_num,
         recipe=request.recipe,
@@ -238,47 +227,42 @@ def _layout_check(
             "scene did not resolve",
             "select compatible SCENE and ENV_CFG values",
         )
-    relative = Path(scene.document.layout_set) / str(request.seed)
-    candidates = (
-        assets_root() / "Eval_Layout" / request.dataset / relative,
-        paths.environment_configs / "layout" / relative,
-    )
-    for directory in candidates:
-        matches = sorted(directory.glob(f"{request.layout}_*.json")) if directory.is_dir() else []
-        if not matches:
-            continue
-        failed_path = matches[0]
-        try:
-            task_config = yaml.safe_load((paths.task_configs / f"{request.task}.yml").read_text(encoding="utf-8")) or {}
-            robot_config = (
-                yaml.safe_load(profile.component_paths["robot"].read_text(encoding="utf-8")) or {}
-                if profile is not None
-                else None
+    try:
+        resolved = resolve_layout_set(
+            config_root=paths.environment_configs,
+            assets_root=assets_root(),
+            benchmark=request.dataset,
+            layout_set=scene.document.layout_set,
+            layout_source=scene.document.layout_source,
+            task=request.task,
+            seed=request.seed,
+        )
+        task_config = yaml.safe_load((paths.task_configs / f"{request.task}.yml").read_text(encoding="utf-8")) or {}
+        robot_config = (
+            yaml.safe_load(profile.component_paths["robot"].read_text(encoding="utf-8")) or {}
+            if profile is not None
+            else None
+        )
+        for selected in resolved.layouts:
+            layout = json.loads(selected.path.read_text(encoding="utf-8"))
+            validate_layout_contract(
+                layout,
+                task_config,
+                workspace=profile.document.workspace if profile is not None else None,
+                robot_config=robot_config,
+                context=str(selected.path),
             )
-            for path in matches:
-                failed_path = path
-                layout = json.loads(path.read_text(encoding="utf-8"))
-                validate_layout_contract(
-                    layout,
-                    task_config,
-                    workspace=profile.document.workspace if profile is not None else None,
-                    robot_config=robot_config,
-                    context=str(path),
-                )
-        except (OSError, json.JSONDecodeError, ValueError) as exc:
-            return _check(
-                "layout",
-                "FAIL",
-                f"invalid layout {failed_path}: {exc}",
-                _setup_remediation(request, "assets"),
-            )
-        return _check("layout", "PASS", f"{len(matches)} layout(s) in {directory}")
-    searched = ", ".join(str(path) for path in candidates)
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
+        return _check(
+            "layout",
+            "FAIL",
+            f"invalid task-keyed layout for {request.task}: {exc}",
+            _setup_remediation(request, "assets"),
+        )
     return _check(
         "layout",
-        "FAIL",
-        f"no {request.layout}_*.json layout for seed {request.seed}; searched {searched}",
-        _setup_remediation(request, "assets"),
+        "PASS",
+        f"{len(resolved.layouts)} {resolved.directory} layout(s) keyed by task {request.task}",
     )
 
 

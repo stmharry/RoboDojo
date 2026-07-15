@@ -32,7 +32,6 @@ def _simulator_request(**updates) -> SimulatorLaunchRequest:
     values = {
         "task": "stack_bowls",
         "protocol_name": "stack_bowls",
-        "layout": "stack_bowls",
         "episode_horizon": 800,
         "native_eval_num": 25,
         "policy_name": "TestPolicy",
@@ -361,7 +360,6 @@ def test_removed_openarm_cloth_profile_is_rejected():
     request = _simulator_request(
         task="fold_clothes",
         protocol_name="fold_clothes",
-        layout="fold_clothes",
         env_config="openarm_cloth_folding",
     )
     with pytest.raises(ValueError, match="environment config not found"):
@@ -372,7 +370,6 @@ def test_removed_generic_openarm_profile_is_rejected():
     request = _simulator_request(
         task="fold_clothes",
         protocol_name="fold_clothes",
-        layout="fold_clothes",
         env_config="openarm",
     )
     with pytest.raises(ValueError, match="environment config not found"):
@@ -384,7 +381,6 @@ def test_unmeasured_openarm_profiles_are_release_blocked(profile):
     request = _simulator_request(
         task="fold_clothes",
         protocol_name="fold_clothes",
-        layout="fold_clothes",
         env_config=profile,
     )
     with pytest.raises(ValueError, match="calibration is not release-ready"):
@@ -537,6 +533,9 @@ def test_simulator_command_uses_the_domain_module_path():
     )
     command, environment = simulator_command(RepositoryPaths.resolve(ROOT), request)
     assert command[command.index("-m") + 1] == "robodojo.sim.evaluation.main"
+    assert command[command.index("--task_name") + 1] == "stack_bowls"
+    assert "--layout_name" not in command
+    assert "--layout-name" not in command
     assert command[command.index("--policy_server_url") + 1] == "ws://127.0.0.1:19000"
     assert command[command.index("--device") + 1] == "cuda:0"
     assert command[command.index("--device_id") + 1] == "1"

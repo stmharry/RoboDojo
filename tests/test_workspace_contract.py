@@ -58,6 +58,13 @@ def test_general_pickup_rule_is_derived_from_upstream_task_yaml():
     assert rule.expected_count == 1
 
 
+def test_upstream_disjoint_placement_intervals_remain_explicit():
+    task_config = yaml.safe_load((ROOT / "configs/task/deposit_coin.yml").read_text(encoding="utf-8"))
+    rules = task_placement_rules(task_config)
+
+    assert rules["piggy_bank"].xlim == ((-0.4, -0.3), (0.3, 0.4))
+
+
 def test_general_pickup_scenes_have_no_hidden_container_contracts():
     forbidden_roles = {"box", "container", "item", "scene_bin"}
     for scene_name in ("molmo_yam", "moonlake_office"):

@@ -31,6 +31,7 @@ import os
 import re
 import sys
 
+from robodojo.core.scene_identity import ArtifactSchemaError, require_current_result_artifact
 from robodojo.core.storage import eval_root
 
 logger = logging.getLogger(__name__)
@@ -45,7 +46,6 @@ POLICY_ALIASES = {
 SEED_RE = re.compile(r"^(\d+)_")
 STANDALONE_EPISODES = 50
 PAIRED_HALF_EPISODES = 25
-LEGACY_SCENE_CONFIG = "<unspecified>"
 
 
 def normalize_policy_name(name: str) -> str:
@@ -62,14 +62,16 @@ def load_completed_result(path: str) -> dict | None:
     try:
         with open(path) as stream:
             data = json.load(stream)
-        return data if int(data.get("eval_time", 0)) >= 1 else None
+        require_current_result_artifact(data, context=f"evaluation result {path}")
+        return data
+    except ArtifactSchemaError:
+        raise
     except (json.JSONDecodeError, OSError, TypeError, ValueError):
         return None
 
 
 def result_scene_config(data: dict) -> str:
-    value = data.get("scene_config")
-    return str(value) if value not in (None, "") else LEGACY_SCENE_CONFIG
+    return str(data["scene_config"])
 
 
 def load_scores(data: dict) -> list[float]:

@@ -8,7 +8,34 @@ import sys
 
 import pytest
 
+from robodojo.core.scene_identity import ARTIFACT_SCHEMA_VERSION
 from robodojo.workflows import storage as storage_cli
+
+
+def _result_payload(**overrides):
+    payload = {
+        "artifact_schema_version": ARTIFACT_SCHEMA_VERSION,
+        "task_name": "general_pickup",
+        "protocol_name": "moonlake_office_general_pickup",
+        "episode_horizon": 400,
+        "native_eval_num": 50,
+        "scene_config": "moonlake_office",
+        "layout_config_name": "moonlake_office",
+        "layout_source": "bundled",
+        "layout_set_hash": "a" * 64,
+        "eval_time": 1,
+        "details": {
+            "0": {
+                "layout_id": 0,
+                "layout_file": "general_pickup_0.json",
+                "layout_sha256": "b" * 64,
+                "success": False,
+                "score": 0.0,
+            }
+        },
+    }
+    payload.update(overrides)
+    return payload
 
 
 def test_storage_cli_help_runs_through_typer():
@@ -47,7 +74,7 @@ def test_publish_uses_canonical_destination_and_completion_is_last(monkeypatch, 
     source = tmp_path / "source"
     source.mkdir()
     (source / "video.mp4").write_bytes(b"video")
-    (source / "_result.json").write_text('{"eval_time": 1}\n', encoding="utf-8")
+    (source / "_result.json").write_text(json.dumps(_result_payload()), encoding="utf-8")
     monkeypatch.setenv("ROBODOJO_S3_URI", "s3://bucket/robodojo")
     monkeypatch.setenv("ROBODOJO_STORAGE_ROOT", str(tmp_path / "local"))
     calls = []
@@ -71,6 +98,48 @@ def test_publish_uses_canonical_destination_and_completion_is_last(monkeypatch, 
     assert "*.partial.*" in calls[1]
     assert calls[-2][-2].endswith("/_result.json")
     assert calls[-1][-2].endswith("/_COMPLETE.json")
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        (lambda payload: payload.pop("artifact_schema_version"), "artifact_schema_version mismatch"),
+        (lambda payload: payload.update(artifact_schema_version=1), "artifact_schema_version mismatch"),
+        (lambda payload: payload.update(layout_name="general_pickup"), "removed layout_name selector"),
+        (lambda payload: payload.update(details={}), "incomplete episode details"),
+    ],
+)
+def test_evaluation_publication_strictly_rejects_legacy_or_incomplete_results(
+    monkeypatch,
+    tmp_path,
+    mutation,
+    message,
+):
+    source = tmp_path / "source"
+    source.mkdir()
+    payload = _result_payload()
+    mutation(payload)
+    (source / "_result.json").write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setenv("ROBODOJO_S3_URI", "s3://bucket/robodojo")
+
+    with pytest.raises(SystemExit, match=message):
+        storage_cli.publish(source, "runs/eval_result/RoboDojo/general_pickup/run", dry_run=True)
+
+
+def test_publish_evaluation_run_requires_current_result_before_dry_run(monkeypatch, tmp_path):
+    storage = tmp_path / "storage"
+    run = (
+        storage
+        / "runs/eval_result/RoboDojo/general_pickup/TestPolicy/bimanual_yam"
+        / "0_ckpt_name=test,action_type=joint/legacy-run"
+    )
+    run.mkdir(parents=True)
+    (run / "_result.json").write_text(json.dumps({"eval_time": 1}), encoding="utf-8")
+    monkeypatch.setenv("ROBODOJO_STORAGE_ROOT", str(storage))
+    monkeypatch.setenv("ROBODOJO_S3_URI", "s3://bucket/robodojo")
+
+    with pytest.raises(SystemExit, match="artifact_schema_version mismatch"):
+        storage_cli.publish_evaluation_run("legacy-run", dry_run=True)
 
 
 def test_publish_rejects_completed_destination(monkeypatch, tmp_path):

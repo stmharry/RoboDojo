@@ -14,16 +14,14 @@ import subprocess
 import sys
 import tempfile
 
-from robodojo.core.storage import (
-    eval_work_root,
-    s3_uri,
-    storage_root,
-)
+from robodojo.core.scene_identity import ArtifactSchemaError, require_current_result_artifact
+from robodojo.core.storage import eval_work_root, s3_uri, storage_root
 
 INTERNAL_FILES = {"_MANIFEST.json", "_COMPLETE.json"}
 EXCLUDED_DIRS = {".cache", ".git"}
 EXCLUDED_SUFFIXES = (".lock", ".partial", ".part", ".tmp", ".incomplete")
 CANONICAL_TOP_LEVEL = {"assets", "datasets", "model_weights", "runs"}
+EVALUATION_PREFIX = Path("runs/eval_result/RoboDojo")
 
 
 def _aws(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -127,10 +125,24 @@ def _metadata(source: Path, relative: str) -> tuple[dict, dict]:
     return manifest, complete
 
 
+def _validate_evaluation_source(source: Path, relative: str) -> dict | None:
+    destination = _relative_path(relative)
+    if destination.parts[: len(EVALUATION_PREFIX.parts)] != EVALUATION_PREFIX.parts:
+        return None
+    result_path = source / "_result.json"
+    try:
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+        require_current_result_artifact(result, context=f"evaluation result {result_path}")
+    except (OSError, json.JSONDecodeError, ArtifactSchemaError) as exc:
+        raise SystemExit(str(exc)) from exc
+    return result
+
+
 def publish(source: Path, relative: str, *, replace: bool = False, dry_run: bool = False) -> None:
     source = source.resolve()
     if not source.is_dir():
         raise SystemExit(f"publish source is not a directory: {source}")
+    _validate_evaluation_source(source, relative)
     destination = _destination(relative)
     if dry_run:
         sys.stdout.write(f"publish {source} -> {destination}\n")
@@ -231,11 +243,9 @@ def _find_eval_run(run_id: str) -> Path:
     result_path = matches[0] / "_result.json"
     try:
         result = json.loads(result_path.read_text(encoding="utf-8"))
-        eval_time = int(result.get("eval_time", 0))
+        require_current_result_artifact(result, context=f"evaluation result {result_path}")
     except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
         raise SystemExit(f"evaluation result is invalid: {result_path}: {exc}") from exc
-    if eval_time < 1:
-        raise SystemExit(f"evaluation result is incomplete: {result_path} has eval_time={eval_time}")
     return matches[0]
 
 

@@ -207,7 +207,6 @@ def _asset_context(paths: RepositoryPaths, request: SetupRequest):
     simulator = SimulatorLaunchRequest(
         task=request.task,
         protocol_name=request.protocol,
-        layout=request.layout,
         episode_horizon=request.episode_horizon,
         native_eval_num=request.native_eval_num,
         recipe=request.recipe,
@@ -297,6 +296,16 @@ def _policy_stage(paths: RepositoryPaths, request: SetupRequest) -> SetupStageRe
             "follow the adapter README for legacy setup",
         )
     environment = {**os.environ, "ROBODOJO_ROOT": str(paths.root)}
+    active_environment = environment.pop("VIRTUAL_ENV", None)
+    if active_environment:
+        active_bin = Path(active_environment).expanduser().resolve() / "bin"
+        environment["PATH"] = os.pathsep.join(
+            entry
+            for entry in environment.get("PATH", "").split(os.pathsep)
+            if Path(entry).expanduser().resolve() != active_bin
+        )
+    for name in ("CONDA_DEFAULT_ENV", "CONDA_PREFIX", "PYTHONHOME"):
+        environment.pop(name, None)
     check = policy_hook_command(policy, "check_eval_policy.sh")
     if check is not None:
         ready = subprocess.run(

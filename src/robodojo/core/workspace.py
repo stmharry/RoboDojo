@@ -17,33 +17,48 @@ from robodojo.core.models import WorkspaceFrameContract
 OBJECT_CONFIG_TYPES = ("Rigid", "Dynamic", "Geometry", "Articulation", "Garment", "Fluid")
 POSITION_TOLERANCE = 1e-6
 SUPPORT_SURFACE_TOLERANCE = 0.01
+PlacementBounds = tuple[float, float] | tuple[tuple[float, float], ...]
 
 
 @dataclass(frozen=True)
 class TaskPlacementRule:
     label: str
     relative_plane: str
-    xlim: tuple[float, float] | None
-    ylim: tuple[float, float] | None
+    xlim: PlacementBounds | None
+    ylim: PlacementBounds | None
     expected_count: int | None
 
 
 def _finite_vector(value: Any, *, length: int, field: str, context: str) -> tuple[float, ...]:
     if not isinstance(value, Sequence) or isinstance(value, (str, bytes)) or len(value) != length:
         raise ValueError(f"{context}: {field} must contain {length} finite values")
-    result = tuple(float(component) for component in value)
+    try:
+        result = tuple(float(component) for component in value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{context}: {field} must contain {length} finite values") from exc
     if not all(math.isfinite(component) for component in result):
         raise ValueError(f"{context}: {field} must contain {length} finite values")
     return result
 
 
-def _bounds(value: Any, *, field: str) -> tuple[float, float] | None:
-    if value is None:
-        return None
+def _interval(value: Any, *, field: str) -> tuple[float, float]:
     result = _finite_vector(value, length=2, field=field, context="task configuration")
     if result[0] > result[1]:
         raise ValueError(f"task configuration: {field} minimum must not exceed its maximum")
     return result
+
+
+def _bounds(value: Any, *, field: str) -> PlacementBounds | None:
+    if value is None:
+        return None
+    if (
+        isinstance(value, Sequence)
+        and not isinstance(value, (str, bytes))
+        and value
+        and all(isinstance(item, Sequence) and not isinstance(item, (str, bytes)) for item in value)
+    ):
+        return tuple(_interval(item, field=f"{field} interval {index}") for index, item in enumerate(value))
+    return _interval(value, field=field)
 
 
 def task_placement_rules(task_config: Mapping[str, Any]) -> dict[str, TaskPlacementRule]:

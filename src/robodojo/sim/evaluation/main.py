@@ -14,7 +14,7 @@ from robodojo.core.logging import configure_logging
 from robodojo.core.models import SimulatorLaunchRequest
 from robodojo.core.paths import RepositoryPaths
 from robodojo.core.profiles import load_environment_profile, load_scene_profile
-from robodojo.core.scene_identity import require_matching_scene_identity
+from robodojo.core.scene_identity import ARTIFACT_SCHEMA_VERSION, require_matching_scene_identity
 from robodojo.core.storage import assets_root
 from robodojo.core.workspace import validate_resolved_layout_set
 
@@ -30,7 +30,6 @@ MAX_INPROC_RESTARTS = 3
 parser = argparse.ArgumentParser(allow_abbrev=False)
 parser.add_argument("--task_name", type=str, required=True)
 parser.add_argument("--protocol_name", type=str, required=True)
-parser.add_argument("--layout_name", type=str, required=True)
 parser.add_argument("--episode_horizon", type=int, required=True)
 parser.add_argument("--native_eval_num", type=int, required=True)
 parser.add_argument("--recipe_name", type=str, required=True)
@@ -137,7 +136,6 @@ RESOLVED_SCENE_CONFIG = resolve_scene_config(
     SimulatorLaunchRequest(
         task=args_cli.task_name,
         protocol_name=args_cli.protocol_name,
-        layout=args_cli.layout_name,
         episode_horizon=args_cli.episode_horizon,
         native_eval_num=args_cli.native_eval_num,
         recipe=args_cli.recipe_name,
@@ -158,7 +156,7 @@ RESOLVED_LAYOUT_SET = resolve_layout_set(
     benchmark="RoboDojo",
     layout_set=SCENE_PROFILE.document.layout_set,
     layout_source=SCENE_PROFILE.document.layout_source,
-    task=args_cli.layout_name,
+    task=args_cli.task_name,
     seed=args_cli.seed,
 )
 validate_resolved_layout_set(
@@ -259,8 +257,7 @@ def _load_resume_manifest(eval_cfg, run_id):
         with open(path, encoding="utf-8") as fp:
             data = json.load(fp)
     except Exception as e:
-        logger.warning("[main] failed to load resume manifest at %s: %s; ignoring.", path, e)
-        return None
+        raise ValueError(f"invalid resume manifest at {path}: {e}") from e
     require_matching_scene_identity(eval_cfg, data, context=f"resume manifest at {path}")
     logger.info(
         "[main] resuming from manifest %s (success=%s fail=%s completed=%s abandoned=%s restart_count=%s)",
@@ -380,7 +377,7 @@ def main():
     ]
     eval_cfg["task_name"] = task_name
     eval_cfg["protocol_name"] = args_cli.protocol_name
-    eval_cfg["layout_name"] = args_cli.layout_name
+    eval_cfg["artifact_schema_version"] = ARTIFACT_SCHEMA_VERSION
     eval_cfg["episode_horizon"] = args_cli.episode_horizon
     eval_cfg["native_eval_num"] = args_cli.native_eval_num
     eval_cfg["recipe_name"] = args_cli.recipe_name

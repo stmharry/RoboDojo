@@ -12,7 +12,6 @@ def _manager(layout_source="bundled", expected_hash=None):
         {
             "num_envs": 1,
             "task_name": "general_pickup",
-            "layout_name": "general_pickup",
             "config_name": "bimanual_yam",
             "layout_config_name": "molmo_yam",
             "layout_source": layout_source,
@@ -34,6 +33,11 @@ def test_seed_manager_uses_explicit_bundled_layout(monkeypatch, tmp_path):
 
     assert manager.seed_list == [0]
     assert manager.get_seed_scene_info(0) == {"source": "bundled"}
+
+
+def test_seed_manager_rejects_removed_legacy_layout_selector():
+    with pytest.raises(ValueError, match="layout_name has been removed"):
+        SeedManager({**_manager().config, "layout_name": "different_family"})
 
 
 def test_bundled_layout_ignores_runtime_layout(monkeypatch, tmp_path):

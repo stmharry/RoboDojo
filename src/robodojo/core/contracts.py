@@ -54,7 +54,6 @@ class ResolvedExperimentContract:
             "recipe": self.name,
             "contract_hash": self.identity_hash,
             "protocol": self.protocol_name,
-            "layout": self.protocol.layout,
             "episode_horizon": self.protocol.episode_horizon,
             "native_eval_num": self.protocol.evaluation_episodes,
         }
@@ -86,7 +85,7 @@ def _safe_recipe_name(name: str) -> str:
 
 def _entry_hash(paths: RepositoryPaths, *values: str) -> str:
     digest = hashlib.sha256()
-    digest.update(b"robodojo-experiment-contract-v1\0")
+    digest.update(b"robodojo-experiment-contract-v2\0")
     for path in (
         paths.policy_profiles,
         paths.task_protocols,
@@ -341,7 +340,6 @@ def recipe_rows(paths: RepositoryPaths) -> list[dict[str, str]]:
             "scene": contract.scene.name,
             "protocol": contract.protocol_name,
             "task": contract.protocol.task,
-            "layout": contract.protocol.layout,
         }
         for contract in validate_contract_catalogs(paths)
     ]

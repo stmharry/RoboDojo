@@ -7,6 +7,7 @@ import yaml
 from robodojo.core.contracts import (
     load_policy_catalog,
     load_protocol_catalog,
+    load_recipe_catalog,
     resolve_contract,
     resolve_recipe,
     resolve_selection,
@@ -32,7 +33,6 @@ def test_contract_documents_are_strict_and_typed():
             layout="general_pickup",
             episode_horizon=200,
             evaluation_episodes=50,
-            scene="moonlake_office",
         )
     with pytest.raises(ValidationError, match="Field required"):
         EvaluationRecipeDocument(
@@ -50,12 +50,11 @@ def test_catalogs_cover_every_task_and_match_the_upstream_semantic_lock():
     assert {name for name, protocol in protocols.items() if name == protocol.task} == task_names
 
 
-def test_long_pickup_protocol_reuses_the_upstream_task_and_layout_only():
+def test_long_pickup_protocol_reuses_the_upstream_task_keyed_layout():
     protocols = load_protocol_catalog(PATHS).protocols
     canonical = protocols["general_pickup"]
     long = protocols["moonlake_office_general_pickup"]
     assert canonical.task == long.task == "general_pickup"
-    assert canonical.layout == long.layout == "general_pickup"
     assert canonical.evaluation_episodes == long.evaluation_episodes == 50
     assert canonical.episode_horizon == 200
     assert long.episode_horizon == 400
@@ -69,7 +68,7 @@ def test_long_pickup_protocol_reuses_the_upstream_task_and_layout_only():
         benchmark="RoboDojo",
         layout_set=scene.document.layout_set,
         layout_source=scene.document.layout_source,
-        task=long.layout,
+        task=long.task,
         seed=0,
     )
     assert [layout.path.name for layout in layouts.layouts] == ["general_pickup_0.json"]
@@ -146,7 +145,6 @@ def test_long_recipe_passes_base_task_and_distinct_protocol_to_runtime(recipe_na
     request = SimulatorLaunchRequest(
         task=values["task"],
         protocol_name=values["protocol"],
-        layout=values["layout"],
         episode_horizon=values["episode_horizon"],
         native_eval_num=values["native_eval_num"],
         recipe=values["recipe"],
@@ -161,7 +159,8 @@ def test_long_recipe_passes_base_task_and_distinct_protocol_to_runtime(recipe_na
     command, _ = simulator_command(PATHS, request)
     assert command[command.index("--task_name") + 1] == "general_pickup"
     assert command[command.index("--protocol_name") + 1] == "moonlake_office_general_pickup"
-    assert command[command.index("--layout_name") + 1] == "general_pickup"
+    assert "--layout_name" not in command
+    assert "--layout-name" not in command
     assert command[command.index("--episode_horizon") + 1] == "400"
 
 
@@ -173,6 +172,9 @@ def test_pickup_protocols_have_no_task_specific_scene_assets():
 
 
 def test_policy_profiles_hold_adapter_runtime_checkpoint_and_action_contract():
+    assert load_policy_catalog(PATHS).schema_version == 2
+    assert load_protocol_catalog(PATHS).schema_version == 2
+    assert load_recipe_catalog(PATHS).schema_version == 2
     policies = load_policy_catalog(PATHS).policies
     pi = policies["pi05_bimanual_yam"]
     assert pi.policy_dir == Path("XPolicyLab/policy/Pi_05")

@@ -14,12 +14,13 @@ logger = logging.getLogger(__name__)
 
 class SeedManager:
     def __init__(self, config: Mapping[str, Any]):
+        if "layout_name" in config:
+            raise ValueError("layout_name has been removed; evaluation layouts are keyed by task_name")
         self.config: Mapping[str, Any] = config
         self.num_envs: int = int(self.config["num_envs"])
 
         # config fields used for directory layout
         self.task_name: str = str(self.config["task_name"])
-        self.layout_name: str = str(self.config["layout_name"])
         self.config_name: str = str(self.config["config_name"])
         self.layout_config_name: str = str(self.config.get("layout_config_name", self.config_name))
         self.layout_source: str = str(self.config.get("layout_source", "assets"))
@@ -42,7 +43,7 @@ class SeedManager:
             benchmark=BENCHMARK,
             layout_set=self.layout_config_name,
             layout_source=self.layout_source,
-            task=self.layout_name,
+            task=self.task_name,
             seed=int(self.eval_seed),
         )
         self.layout_set_hash = resolved.identity_hash

@@ -44,9 +44,8 @@ def print_recipe_table(rows: Sequence[Mapping[str, str]], *, console: Console | 
         output.print(_group_heading(policy, environment, scene))
         table = Table(box=box.SIMPLE, expand=True, pad_edge=False, show_edge=False)
         table.add_column("Recipe", ratio=5, overflow="fold")
-        table.add_column("Protocol", ratio=2, overflow="fold")
+        table.add_column("Protocol", min_width=32, overflow="fold", no_wrap=True)
         table.add_column("Base task", ratio=2, overflow="fold")
-        table.add_column("Layout", ratio=2, overflow="fold")
         for row in recipes:
-            table.add_row(row["recipe"], row["protocol"], row["task"], row["layout"])
+            table.add_row(row["recipe"], row["protocol"], row["task"])
         output.print(table)

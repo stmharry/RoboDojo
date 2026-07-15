@@ -108,7 +108,6 @@ def run_evaluation(paths: RepositoryPaths, request: EvaluationRequest, *, prefli
     simulator_request = SimulatorLaunchRequest(
         task=request.task,
         protocol_name=request.protocol,
-        layout=request.layout,
         episode_horizon=request.episode_horizon,
         native_eval_num=request.native_eval_num,
         recipe=request.recipe,

@@ -42,7 +42,6 @@ class PolicyExperimentBase(StrictModel):
     recipe: str | None = None
     contract_hash: str | None = None
     protocol: str | None = None
-    layout: str | None = None
     episode_horizon: Annotated[int, Field(ge=1)] | None = None
     native_eval_num: Annotated[int, Field(ge=1)] | None = None
     seed: NonNegativeInt = 0
@@ -59,7 +58,6 @@ class PolicyExperimentBase(StrictModel):
         "recipe",
         "contract_hash",
         "protocol",
-        "layout",
     )
     @classmethod
     def experiment_value_non_empty(cls, value: str | None) -> str | None:
@@ -103,7 +101,6 @@ class PolicyExperimentRequest(PolicyExperimentBase):
 
 class ExperimentRequest(PolicyExperimentRequest):
     protocol: str
-    layout: str
     episode_horizon: Annotated[int, Field(ge=1)]
     native_eval_num: Annotated[int, Field(ge=1)]
     scene_config: str
@@ -192,7 +189,6 @@ class SetupRequest(PolicyExperimentBase):
                     "policy_contract",
                     "scene_config",
                     "protocol",
-                    "layout",
                     "episode_horizon",
                     "native_eval_num",
                 }
@@ -208,7 +204,6 @@ class SetupRequest(PolicyExperimentBase):
                     "policy_contract",
                     "action_type",
                     "protocol",
-                    "layout",
                     "episode_horizon",
                     "native_eval_num",
                 }
@@ -263,7 +258,6 @@ class PreflightReport(StrictModel):
 class SimulatorLaunchRequest(StrictModel):
     task: str
     protocol_name: str
-    layout: str
     episode_horizon: Annotated[int, Field(ge=1)]
     native_eval_num: Annotated[int, Field(ge=1)]
     recipe: str | None = None
@@ -346,12 +340,11 @@ class TaskProtocolDocument(StrictModel):
     """Named benchmark settings layered over an unchanged task MDP."""
 
     task: str
-    layout: str
     episode_horizon: Annotated[int, Field(ge=1)]
     evaluation_episodes: Annotated[int, Field(ge=1)]
     compatible_scenes: list[str] = Field(default_factory=list)
 
-    @field_validator("task", "layout")
+    @field_validator("task")
     @classmethod
     def safe_protocol_component(cls, value: str) -> str:
         if re.fullmatch(r"[A-Za-z0-9_]+", value) is None:
@@ -386,6 +379,7 @@ class EvaluationRecipeDocument(StrictModel):
 
 
 class PolicyProfileCatalog(StrictModel):
+    schema_version: Literal[2]
     policies: dict[str, PolicyProfileDocument]
 
     @field_validator("policies")
@@ -400,6 +394,7 @@ class PolicyProfileCatalog(StrictModel):
 
 
 class TaskProtocolCatalog(StrictModel):
+    schema_version: Literal[2]
     protocols: dict[str, TaskProtocolDocument]
 
     @field_validator("protocols")
@@ -414,6 +409,7 @@ class TaskProtocolCatalog(StrictModel):
 
 
 class EvaluationRecipeCatalog(StrictModel):
+    schema_version: Literal[2]
     recipes: dict[str, EvaluationRecipeDocument]
 
     @field_validator("recipes")

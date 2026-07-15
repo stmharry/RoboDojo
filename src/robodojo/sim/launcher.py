@@ -92,8 +92,6 @@ def simulator_command(paths: RepositoryPaths, request: SimulatorLaunchRequest) -
         request.task,
         "--protocol_name",
         request.protocol_name,
-        "--layout_name",
-        request.layout,
         "--episode_horizon",
         str(request.episode_horizon),
         "--native_eval_num",

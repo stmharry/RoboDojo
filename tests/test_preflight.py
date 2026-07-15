@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -30,7 +31,6 @@ def _request(tmp_path: Path, **updates) -> PreflightRequest:
         "env_config": "arx_x5",
         "policy_contract": "arx_x5",
         "protocol": "stack_bowls",
-        "layout": "stack_bowls",
         "episode_horizon": 800,
         "native_eval_num": 25,
         "scene_config": "default",
@@ -96,7 +96,6 @@ def test_setup_policy_stage_invokes_eight_argument_hook_and_reports(tmp_path, ou
         policy_contract="arx_x5",
         action_type="joint",
         protocol="stack_bowls",
-        layout="stack_bowls",
         episode_horizon=800,
         native_eval_num=25,
         seed=4,
@@ -121,9 +120,14 @@ def test_setup_policy_stage_resolves_only_the_policy_gpu(monkeypatch, tmp_path):
     policy = tmp_path / "Policy"
     policy.mkdir()
     (policy / "prepare_eval_policy.sh").write_text(
-        '#!/usr/bin/env bash\nprintf "%s\\n" "$*" > hook_args.txt\n',
+        '#!/usr/bin/env bash\nprintf "%s\\n" "$*" > hook_args.txt\n'
+        'printf "%s\\n" "${VIRTUAL_ENV-unset}" > hook_virtual_env.txt\n'
+        'printf "%s\\n" "${PATH}" > hook_path.txt\n',
         encoding="utf-8",
     )
+    inherited_environment = tmp_path / "root-environment"
+    monkeypatch.setenv("VIRTUAL_ENV", str(inherited_environment))
+    monkeypatch.setenv("PATH", f"{inherited_environment / 'bin'}{os.pathsep}{os.environ['PATH']}")
     selections = []
 
     def resolve(**selectors):
@@ -141,7 +145,6 @@ def test_setup_policy_stage_resolves_only_the_policy_gpu(monkeypatch, tmp_path):
         policy_contract="arx_x5",
         action_type="joint",
         protocol="stack_bowls",
-        layout="stack_bowls",
         episode_horizon=800,
         native_eval_num=25,
     )
@@ -151,6 +154,10 @@ def test_setup_policy_stage_resolves_only_the_policy_gpu(monkeypatch, tmp_path):
     assert result.status == "CHANGED"
     assert selections == [{"policy_gpu": "auto"}]
     assert (policy / "hook_args.txt").read_text(encoding="utf-8").split()[6] == "6"
+    assert (policy / "hook_virtual_env.txt").read_text(encoding="utf-8").strip() == "unset"
+    assert str(inherited_environment / "bin") not in (policy / "hook_path.txt").read_text(encoding="utf-8").split(
+        os.pathsep
+    )
 
 
 def test_missing_and_stale_uv_environments_are_actionable(monkeypatch, tmp_path):
@@ -333,16 +340,17 @@ def test_yam_manifest_requires_asset_and_matching_checksums(monkeypatch, tmp_pat
 def test_layout_check_fails_when_selected_task_seed_is_missing(monkeypatch, tmp_path):
     monkeypatch.setattr(preflight, "assets_root", lambda: tmp_path / "assets")
     paths = RepositoryPaths(root=tmp_path)
-    scene = SimpleNamespace(document=SimpleNamespace(layout_set="molmo_yam"))
+    scene = SimpleNamespace(document=SimpleNamespace(layout_set="molmo_yam", layout_source="bundled"))
 
     result = preflight._layout_check(
         paths,
-        _request(tmp_path, task="general_pickup", protocol="general_pickup", layout="general_pickup"),
+        _request(tmp_path, task="general_pickup", protocol="general_pickup"),
         scene,
     )
 
     assert result.status == "FAIL"
-    assert "general_pickup_*.json" in result.detail
+    assert "general_pickup" in result.detail
+    assert "no bundled layouts found for task" in result.detail
     assert result.remediation == "make setup with the same complete manual contract"
     assert "same complete manual contract" in result.remediation
 
@@ -362,7 +370,6 @@ def test_general_pickup_preflight_validates_the_same_role_and_workspace_contract
         ROOT,
         task="general_pickup",
         protocol="general_pickup",
-        layout="general_pickup",
         episode_horizon=200,
         native_eval_num=50,
         env_config=environment,
@@ -373,7 +380,8 @@ def test_general_pickup_preflight_validates_the_same_role_and_workspace_contract
     result = preflight._layout_check(paths, request, scene, profile)
 
     assert result.status == "PASS"
-    assert result.detail.startswith("1 layout(s)")
+    assert result.detail.startswith("1 ")
+    assert f"/{scene.document.layout_set}/0 layout(s) keyed by task general_pickup" in result.detail
 
 
 def test_failed_launch_preflight_stops_before_port_process_and_simulator(monkeypatch, tmp_path):
