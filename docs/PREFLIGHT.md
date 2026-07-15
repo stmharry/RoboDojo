@@ -18,9 +18,10 @@ make eval PUBLISH=false
 ```
 
 The Makefile defaults to the RoboDojo dataset, joint actions, seed 0, policy
-GPU 0, simulator GPU 1, one episode, and publication. Override any default with
-a Make assignment such as `make eval EVAL_NUM=25`; repository `.env` files are
-not loaded.
+GPU 0, simulator GPU 1, one episode, scene export, and publication. Override
+any default with a Make assignment such as `make eval EVAL_NUM=25` or disable
+the export with `make eval EXPORT_SCENE=false`; repository `.env` files are not
+loaded.
 
 `make setup` is the consolidated mutation interface. It validates host tools,
 initializes pinned submodules without overwriting dirty work, synchronizes the

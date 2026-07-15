@@ -24,6 +24,7 @@ ENV_GPU ?= 1
 POLICY_GPU ?= 0
 EVAL_NUM ?= 1
 PUBLISH ?= true
+EXPORT_SCENE ?= true
 DEEP ?= false
 DRY_RUN ?= false
 ONLY ?=
@@ -40,6 +41,7 @@ $(if $(filter true,$(strip $($(1)))),$(2),$(if $(filter false,$(strip $($(1)))),
 endef
 
 PUBLISH_FLAG = $(call boolean_flag,PUBLISH,--publish)
+EXPORT_SCENE_FLAG = $(call boolean_flag,EXPORT_SCENE,--export-scene)
 DEEP_FLAG = $(call boolean_flag,DEEP,--deep)
 DRY_RUN_FLAG = $(call boolean_flag,DRY_RUN,--dry-run)
 SCENE_FLAG = $(if $(strip $(SCENE)),--scene "$(SCENE)")
@@ -86,8 +88,8 @@ help: ## Show the supported local workflow
 		/^[a-zA-Z0-9_.-]+:.*## / {printf "  %-16s %s\n", $$1, $$2}' \
 		"$(SELF)"
 	@printf \
-		'\nConfigured experiment\n  TASK=%s ENV_CFG=%s SCENE=%s SEED=%s EVAL_NUM=%s PUBLISH=%s\n' \
-		"$(TASK)" "$(ENV_CFG)" "$(SCENE)" "$(SEED)" "$(EVAL_NUM)" "$(PUBLISH)"
+		'\nConfigured experiment\n  TASK=%s ENV_CFG=%s SCENE=%s SEED=%s EVAL_NUM=%s PUBLISH=%s EXPORT_SCENE=%s\n' \
+		"$(TASK)" "$(ENV_CFG)" "$(SCENE)" "$(SEED)" "$(EVAL_NUM)" "$(PUBLISH)" "$(EXPORT_SCENE)"
 _config-check:
 	$(call require_experiment)
 	@case "$(SEED):$(ENV_GPU):$(POLICY_GPU):$(EVAL_NUM)" in *[!0-9:]*|::*|:*:|*::*) printf 'SEED, ENV_GPU, POLICY_GPU, and EVAL_NUM must be nonnegative integers.\n' >&2; exit 2;; esac
@@ -100,8 +102,8 @@ setup: _config-check ## Prepare submodules, locked env, assets, policy runtime, 
 preflight: _config-check ## Validate the configured experiment; DEEP=true checks policy readiness
 	$(ROBODOJO_SIM) preflight $(EXPERIMENT_ARGS) $(DEEP_FLAG) $(ARGS)
 
-eval: _config-check ## Evaluate locally and publish when PUBLISH=true
-	$(ROBODOJO_SIM) eval $(EXPERIMENT_ARGS) --eval-num "$(EVAL_NUM)" $(PUBLISH_FLAG) $(DRY_RUN_FLAG) $(ARGS)
+eval: _config-check ## Evaluate locally, export the scene, and optionally publish
+	$(ROBODOJO_SIM) eval $(EXPERIMENT_ARGS) --eval-num "$(EVAL_NUM)" $(EXPORT_SCENE_FLAG) $(PUBLISH_FLAG) $(DRY_RUN_FLAG) $(ARGS)
 
 smoke: _config-check ## Run one local episode for each selected task
 	$(ROBODOJO_SIM) smoke $(SWEEP_ARGS) $(DRY_RUN_FLAG) $(ARGS)

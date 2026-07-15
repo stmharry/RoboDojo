@@ -91,7 +91,7 @@ def test_publish_is_incompatible_with_scene_only_export(tmp_path):
         )
 
 
-def test_make_eval_publishes_by_default_and_allows_local_override():
+def test_make_eval_defaults_to_publish_and_scene_export_with_overrides():
     common = [
         "make",
         "-n",
@@ -110,8 +110,22 @@ def test_make_eval_publishes_by_default_and_allows_local_override():
         capture_output=True,
         text=True,
     )
-    invalid = subprocess.run(
+    without_scene_export = subprocess.run(
+        [*common, "EXPORT_SCENE=false"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    invalid_publish = subprocess.run(
         [*common, "PUBLISH=maybe"],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    invalid_scene_export = subprocess.run(
+        [*common, "EXPORT_SCENE=maybe"],
         cwd=ROOT,
         check=False,
         capture_output=True,
@@ -119,6 +133,7 @@ def test_make_eval_publishes_by_default_and_allows_local_override():
     )
 
     assert "--publish" in default.stdout
+    assert "--export-scene" in default.stdout
     assert '--dataset "RoboDojo"' in default.stdout
     assert '--action-type "joint"' in default.stdout
     assert '--seed "0"' in default.stdout
@@ -126,8 +141,11 @@ def test_make_eval_publishes_by_default_and_allows_local_override():
     assert '--env-gpu "1"' in default.stdout
     assert '--eval-num "1"' in default.stdout
     assert "--publish" not in local_only.stdout
-    assert invalid.returncode != 0
-    assert "PUBLISH must be true or false" in invalid.stderr
+    assert "--export-scene" not in without_scene_export.stdout
+    assert invalid_publish.returncode != 0
+    assert "PUBLISH must be true or false" in invalid_publish.stderr
+    assert invalid_scene_export.returncode != 0
+    assert "EXPORT_SCENE must be true or false" in invalid_scene_export.stderr
 
 
 def test_make_setup_and_preflight_forward_experiment_contract():
@@ -199,9 +217,11 @@ def test_make_dry_run_toggle_and_local_sweeps():
 
     assert "--dry-run" in rendered["eval"]
     assert "--publish" in rendered["eval"]
+    assert "--export-scene" in rendered["eval"]
     for target in ("smoke", "benchmark"):
         assert "--dry-run" in rendered[target]
         assert "--publish" not in rendered[target]
+        assert "--export-scene" not in rendered[target]
 
 
 def test_make_ignores_dotenv_and_requires_experiment_selection(tmp_path):

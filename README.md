@@ -85,7 +85,7 @@ make eval
 Experiment selection comes from Make arguments or exported process variables;
 repository `.env` files are not loaded. Make supplies stable defaults for the
 RoboDojo dataset, joint actions, seed 0, policy GPU 0, simulator GPU 1, one
-evaluation episode, and publication. `make setup` initializes pinned
+evaluation episode, scene export, and publication. `make setup` initializes pinned
 submodules, synchronizes the locked simulator environment, prepares inferred
 assets, and invokes the optional policy preparation hook. It is idempotent and
 preserves valid assets, environments, and checkpoints. Inspect the deliberately
@@ -130,8 +130,9 @@ path, or policy-specific Conda environment.
 Large assets, datasets, model weights, and runs live below one writable local
 root, `.robodojo/` by default. S3 is an optional explicit publication and
 restore target; it is never mounted by the application. Direct CLI evaluations
-publish only with `robodojo eval --publish`, while `make eval` opts in by
-default and accepts `PUBLISH=false` for a local-only run. See
+export only with `robodojo eval --export-scene` and publish only with
+`robodojo eval --publish`, while `make eval` opts in to both by default. Use
+`EXPORT_SCENE=false` to skip export or `PUBLISH=false` for a local-only run. See
 [Local storage and S3 publication](docs/STORAGE.md) for the contract.
 
 ## 🔌 Policy Integration
