@@ -12,36 +12,23 @@ Human-facing usage documentation lives at
 
 ## Upstream Compatibility
 
-Keep shared contract boundaries as close as practical to the official
+Keep this fork easy to evolve alongside the official
 [RoboDojo](https://github.com/RoboDojo-Benchmark/RoboDojo) and
-[XPolicyLab](https://github.com/XPolicyLab/XPolicyLab) repositories. Those
-upstreams are the reference for repository layout, configuration keys and
-semantics, launcher arguments, process flow, transport behavior, and
-observation/action wire formats.
+[XPolicyLab](https://github.com/XPolicyLab/XPolicyLab) repositories. Treat them
+as design references and sources of useful tasks, scenes, and framework ideas,
+not as exact file, configuration, or API contracts.
 
-Before changing a shared boundary, inspect the corresponding implementation in
-both upstream repositories. Prefer additive, backward-compatible extensions
-over replacements or local reinterpretations. In particular:
-
-- Preserve upstream names, paths, argument order, configuration meanings,
-  WebSocket behavior, and observation/action shapes when practical.
-- Keep fork-specific behavior in narrow RoboDojo adapters such as the typed CLI
-  orchestration or `scripts/eval_policy.sh`; do not push local requirements
-  into XPolicyLab policy adapters or RoboDojo task/environment interfaces.
-- If divergence is unavoidable, document the upstream-to-local mapping at the
-  adapter and cover both the upstream-compatible path and the extension with
-  tests.
-- Treat the ability to rebase, cherry-pick, or port future upstream changes
-  without broad rewrites as an architectural acceptance criterion.
-
-Use `make upstream-check` for the repeatable compatibility audit. It compares
-official heads with `upstream_sync.yml`, maps changed paths into this layout,
-and checks local parity at the reviewed revisions. Advance a reviewed commit
-only in the same change that ports or explicitly classifies every reported
-upstream change; the command does not copy, merge, or rewrite source files.
+Use LLM-assisted review of upstream diffs to identify material changes worth
+adapting. Preserve interoperability where this repository actually crosses an
+upstream boundary, especially policy launching, WebSocket transport, and
+observation/action data consumed across repositories. Local names, paths,
+configuration organization, APIs, and implementations may differ when that
+better serves this fork. Keep cross-repository assumptions narrow and make the
+mapping clear enough that future tasks and scenes can be ported without broad
+rewrites. See `docs/UPSTREAM.md` for the latest review snapshot.
 
 The configured `XPolicyLab` submodule may point to a working fork. The official
-XPolicyLab repository remains the contract reference. Update the gitlink pin
+XPolicyLab repository remains an integration reference. Update the gitlink pin
 intentionally, and do not edit submodule contents as part of RoboDojo-owned
 changes unless the task explicitly includes coordinated XPolicyLab work.
 
@@ -73,9 +60,9 @@ servers, and `XPolicyLab/policy/<POLICY>/setup_eval_*` scripts.
 
 The official upstream paths `env_cfg/<profile>.yml` and
 `task/RoboDojo/config/<task>.yml` map to the fork-owned canonical paths
-`configs/environment/<profile>.yml` and `configs/task/<task>.yml`. This is a
-layout-only adapter divergence: configuration names, schemas, and launcher
-arguments stay upstream-compatible.
+`configs/environment/<profile>.yml` and `configs/task/<task>.yml`. Keep this
+relationship understandable for future ports, while allowing the local schemas
+and supporting APIs to evolve independently.
 
 New code imports through the `robodojo.*` namespace. Core and policy code must
 not import `robodojo.sim` or simulator dependencies. Orchestration may import

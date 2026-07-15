@@ -24,8 +24,9 @@ runner = CliRunner()
 def test_cli_exposes_the_unified_command_surface():
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    for command in ("eval", "server", "client", "smoke", "storage", "assets", "data", "docker", "upstream"):
+    for command in ("eval", "server", "client", "smoke", "storage", "assets", "data", "docker"):
         assert command in result.stdout
+    assert "upstream" not in result.stdout
 
 
 def test_every_public_command_and_parameter_has_human_readable_help():

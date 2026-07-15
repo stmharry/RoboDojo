@@ -24,17 +24,6 @@ class DataFormat(StrEnum):
     REAL = "real"
 
 
-class UpstreamProject(StrEnum):
-    ALL = "all"
-    ROBODOJO = "robodojo"
-    XPOLICYLAB = "xpolicylab"
-
-
-class UpstreamOutputFormat(StrEnum):
-    PLAIN = "plain"
-    JSON = "json"
-
-
 class EvaluationRequest(StrictModel):
     policy_dir: Path
     task: str

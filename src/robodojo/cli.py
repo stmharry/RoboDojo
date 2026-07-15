@@ -17,8 +17,6 @@ from robodojo.core.models import (
     PolicyServerLaunchRequest,
     SimulatorLaunchRequest,
     SweepRequest,
-    UpstreamOutputFormat,
-    UpstreamProject,
 )
 from robodojo.core.paths import RepositoryPaths
 
@@ -28,13 +26,11 @@ data_app = typer.Typer(no_args_is_help=True, help="Download benchmark datasets."
 storage_app = typer.Typer(no_args_is_help=True, help="Manage durable RoboDojo storage.")
 results_app = typer.Typer(no_args_is_help=True, help="Analyze evaluation results.")
 docker_app = typer.Typer(no_args_is_help=True, help="Build and validate RoboDojo containers.")
-upstream_app = typer.Typer(no_args_is_help=True, help="Review official upstream changes and local parity.")
 app.add_typer(assets_app, name="assets")
 app.add_typer(data_app, name="data")
 app.add_typer(storage_app, name="storage")
 app.add_typer(results_app, name="results")
 app.add_typer(docker_app, name="docker")
-app.add_typer(upstream_app, name="upstream")
 
 
 @app.callback()
@@ -168,43 +164,6 @@ def tasks(
         raise typer.BadParameter("expected plain, json, or markdown", param_hint="--format")
     if check and any(not record["runnable"] for record in inventory["tasks"]):
         raise typer.Exit(1)
-
-
-@upstream_app.command("check")
-def upstream_check(
-    project: UpstreamProject = typer.Option(
-        UpstreamProject.ALL,
-        "--project",
-        help="Official project to inspect: all, robodojo, or xpolicylab.",
-    ),
-    format: UpstreamOutputFormat = typer.Option(
-        UpstreamOutputFormat.PLAIN,
-        "--format",
-        help="Report format: plain or json.",
-    ),
-    ref: str | None = typer.Option(
-        None,
-        "--ref",
-        help="Override the manifest branch or ref for the selected project(s).",
-    ),
-    source: Path | None = typer.Option(
-        None,
-        "--source",
-        help="Inspect one local upstream checkout instead of fetching its official repository.",
-    ),
-    root: Path | None = typer.Option(
-        None,
-        "--root",
-        help="RoboDojo checkout whose manifest and mapped files should be validated.",
-    ),
-) -> None:
-    """Detect official changes and verify mapped local compatibility contracts."""
-    from robodojo.workflows.upstream import check_upstreams, format_upstream_report, json_upstream_report
-
-    report, code = check_upstreams(_paths(root), project=project, ref=ref, source=source)
-    rendered = json_upstream_report(report) if format == UpstreamOutputFormat.JSON else format_upstream_report(report)
-    typer.echo(rendered)
-    raise typer.Exit(code)
 
 
 def _evaluation_request(

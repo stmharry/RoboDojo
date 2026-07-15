@@ -105,19 +105,12 @@ default and accepts `PUBLISH=false` for a local-only run. See
 
 ## 🔌 Policy Integration
 
-This fork keeps its shared boundaries aligned as closely as practical with the
-official [RoboDojo](https://github.com/RoboDojo-Benchmark/RoboDojo) and
-[XPolicyLab](https://github.com/XPolicyLab/XPolicyLab) repositories so future
-upstream developments can be integrated without broad rewrites. Extensions
-should be additive and backward compatible; fork-specific behavior belongs in
-narrow local adapters rather than in redefined policy, configuration,
-observation, or action contracts.
-
-Run `make upstream-check` to compare both official repositories with the last
-reviewed revisions and validate the mapped local task, configuration, API, and
-submodule contracts. The command is intentionally read-only; see
-[Adopting official upstream changes](docs/UPSTREAM.md) for the review and
-baseline-advancement workflow.
+This fork uses the official [RoboDojo](https://github.com/RoboDojo-Benchmark/RoboDojo)
+and [XPolicyLab](https://github.com/XPolicyLab/XPolicyLab) repositories as
+design references rather than exact mirrors. Cross-repository policy launch,
+transport, and observation/action boundaries remain interoperable where needed,
+while local layout and APIs may evolve independently. See the concise
+[upstream review notes](docs/UPSTREAM.md) for the latest LLM-assisted audit.
 
 Policies live in [XPolicyLab](https://github.com/XPolicyLab/XPolicyLab/blob/main/README.md), which owns policy structure, dependencies, checkpoint layout, and server behavior. RoboDojo only assumes a policy directory provides:
 
