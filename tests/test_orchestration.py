@@ -18,6 +18,13 @@ def _request(policy_dir: Path) -> EvaluationRequest:
         task="stack_bowls",
         checkpoint="test-checkpoint",
         policy_env="test-policy-env",
+        env_config="arx_x5",
+        policy_contract="arx_x5",
+        protocol="stack_bowls",
+        layout="stack_bowls",
+        episode_horizon=800,
+        native_eval_num=25,
+        scene_config="default",
         policy_gpu=0,
         env_gpu=1,
     )
@@ -131,6 +138,13 @@ def test_split_server_resolves_auto_before_policy_launch(monkeypatch, tmp_path):
         task="stack_bowls",
         checkpoint="test-checkpoint",
         policy_env="test-policy-env",
+        env_config="arx_x5",
+        policy_contract="arx_x5",
+        protocol="stack_bowls",
+        layout="stack_bowls",
+        episode_horizon=800,
+        native_eval_num=25,
+        scene_config="default",
         dry_run=True,
     )
 
@@ -181,8 +195,13 @@ def test_publish_dry_run_skips_s3_prerequisites(monkeypatch, tmp_path, capsys):
 def test_simulator_session_never_performs_publication(monkeypatch):
     request = SimulatorLaunchRequest(
         task="stack_bowls",
+        protocol_name="stack_bowls",
+        layout="stack_bowls",
+        episode_horizon=800,
+        native_eval_num=25,
         policy_name="TestPolicy",
         port=19000,
+        scene_config="default",
         additional_info="test",
     )
     monkeypatch.setattr(evaluation, "run_simulator", lambda paths, request, environment: 0)
@@ -198,9 +217,14 @@ def test_simulator_session_never_performs_publication(monkeypatch):
 def test_client_reachability_is_owned_by_orchestration(monkeypatch, caplog, dry_run):
     request = SimulatorLaunchRequest(
         task="stack_bowls",
+        protocol_name="stack_bowls",
+        layout="stack_bowls",
+        episode_horizon=800,
+        native_eval_num=25,
         policy_name="TestPolicy",
         host="policy.example",
         port=19000,
+        scene_config="default",
         additional_info="test",
         dry_run=dry_run,
     )

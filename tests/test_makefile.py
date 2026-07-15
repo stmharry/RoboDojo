@@ -1,529 +1,124 @@
-from __future__ import annotations
-
-import os
 from pathlib import Path
-import shutil
 import subprocess
 
-ROOT = Path(__file__).resolve().parents[1]
-MAKE_VARIABLES = (
-    "PRESET",
-    "POLICY_DIR",
-    "POLICY_ENV",
-    "CKPT",
-    "ENV_CFG",
-    "SCENE",
-    "TASK",
-    "DATASET",
-    "ACTION_TYPE",
-    "SEED",
-    "ENV_GPU",
-    "POLICY_GPU",
-    "EVAL_NUM",
-    "VERBOSITY",
-    "PUBLISH",
-    "EXPORT_SCENE",
-    "DEEP",
-    "DRY_RUN",
-    "ONLY",
-    "ARGS",
-)
-MACHINE_VARIABLES = ("ROBODOJO_STORAGE_ROOT", "ROBODOJO_S3_URI", "AWS_PROFILE")
+import yaml
 
-PRESETS = (
-    (
-        "molmoact2-bimanual_yam-default-deposit_coin",
-        "XPolicyLab/policy/MolmoACT2",
-        "molmoact2",
-        "molmoact2_bimanual_yam",
-        "bimanual_yam_molmoact2",
-        "default",
-        "deposit_coin",
-    ),
-    (
-        "molmoact2-bimanual_yam-default-fasten_screws",
-        "XPolicyLab/policy/MolmoACT2",
-        "molmoact2",
-        "molmoact2_bimanual_yam",
-        "bimanual_yam_molmoact2",
-        "default",
-        "fasten_screws",
-    ),
-    (
-        "molmoact2-bimanual_yam-default-fold_clothes",
-        "XPolicyLab/policy/MolmoACT2",
-        "molmoact2",
-        "molmoact2_bimanual_yam",
-        "bimanual_yam_molmoact2",
-        "default",
-        "fold_clothes",
-    ),
-    (
-        "molmoact2-bimanual_yam-default-general_pickup",
-        "XPolicyLab/policy/MolmoACT2",
-        "molmoact2",
-        "molmoact2_bimanual_yam",
-        "bimanual_yam_molmoact2",
-        "default",
-        "general_pickup",
-    ),
-    (
-        "molmoact2-bimanual_yam-default-insert_key",
-        "XPolicyLab/policy/MolmoACT2",
-        "molmoact2",
-        "molmoact2_bimanual_yam",
-        "bimanual_yam_molmoact2",
-        "default",
-        "insert_key",
-    ),
-    (
-        "molmoact2-bimanual_yam-default-play_Xylophone",
-        "XPolicyLab/policy/MolmoACT2",
-        "molmoact2",
-        "molmoact2_bimanual_yam",
-        "bimanual_yam_molmoact2",
-        "default",
-        "play_Xylophone",
-    ),
-    (
-        "molmoact2-bimanual_yam-default-plug_in_charger",
-        "XPolicyLab/policy/MolmoACT2",
-        "molmoact2",
-        "molmoact2_bimanual_yam",
-        "bimanual_yam_molmoact2",
-        "default",
-        "plug_in_charger",
-    ),
-    (
-        "molmoact2-bimanual_yam-default-push_T",
-        "XPolicyLab/policy/MolmoACT2",
-        "molmoact2",
-        "molmoact2_bimanual_yam",
-        "bimanual_yam_molmoact2",
-        "default",
-        "push_T",
-    ),
-    (
-        "molmoact2-bimanual_yam-default-push_T_random",
-        "XPolicyLab/policy/MolmoACT2",
-        "molmoact2",
-        "molmoact2_bimanual_yam",
-        "bimanual_yam_molmoact2",
-        "default",
-        "push_T_random",
-    ),
-    (
-        "molmoact2-bimanual_yam-default-swap_T",
-        "XPolicyLab/policy/MolmoACT2",
-        "molmoact2",
-        "molmoact2_bimanual_yam",
-        "bimanual_yam_molmoact2",
-        "default",
-        "swap_T",
-    ),
-    (
-        "molmoact2-bimanual_yam-molmo_yam-fold_clothes",
-        "XPolicyLab/policy/MolmoACT2",
-        "molmoact2",
-        "molmoact2_bimanual_yam",
-        "bimanual_yam_molmoact2",
-        "molmo_yam",
-        "fold_clothes",
-    ),
-    (
-        "molmoact2-bimanual_yam-molmo_yam-general_pickup",
-        "XPolicyLab/policy/MolmoACT2",
-        "molmoact2",
-        "molmoact2_bimanual_yam",
-        "bimanual_yam_molmoact2",
-        "molmo_yam",
-        "general_pickup",
-    ),
-    (
-        "molmoact2-bimanual_yam-moonlake_office-general_pickup",
-        "XPolicyLab/policy/MolmoACT2",
-        "molmoact2",
-        "molmoact2_bimanual_yam",
-        "bimanual_yam_moonlake_office",
-        "moonlake_office",
-        "general_pickup",
-    ),
-    (
-        "molmoact2-bimanual_yam-moonlake_office-pack_item_into_container",
-        "XPolicyLab/policy/MolmoACT2",
-        "molmoact2",
-        "molmoact2_bimanual_yam",
-        "bimanual_yam_moonlake_office",
-        "moonlake_office",
-        "pack_item_into_container",
-    ),
-    (
-        "pi05-arx_x5-default-fold_clothes",
-        "XPolicyLab/policy/Pi_05",
-        "uv",
-        "pi05_arx5_multitask_v1",
-        "arx_x5",
-        "default",
-        "fold_clothes",
-    ),
-    (
-        "pi05-bimanual_yam-molmo_yam-general_pickup",
-        "XPolicyLab/policy/Pi_05",
-        "uv",
-        "pi05_yam_molmoact2",
-        "bimanual_yam_molmoact2",
-        "molmo_yam",
-        "general_pickup",
-    ),
-    (
-        "pi05-bimanual_yam-moonlake_office-general_pickup",
-        "XPolicyLab/policy/Pi_05",
-        "uv",
-        "pi05_yam_molmoact2",
-        "bimanual_yam_moonlake_office",
-        "moonlake_office",
-        "general_pickup",
-    ),
-    (
-        "pi05-bimanual_yam-moonlake_office-pack_item_into_container",
-        "XPolicyLab/policy/Pi_05",
-        "uv",
-        "pi05_yam_molmoact2",
-        "bimanual_yam_moonlake_office",
-        "moonlake_office",
-        "pack_item_into_container",
-    ),
-    (
-        "pi05-bimanual_yam-moonlake_office-stack_blocks",
-        "XPolicyLab/policy/Pi_05",
-        "uv",
-        "pi05_yam_molmoact2",
-        "bimanual_yam_moonlake_office",
-        "moonlake_office",
-        "stack_blocks",
-    ),
-    (
-        "pi05-bimanual_yam-moonlake_office-stack_bowls",
-        "XPolicyLab/policy/Pi_05",
-        "uv",
-        "pi05_yam_molmoact2",
-        "bimanual_yam_moonlake_office",
-        "moonlake_office",
-        "stack_bowls",
-    ),
-    (
-        "lerobot_pi05_openarm-openarm_lerobot-default-fold_clothes",
-        "XPolicyLab/policy/LeRobot_Pi05_OpenArm",
-        "lerobot-pi05",
-        "folding_final",
-        "openarm_lerobot",
-        "default",
-        "fold_clothes",
-    ),
-    (
-        "smolvla-arx_x5-default-fold_clothes",
-        "XPolicyLab/policy/SmolVLA",
-        "smolvla",
-        "smolvla-aloha-bimanual",
-        "arx_x5",
-        "default",
-        "fold_clothes",
-    ),
-)
+ROOT = Path(__file__).resolve().parents[1]
+MAKEFILE = ROOT / "Makefile"
+RECIPE = "pi05-bimanual_yam-molmo_yam-general_pickup"
 
 
 def run_make(*arguments: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
-    environment = os.environ.copy() if env is None else env.copy()
-    if env is None:
-        for name in MAKE_VARIABLES:
-            environment.pop(name, None)
     return subprocess.run(
-        ["make", *arguments],
+        ["make", "-f", str(MAKEFILE), *arguments],
         cwd=ROOT,
-        env=environment,
+        env=env,
+        capture_output=True,
+        text=True,
         check=False,
-        capture_output=True,
-        text=True,
     )
 
 
-def make_probe(tmp_path: Path) -> tuple[Path, Path]:
-    makefile = tmp_path / "Makefile"
-    probe = tmp_path / "probe.mk"
-    shutil.copy2(ROOT / "Makefile", makefile)
-    probe.write_text(
-        ".PHONY: machine-env\n"
-        "machine-env:\n"
-        '\t@printf \'%s|%s|%s\\n\' "$$ROBODOJO_STORAGE_ROOT" "$$ROBODOJO_S3_URI" "$$AWS_PROFILE"\n',
-        encoding="utf-8",
-    )
-    return makefile, probe
-
-
-def run_make_probe(
-    makefile: Path,
-    probe: Path,
-    *arguments: str,
-    env: dict[str, str] | None = None,
-) -> subprocess.CompletedProcess[str]:
-    environment = os.environ.copy() if env is None else env.copy()
-    if env is None:
-        for name in MACHINE_VARIABLES:
-            environment.pop(name, None)
-    return subprocess.run(
-        ["make", "-f", str(makefile), "-f", str(probe), "machine-env", *arguments],
-        cwd=makefile.parent.parent,
-        env=environment,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-
-
-def test_make_loads_and_exports_machine_defaults_from_repo_dotenv(tmp_path: Path):
-    makefile, probe = make_probe(tmp_path)
-    (tmp_path / ".env").write_text(
-        "ROBODOJO_STORAGE_ROOT ?= $(ROOT_DIR)/storage\n"
-        "ROBODOJO_S3_URI ?= s3://dotenv/robodojo\n"
-        "AWS_PROFILE ?= dotenv-profile\n",
-        encoding="utf-8",
-    )
-
-    result = run_make_probe(makefile, probe)
-
-    assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == f"{tmp_path}/storage|s3://dotenv/robodojo|dotenv-profile"
-
-
-def test_shell_and_make_arguments_override_dotenv_defaults(tmp_path: Path):
-    makefile, probe = make_probe(tmp_path)
-    (tmp_path / ".env").write_text(
-        "ROBODOJO_STORAGE_ROOT ?= /dotenv/storage\n"
-        "ROBODOJO_S3_URI ?= s3://dotenv/robodojo\n"
-        "AWS_PROFILE ?= dotenv-profile\n",
-        encoding="utf-8",
-    )
-    environment = os.environ.copy()
-    environment.update(
-        {
-            "ROBODOJO_STORAGE_ROOT": "/shell/storage",
-            "ROBODOJO_S3_URI": "s3://shell/robodojo",
-            "AWS_PROFILE": "shell-profile",
-        }
-    )
-
-    shell = run_make_probe(makefile, probe, env=environment)
-    command_line = run_make_probe(
-        makefile,
-        probe,
-        "ROBODOJO_STORAGE_ROOT=/make/storage",
-        "ROBODOJO_S3_URI=s3://make/robodojo",
-        "AWS_PROFILE=make-profile",
-        env=environment,
-    )
-
-    assert shell.returncode == 0, shell.stderr
-    assert shell.stdout.strip() == "/shell/storage|s3://shell/robodojo|shell-profile"
-    assert command_line.returncode == 0, command_line.stderr
-    assert command_line.stdout.strip() == "/make/storage|s3://make/robodojo|make-profile"
-
-
-def test_make_dotenv_is_optional(tmp_path: Path):
-    makefile, probe = make_probe(tmp_path)
-
-    environment = os.environ.copy()
-    for name in MACHINE_VARIABLES:
-        environment.pop(name, None)
-    machine = run_make_probe(makefile, probe, env=environment)
-    presets = subprocess.run(
-        ["make", "-f", str(makefile), "presets"],
-        cwd=makefile.parent.parent,
-        env=environment,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-
-    assert machine.returncode == 0, machine.stderr
-    assert machine.stdout.strip() == "||"
-    assert presets.returncode == 0, presets.stderr
-    assert len(presets.stdout.splitlines()) == len(PRESETS) + 1
-
-
-def test_make_workflow_dotenv_defaults_preserve_shell_and_argument_overrides(tmp_path: Path):
-    makefile, _ = make_probe(tmp_path)
-    (tmp_path / ".env").write_text(
-        "PUBLISH ?= true\n"
-        "EXPORT_SCENE ?= true\n"
-        "VERBOSITY ?= DEBUG\n",
-        encoding="utf-8",
-    )
-    environment = os.environ.copy()
-    for name in MAKE_VARIABLES:
-        environment.pop(name, None)
-
-    dotenv = subprocess.run(
-        ["make", "-f", str(makefile), "help"],
-        cwd=tmp_path,
-        env=environment,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    shell_environment = environment | {
-        "PUBLISH": "false",
-        "EXPORT_SCENE": "false",
-        "VERBOSITY": "WARNING",
-    }
-    shell = subprocess.run(
-        ["make", "-f", str(makefile), "help"],
-        cwd=tmp_path,
-        env=shell_environment,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    arguments = subprocess.run(
-        [
-            "make",
-            "-f",
-            str(makefile),
-            "help",
-            "PUBLISH=false",
-            "EXPORT_SCENE=false",
-            "VERBOSITY=INFO",
-        ],
-        cwd=tmp_path,
-        env=environment,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-
-    assert "PUBLISH=true EXPORT_SCENE=true VERBOSITY=DEBUG" in dotenv.stdout
-    assert "PUBLISH=false EXPORT_SCENE=false VERBOSITY=WARNING" in shell.stdout
-    assert "PUBLISH=false EXPORT_SCENE=false VERBOSITY=INFO" in arguments.stdout
-
-
-def test_make_requires_experiment_selection_without_a_preset():
+def test_make_requires_an_explicit_recipe():
     result = run_make("-n", "eval")
-
     assert result.returncode != 0
-    assert "TASK is required" in result.stderr
-    assert "select PRESET=..., pass TASK=... to make, or export it" in result.stderr
+    assert "RECIPE is required" in result.stderr
+    assert "make recipes" in result.stderr
 
 
-def test_make_lists_the_complete_aligned_preset_catalog():
-    result = run_make("presets")
+def test_make_rejects_removed_preset_surface_with_migration_error():
+    result = run_make("-n", "eval", f"PRESET={RECIPE}")
+    assert result.returncode != 0
+    assert "PRESET has been removed" in result.stderr
+    assert "RECIPE=<name>" in result.stderr
 
+
+def test_make_recipe_catalog_is_owned_by_typed_yaml():
+    source = MAKEFILE.read_text(encoding="utf-8")
+    recipes = yaml.safe_load((ROOT / "configs/recipes.yml").read_text(encoding="utf-8"))["recipes"]
+    assert "register_preset" not in source
+    assert "PRESET." not in source
+    assert len(recipes) == 24
+    assert "molmoact2-bimanual_yam-moonlake_office-moonlake_office_general_pickup" in recipes
+    assert "pi05-bimanual_yam-moonlake_office-moonlake_office_general_pickup" in recipes
+
+
+def test_make_lists_recipes_through_the_cli():
+    result = run_make("-n", "recipes")
     assert result.returncode == 0
-    lines = result.stdout.splitlines()
-    assert lines[0].split() == ["PRESET", "POLICY_DIR", "POLICY_ENV", "CKPT", "ENV_CFG", "SCENE", "TASK"]
-    assert tuple(tuple(line.split()) for line in lines[1:]) == PRESETS
+    assert "robodojo" in result.stdout
+    assert " recipes" in result.stdout
 
 
-def test_every_make_preset_resolves_its_experiment_contract():
-    for preset, policy_dir, policy_env, checkpoint, env_config, scene, task in PRESETS:
-        result = run_make("-n", "setup", f"PRESET={preset}")
-
+def test_every_recipe_renders_as_one_opaque_selection():
+    recipes = yaml.safe_load((ROOT / "configs/recipes.yml").read_text(encoding="utf-8"))["recipes"]
+    for recipe in recipes:
+        result = run_make("-n", "setup", f"RECIPE={recipe}")
         assert result.returncode == 0, result.stderr
-        assert f'--policy-dir "{policy_dir}"' in result.stdout
-        assert f'--policy-env "{policy_env}"' in result.stdout
-        assert f'--ckpt "{checkpoint}"' in result.stdout
-        assert f'--env-cfg "{env_config}"' in result.stdout
-        assert f'--scene "{scene}"' in result.stdout
-        assert f'--task "{task}"' in result.stdout
+        assert f'--recipe "{recipe}"' in result.stdout
+        assert "--task" not in result.stdout
+        assert "--scene" not in result.stdout
+        assert "--env-cfg" not in result.stdout
 
 
-def test_preset_precedence_preserves_explicit_make_overrides():
-    preset = "pi05-bimanual_yam-molmo_yam-general_pickup"
-    environment = os.environ.copy()
-    for name in MAKE_VARIABLES:
-        environment.pop(name, None)
-    environment.update(
-        {
-            "POLICY_DIR": "stale-policy",
-            "POLICY_ENV": "stale-env",
-            "CKPT": "stale-checkpoint",
-            "ENV_CFG": "stale-environment",
-            "SCENE": "stale-scene",
-            "TASK": "stale-task",
-        }
-    )
-
-    selected = run_make("-n", "setup", f"PRESET={preset}", env=environment)
-    overridden = run_make("-n", "setup", f"PRESET={preset}", "TASK=fold_clothes", env=environment)
-    custom = run_make("-n", "setup", env=environment)
-
-    assert selected.returncode == 0
-    assert '--policy-dir "XPolicyLab/policy/Pi_05"' in selected.stdout
-    assert '--task "general_pickup"' in selected.stdout
-    assert "stale-" not in selected.stdout
-    assert overridden.returncode == 0
-    assert '--task "fold_clothes"' in overridden.stdout
-    assert custom.returncode == 0
-    assert '--policy-dir "stale-policy"' in custom.stdout
-    assert '--task "stale-task"' in custom.stdout
+def test_make_eval_defaults_to_protocol_native_count():
+    result = run_make("-n", "eval", f"RECIPE={RECIPE}")
+    assert result.returncode == 0, result.stderr
+    assert '--eval-num "native"' in result.stdout
+    assert "--publish" not in result.stdout
+    assert "--export-scene" not in result.stdout
 
 
-def test_make_rejects_unknown_presets_with_a_catalog_hint():
-    result = run_make("-n", "eval", "PRESET=does-not-exist")
-
-    assert result.returncode != 0
-    assert "unknown PRESET 'does-not-exist'" in result.stderr
-    assert "make presets" in result.stderr
-
-
-def test_make_eval_sequences_setup_once_and_preserves_mutation_free_dry_runs():
-    arguments = (
-        "PRESET=pi05-bimanual_yam-molmo_yam-general_pickup",
-        "POLICY_GPU=0",
-        "ENV_GPU=1",
-        "PUBLISH=false",
-        "ARGS=--eval-only-marker",
-    )
-    normal = run_make("-n", "eval", *arguments)
-    dry_run = run_make("-n", "eval", *arguments, "DRY_RUN=true")
-
-    assert normal.returncode == 0
-    assert normal.stdout.count(" setup --policy-dir") == 1
-    assert normal.stdout.count(" preflight --policy-dir") == 0
-    assert normal.stdout.count(" eval --policy-dir") == 1
-    assert normal.stdout.index(" setup --policy-dir") < normal.stdout.index(" eval --policy-dir")
-    assert normal.stdout.count("--eval-only-marker") == 1
-    assert dry_run.returncode == 0
-    assert " setup --policy-dir" not in dry_run.stdout
-    assert " preflight --policy-dir" not in dry_run.stdout
-    assert dry_run.stdout.count(" eval --policy-dir") == 1
-    assert "--dry-run" in dry_run.stdout
-
-
-def test_make_eval_stops_before_launch_when_setup_fails(tmp_path: Path):
-    marker = tmp_path / "evaluation-started"
+def test_make_eval_forwards_explicit_one_episode_publication():
     result = run_make(
+        "-n",
         "eval",
-        "PRESET=pi05-bimanual_yam-molmo_yam-general_pickup",
-        "POLICY_GPU=0",
-        "ENV_GPU=1",
-        "PUBLISH=false",
-        "ROBODOJO_SETUP=false",
-        f"ROBODOJO_SIM=touch {marker}",
+        f"RECIPE={RECIPE}",
+        "EVAL_NUM=1",
+        "PUBLISH=true",
+        "EXPORT_SCENE=true",
+        "POLICY_GPU=2",
+        "ENV_GPU=3",
     )
+    assert result.returncode == 0, result.stderr
+    assert '--eval-num "1"' in result.stdout
+    assert "--publish" in result.stdout
+    assert "--export-scene" in result.stdout
+    assert '--policy-gpu "2"' in result.stdout
+    assert '--env-gpu "3"' in result.stdout
 
-    assert result.returncode != 0
-    assert not marker.exists()
 
-
-def test_make_validates_eval_controls_before_setup(tmp_path: Path):
-    marker = tmp_path / "setup-started"
+def test_make_sweeps_forward_only_explicit_recipe_lists():
+    second = "molmoact2-bimanual_yam-molmo_yam-general_pickup"
     result = run_make(
-        "eval",
-        "PRESET=pi05-bimanual_yam-molmo_yam-general_pickup",
-        "PUBLISH=maybe",
-        f"ROBODOJO_SETUP=touch {marker}",
-        "ROBODOJO_SIM=true",
+        "-n",
+        "smoke",
+        f"RECIPES={RECIPE} {second}",
     )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.count("--recipe") == 2
+    assert f'--recipe "{RECIPE}"' in result.stdout
+    assert f'--recipe "{second}"' in result.stdout
+    assert "--task" not in result.stdout
 
-    assert result.returncode != 0
-    assert "PUBLISH must be true or false" in result.stderr
-    assert not marker.exists()
+
+def test_make_rejects_invalid_controls():
+    cases = (
+        ("SEED=-1", "SEED must be a nonnegative integer"),
+        ("EVAL_NUM=0", "EVAL_NUM must be 'native' or a positive integer"),
+        ("EVAL_NUM=all", "EVAL_NUM must be 'native' or a positive integer"),
+        ("POLICY_GPU=AUTO", "POLICY_GPU must be 'auto' or a nonnegative integer"),
+        ("ENV_GPU=-1", "ENV_GPU must be 'auto' or a nonnegative integer"),
+        ("PUBLISH=maybe", "PUBLISH must be true or false"),
+    )
+    for argument, message in cases:
+        result = run_make("eval", f"RECIPE={RECIPE}", argument)
+        assert result.returncode != 0
+        assert message in result.stderr
+
+
+def test_make_check_validates_tasks_and_recipes():
+    result = run_make("-n", "check")
+    assert result.returncode == 0, result.stderr
+    assert "tasks --format json --check" in result.stdout
+    assert "recipes --format json --check" in result.stdout

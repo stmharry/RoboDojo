@@ -1,8 +1,5 @@
 common:
   data_source: "datagen"
-  scene_config: "default"
-  robot_config: "dual_x5"
-  camera_config: "camera_config"
   render_interval: 10
   robot_self_collision: true
   eval_nums: 50
@@ -10,7 +7,6 @@ common:
 tasks:
   match_and_pick_from_conveyor:
     data_source: "teleop"
-    scene_config: "conveyor"
 
   classify_objects:
     data_source: "teleop"
@@ -33,12 +29,6 @@ tasks:
   hang_mugs_random:
     data_source: "teleop"
     eval_nums: 25
-
-  imitate_sorting_sequence:
-    robot_config: "dual_x5_and_franka_competition"
-
-  make_kong:
-    robot_config: "dual_x5_and_franka_competition"
 
   fold_clothes:
     eval_nums: 25
@@ -87,11 +77,7 @@ tasks:
 
   pack_item_into_container:
     data_source: "teleop"
-    scene_config: "moonlake_office"
     eval_nums: 6
-
-  play_tic_tac_toe:
-    robot_config: "dual_x5_and_franka_competition"
 
   pour_balls_into_vase:
     data_source: "teleop"
@@ -145,6 +131,3 @@ tasks:
   sweep_blocks_random:
     data_source: "teleop"
     eval_nums: 25
-
-  pick_from_conveyor_by_image:
-    scene_config: "conveyor"

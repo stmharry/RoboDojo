@@ -68,23 +68,24 @@ RoboDojo uses a locked [uv](https://docs.astral.sh/uv/) environment with Python
 3.11. IsaacLab is pinned to its official release by uv. XPolicyLab and the
 cuRobo Warp-compatibility fork remain submodules. Install the machine
 prerequisites first: Git, Git LFS, uv, compiler/runtime tools, and NVIDIA
-drivers. Then list the tracked experiment presets and run one end-to-end:
+drivers. Then list the tracked evaluation recipes and run one end-to-end:
 
 ```bash
-make presets
-make eval PRESET=pi05-bimanual_yam-molmo_yam-general_pickup
+make recipes
+make eval RECIPE=pi05-bimanual_yam-molmo_yam-general_pickup
 ```
 
-The selected preset supplies the policy directory and environment, checkpoint,
-environment, scene, and task. Explicit Make assignments can override individual
-preset fields. Custom experiments can still supply those values through Make
-arguments or exported process variables. Make also loads an optional ignored
-`.env` from the repository root for machine-local defaults. Use Make-compatible
-`?=` assignments so explicit arguments and exported variables retain precedence;
-direct Python CLI commands do not load this file. Make supplies stable defaults
-for the RoboDojo dataset, joint actions, seed 0, automatic policy and simulator
-GPU selection, one evaluation episode, and `INFO` diagnostics. Scene export and
-publication are opt-in.
+Each recipe explicitly selects a typed policy profile, environment profile,
+scene profile, and task protocol. Those components cannot be overridden under a
+recipe. The direct CLI also supports a strict manual mode, but all four profiles
+must be named together. This keeps policy checkpoints and embodiment contracts,
+scene composition, and task-protocol settings independently reviewable. Make
+loads an optional ignored `.env` from the repository root for machine-local
+controls such as GPU selection and storage. Use Make-compatible `?=` assignments
+so explicit arguments and exported variables retain precedence; direct Python
+CLI commands do not load this file. Make defaults to seed 0, automatic policy
+and simulator GPU selection, the protocol's native evaluation count, and `INFO`
+diagnostics. Scene export and publication are opt-in.
 
 For paired workflows, Python assigns the most-free GPU to the simulator and the
 next-most-free GPU to the policy, breaking ties by device index. Override either
@@ -114,10 +115,10 @@ Standalone preparation and deeper policy readiness checks remain available for
 diagnosis:
 
 ```bash
-make setup PRESET=pi05-bimanual_yam-molmo_yam-general_pickup
-make preflight PRESET=pi05-bimanual_yam-molmo_yam-general_pickup
-make preflight PRESET=pi05-bimanual_yam-molmo_yam-general_pickup DEEP=true
-make eval PRESET=pi05-bimanual_yam-molmo_yam-general_pickup
+make setup RECIPE=pi05-bimanual_yam-molmo_yam-general_pickup
+make preflight RECIPE=pi05-bimanual_yam-molmo_yam-general_pickup
+make preflight RECIPE=pi05-bimanual_yam-molmo_yam-general_pickup DEEP=true
+make eval RECIPE=pi05-bimanual_yam-molmo_yam-general_pickup
 ```
 
 Setup remains the consolidated mutation boundary. The setup phase of `make eval`

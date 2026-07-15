@@ -19,6 +19,10 @@ PACKING_LAYOUTS = tuple(f"pack_item_into_container_{index}.json" for index in ra
 def _request(environment: str) -> SimulatorLaunchRequest:
     return SimulatorLaunchRequest(
         task="general_pickup",
+        protocol_name="moonlake_office_general_pickup",
+        layout="general_pickup",
+        episode_horizon=400,
+        native_eval_num=50,
         policy_name="PI05",
         port=9999,
         env_config=environment,

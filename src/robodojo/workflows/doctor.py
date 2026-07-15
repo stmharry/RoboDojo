@@ -22,9 +22,13 @@ from robodojo.workflows.task_inventory import build_inventory
 def run_doctor(
     paths: RepositoryPaths,
     task: str,
+    protocol_name: str,
+    layout: str,
+    episode_horizon: int,
+    native_eval_num: int,
     env_config: str,
     policy_dir: Path | None = None,
-    scene_config: str | None = None,
+    scene_config: str = "",
 ) -> int:
     checks: list[tuple[str, bool, str]] = []
     selected_scene = None
@@ -44,6 +48,10 @@ def run_doctor(
             paths,
             SimulatorLaunchRequest(
                 task=task,
+                protocol_name=protocol_name,
+                layout=layout,
+                episode_horizon=episode_horizon,
+                native_eval_num=native_eval_num,
                 policy_name="doctor",
                 port=1,
                 env_config=env_config,
@@ -66,7 +74,7 @@ def run_doctor(
                 benchmark="RoboDojo",
                 layout_set=selected_scene.document.layout_set,
                 layout_source=selected_scene.document.layout_source,
-                task=task,
+                task=layout,
                 seed=0,
             )
             record(

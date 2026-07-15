@@ -69,6 +69,11 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
             self.layout_set_hash = self.eval_cfg.get("layout_set_hash")
             self.scene_asset_hash = self.eval_cfg.get("scene_asset_hash")
             self.task_name = self.eval_cfg.get("task_name", None)
+            self.protocol_name = self.eval_cfg.get("protocol_name", self.task_name)
+            self.layout_name = self.eval_cfg.get("layout_name", self.task_name)
+            self.recipe_name = self.eval_cfg.get("recipe_name")
+            self.contract_hash = self.eval_cfg.get("contract_hash")
+            self.step_lim = int(self.eval_cfg["episode_horizon"])
             self.eval_batch = self.eval_cfg.get("eval_batch", False)
             self.eval_num = int(self.eval_cfg.get("eval_num", 50))
             self.policy_name = self.eval_cfg.get("policy_name", None)
@@ -93,7 +98,7 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
             self.run_id = run_id
             self.save_dir = os.path.join(
                 str(eval_work_root()),
-                self.task_name,
+                self.protocol_name,
                 self.policy_name,
                 self.config_name,
                 str(self.eval_seed) + "_" + self.additional_info,
@@ -717,7 +722,7 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
             """
             return os.path.join(
                 str(eval_work_root()),
-                self.task_name,
+                self.protocol_name,
                 self.policy_name,
                 self.config_name,
                 str(self.eval_seed) + "_" + self.additional_info,
@@ -745,6 +750,7 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
                 "run_id": self.run_id,
                 "save_dir": self.save_dir,
                 "task_name": self.task_name,
+                "protocol_name": self.protocol_name,
                 "policy_name": self.policy_name,
                 "config_name": self.config_name,
                 **scene_identity(self.eval_cfg),

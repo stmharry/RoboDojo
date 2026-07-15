@@ -27,11 +27,25 @@ def _request(tmp_path: Path, **updates) -> PreflightRequest:
         "task": "stack_bowls",
         "checkpoint": "alias",
         "policy_env": "uv",
+        "env_config": "arx_x5",
+        "policy_contract": "arx_x5",
+        "protocol": "stack_bowls",
+        "layout": "stack_bowls",
+        "episode_horizon": 800,
+        "native_eval_num": 25,
+        "scene_config": "default",
+        "action_type": "joint",
         "policy_gpu": 0,
         "env_gpu": 1,
     }
     values.update(updates)
     return PreflightRequest(**values)
+
+
+def _evaluation(tmp_path: Path, **updates) -> EvaluationRequest:
+    values = _request(tmp_path).model_dump(exclude={"publish", "deep", "timeout"})
+    values.update(updates)
+    return EvaluationRequest(**values)
 
 
 def _report(status: str = "PASS"):
@@ -64,51 +78,40 @@ def test_report_json_has_stable_overall_and_per_check_fields(capsys):
 
 
 @pytest.mark.parametrize("output_format", ["human", "json"])
-def test_setup_policy_stage_invokes_eight_argument_hook_and_reports(tmp_path, output_format):
+def test_setup_policy_stage_invokes_eight_argument_hook_and_reports(tmp_path, output_format, capsys):
+    from robodojo.workflows import setup as setup_workflow
+
     policy = tmp_path / "Policy"
     policy.mkdir()
     hook = policy / "prepare_eval_policy.sh"
     hook.write_text('#!/usr/bin/env bash\nprintf "%s\\n" "$*" > hook_args.txt\n', encoding="utf-8")
-    result = RUNNER.invoke(
-        app,
-        [
-            "setup",
-            "--only",
-            "policy",
-            "--policy-dir",
-            str(policy),
-            "--task",
-            "stack_bowls",
-            "--ckpt",
-            "release",
-            "--policy-env",
-            "runtime",
-            "--dataset",
-            "RoboDojo",
-            "--env-cfg",
-            "arx_x5",
-            "--action-type",
-            "joint",
-            "--seed",
-            "4",
-            "--policy-gpu",
-            "2",
-            "--format",
-            output_format,
-            "--root",
-            str(ROOT),
-        ],
+    request = SetupRequest(
+        stages=(SetupStage.POLICY,),
+        policy_dir=policy,
+        task="stack_bowls",
+        checkpoint="release",
+        policy_env="runtime",
+        dataset="RoboDojo",
+        env_config="arx_x5",
+        policy_contract="arx_x5",
+        action_type="joint",
+        protocol="stack_bowls",
+        layout="stack_bowls",
+        episode_horizon=800,
+        native_eval_num=25,
+        seed=4,
+        policy_gpu=2,
     )
-
-    assert result.exit_code == 0
+    assert setup_workflow.setup(RepositoryPaths.resolve(ROOT), request, output_format=output_format) == 0
+    output = capsys.readouterr().out
     expected = "RoboDojo stack_bowls release arx_x5 joint 4 2 runtime"
     assert (policy / "hook_args.txt").read_text(encoding="utf-8").strip() == expected
     if output_format == "json":
-        payload = json.loads(result.stdout)
+        payload = json.loads(output)
         assert payload["status"] == "PASS"
         assert payload["stages"][-1]["name"] == "policy"
     else:
-        assert "CHANGED policy:" in result.stdout
+        assert "CHANGED policy:" in output
 
 
 def test_setup_policy_stage_resolves_only_the_policy_gpu(monkeypatch, tmp_path):
@@ -135,7 +138,12 @@ def test_setup_policy_stage_resolves_only_the_policy_gpu(monkeypatch, tmp_path):
         checkpoint="release",
         policy_env="runtime",
         env_config="arx_x5",
+        policy_contract="arx_x5",
         action_type="joint",
+        protocol="stack_bowls",
+        layout="stack_bowls",
+        episode_horizon=800,
+        native_eval_num=25,
     )
 
     result = setup_workflow._policy_stage(RepositoryPaths(root=ROOT), request)
@@ -171,7 +179,7 @@ def test_missing_and_stale_uv_environments_are_actionable(monkeypatch, tmp_path)
 
     assert checks[0].status == "FAIL"
     assert "stale" in checks[0].detail
-    assert checks[0].remediation.startswith("make setup; or uv run --locked robodojo setup --only policy")
+    assert checks[0].remediation == "make setup with the same complete manual contract"
 
 
 def test_missing_conda_environment_and_failed_xpolicylab_import(monkeypatch, tmp_path):
@@ -206,7 +214,7 @@ def test_missing_conda_environment_and_failed_xpolicylab_import(monkeypatch, tmp
     )
     assert [item.status for item in checks] == ["PASS", "FAIL"]
     assert checks[-1].name == "xpolicylab_import"
-    assert checks[-1].remediation.startswith("make setup; or uv run --locked robodojo setup --only policy")
+    assert checks[-1].remediation == "make setup with the same complete manual contract"
 
 
 def test_explicit_checkpoint_must_exist_and_opaque_alias_warns(tmp_path):
@@ -327,12 +335,16 @@ def test_layout_check_fails_when_selected_task_seed_is_missing(monkeypatch, tmp_
     paths = RepositoryPaths(root=tmp_path)
     scene = SimpleNamespace(document=SimpleNamespace(layout_set="molmo_yam"))
 
-    result = preflight._layout_check(paths, _request(tmp_path, task="general_pickup"), scene)
+    result = preflight._layout_check(
+        paths,
+        _request(tmp_path, task="general_pickup", protocol="general_pickup", layout="general_pickup"),
+        scene,
+    )
 
     assert result.status == "FAIL"
     assert "general_pickup_*.json" in result.detail
-    assert result.remediation.startswith("make setup; or uv run --locked robodojo setup --only assets")
-    assert "--task general_pickup" in result.remediation
+    assert result.remediation == "make setup with the same complete manual contract"
+    assert "same complete manual contract" in result.remediation
 
 
 @pytest.mark.parametrize(
@@ -349,6 +361,10 @@ def test_general_pickup_preflight_validates_the_same_role_and_workspace_contract
     request = _request(
         ROOT,
         task="general_pickup",
+        protocol="general_pickup",
+        layout="general_pickup",
+        episode_horizon=200,
+        native_eval_num=50,
         env_config=environment,
         scene_config=scene_name,
         seed=0,
@@ -369,23 +385,14 @@ def test_failed_launch_preflight_stops_before_port_process_and_simulator(monkeyp
         "run_simulator_session",
         lambda *args, **kwargs: pytest.fail("simulator must not start"),
     )
-    request = EvaluationRequest(
-        policy_dir=tmp_path / "Policy",
-        task="stack_bowls",
-        checkpoint="alias",
-        policy_env="uv",
-        policy_gpu=0,
-        env_gpu=1,
-    )
+    request = _evaluation(tmp_path)
 
     assert evaluation.run_evaluation(RepositoryPaths(root=ROOT), request) == 2
 
 
-def test_failed_server_preflight_stops_before_policy_runner(monkeypatch, tmp_path):
+def test_failed_server_preflight_stops_before_policy_runner(monkeypatch):
     from robodojo.policy import adapter
 
-    policy = tmp_path / "Policy"
-    policy.mkdir()
     monkeypatch.setattr(preflight, "run_fast_preflight", lambda paths, request: _report("FAIL"))
     monkeypatch.setattr(adapter, "run_policy_server", lambda request: pytest.fail("policy runner must not start"))
 
@@ -393,14 +400,8 @@ def test_failed_server_preflight_stops_before_policy_runner(monkeypatch, tmp_pat
         app,
         [
             "server",
-            "--policy-dir",
-            str(policy),
-            "--task",
-            "stack_bowls",
-            "--ckpt",
-            "release",
-            "--policy-env",
-            "runtime",
+            "--recipe",
+            "pi05-bimanual_yam-molmo_yam-general_pickup",
             "--policy-gpu",
             "0",
             "--env-gpu",
@@ -418,34 +419,18 @@ def test_eval_dry_run_does_not_preflight(monkeypatch, tmp_path, capsys):
     policy.mkdir()
     (policy / "setup_eval_policy_server.sh").touch()
     monkeypatch.setattr(preflight, "run_fast_preflight", lambda *args: pytest.fail("dry run preflighted"))
-    request = EvaluationRequest(
-        policy_dir=policy,
-        task="stack_bowls",
-        checkpoint="alias",
-        policy_env="uv",
-        policy_gpu=0,
-        env_gpu=1,
-        dry_run=True,
-    )
+    request = _evaluation(tmp_path, policy_dir=policy, dry_run=True)
 
     assert evaluation.run_evaluation(RepositoryPaths(root=ROOT), request) == 0
     assert "setup_eval_policy_server.sh" in capsys.readouterr().out
 
 
-def test_sweep_preflights_once_and_children_skip_duplicate_gate(monkeypatch, tmp_path):
+def test_sweep_preflights_each_explicit_recipe(monkeypatch, tmp_path):
     from robodojo.core.gpu import GpuAssignment
     from robodojo.core.models import SweepRequest
 
-    calls = 0
     children = []
     gpu_calls = 0
-
-    def fast(paths, request):
-        nonlocal calls
-        calls += 1
-        return _report()
-
-    monkeypatch.setattr(preflight, "run_fast_preflight", fast)
 
     def resolve(**selectors):
         nonlocal gpu_calls
@@ -454,27 +439,27 @@ def test_sweep_preflights_once_and_children_skip_duplicate_gate(monkeypatch, tmp
 
     monkeypatch.setattr(sweeps, "resolve_gpus", resolve)
     monkeypatch.setattr(sweeps, "run_work_root", lambda: tmp_path)
-    monkeypatch.setattr(sweeps, "_selected_tasks", lambda request: ["general_pickup", "fold_clothes"])
     monkeypatch.setattr(
         sweeps,
         "run_evaluation",
         lambda paths, request, *, preflight: (
-            children.append((request.task, preflight, request.policy_gpu, request.env_gpu)) or 0
+            children.append((request.recipe, request.task, preflight, request.policy_gpu, request.env_gpu)) or 0
         ),
     )
     request = SweepRequest(
-        policy_dir=tmp_path / "Policy",
-        checkpoint="alias",
-        policy_env="uv",
-        env_config="bimanual_yam_molmoact2",
-        scene_config="molmo_yam",
+        recipes=(
+            "pi05-bimanual_yam-molmo_yam-general_pickup",
+            "molmoact2-bimanual_yam-molmo_yam-fold_clothes",
+        ),
         run_id="once",
     )
 
     assert sweeps.run_sweep(RepositoryPaths(root=ROOT), request) == 0
-    assert calls == 1
     assert gpu_calls == 1
-    assert children == [("general_pickup", False, 4, 2), ("fold_clothes", False, 4, 2)]
+    assert children == [
+        ("pi05-bimanual_yam-molmo_yam-general_pickup", "general_pickup", True, 4, 2),
+        ("molmoact2-bimanual_yam-molmo_yam-fold_clothes", "fold_clothes", True, 4, 2),
+    ]
 
 
 @pytest.mark.parametrize(

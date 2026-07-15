@@ -166,17 +166,6 @@ def load_environment_profile(
     return profile
 
 
-def bind_policy_contract(paths: RepositoryPaths, request):
-    """Return a request whose adapter environment names the shared policy contract."""
-
-    if request.env_config is None:
-        return request
-    if not (paths.environment_profiles / f"{request.env_config}.yml").is_file():
-        return request
-    profile = load_environment_profile(paths, request.env_config)
-    return request.model_copy(update={"policy_contract": profile.policy_contract})
-
-
 def load_scene_profile(paths: RepositoryPaths, name: str) -> SceneProfile:
     """Load the typed scene profile selected by the existing ``--scene`` surface."""
 

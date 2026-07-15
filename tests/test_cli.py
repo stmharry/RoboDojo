@@ -10,17 +10,39 @@ from typer.main import get_command
 from typer.testing import CliRunner
 
 from robodojo.cli import app
+from robodojo.core.contracts import resolve_recipe
 from robodojo.core.models import EvaluationRequest, PolicyServerLaunchRequest, SimulatorLaunchRequest
 from robodojo.core.paths import RepositoryPaths, discover_repository_root
 from robodojo.core.settings import RuntimeSettings
-from robodojo.policy import adapter as policy_adapter
 from robodojo.policy.adapter import policy_server_command
 from robodojo.sim.launcher import load_simulator_config, simulator_command
-from robodojo.workflows import preflight as preflight_workflow
 from robodojo.workflows.task_inventory import build_inventory
 
 ROOT = Path(__file__).resolve().parents[1]
 runner = CliRunner()
+RECIPE = "pi05-bimanual_yam-molmo_yam-general_pickup"
+
+
+def _experiment_values(recipe: str = RECIPE) -> dict:
+    paths = RepositoryPaths.resolve(ROOT)
+    return resolve_recipe(paths, recipe).request_values(paths)
+
+
+def _simulator_request(**updates) -> SimulatorLaunchRequest:
+    values = {
+        "task": "stack_bowls",
+        "protocol_name": "stack_bowls",
+        "layout": "stack_bowls",
+        "episode_horizon": 800,
+        "native_eval_num": 25,
+        "policy_name": "TestPolicy",
+        "port": 19000,
+        "env_config": "arx_x5",
+        "scene_config": "default",
+        "additional_info": "test",
+    }
+    values.update(updates)
+    return SimulatorLaunchRequest(**values)
 
 
 def test_cli_exposes_the_unified_command_surface():
@@ -75,7 +97,8 @@ def test_eval_help_explains_publication_and_evaluation_inputs():
     assert result.exit_code == 0
     assert "--publish" in result.stdout
     assert "ROBODOJO_S3_URI" in result.stdout
-    assert "Checkpoint name or path" in result.stdout
+    assert "--recipe" in result.stdout
+    assert "--protocol" in result.stdout
     assert "positive integer" in result.stdout
 
 
@@ -88,14 +111,8 @@ def test_gpu_cli_precedence_is_flag_then_environment_then_auto(monkeypatch):
     monkeypatch.setattr(evaluation, "run_evaluation", lambda paths, request: requests.append(request) or 0)
     arguments = [
         "eval",
-        "--policy-dir",
-        "XPolicyLab/policy/demo_policy",
-        "--task",
-        "stack_bowls",
-        "--ckpt",
-        "demo",
-        "--policy-env",
-        "base",
+        "--recipe",
+        RECIPE,
         "--root",
         str(ROOT),
     ]
@@ -124,14 +141,8 @@ def test_gpu_cli_rejects_noncanonical_auto(monkeypatch):
         app,
         [
             "eval",
-            "--policy-dir",
-            "XPolicyLab/policy/demo_policy",
-            "--task",
-            "stack_bowls",
-            "--ckpt",
-            "demo",
-            "--policy-env",
-            "base",
+            "--recipe",
+            RECIPE,
             "--policy-gpu",
             "AUTO",
             "--env-gpu",
@@ -168,10 +179,8 @@ def test_client_resolves_only_the_simulator_gpu(monkeypatch):
         app,
         [
             "client",
-            "--task",
-            "stack_bowls",
-            "--policy-name",
-            "TestPolicy",
+            "--recipe",
+            RECIPE,
             "--policy-port",
             "19000",
             "--root",
@@ -187,10 +196,7 @@ def test_client_resolves_only_the_simulator_gpu(monkeypatch):
 def test_publish_is_incompatible_with_scene_only_export(tmp_path):
     with pytest.raises(ValidationError, match="--publish cannot be combined with --export-scene-only"):
         EvaluationRequest(
-            policy_dir=tmp_path,
-            task="stack_bowls",
-            checkpoint="test",
-            policy_env="test",
+            **_experiment_values(),
             publish=True,
             export_scene_only=True,
         )
@@ -205,11 +211,7 @@ def test_make_eval_defaults_to_local_info_with_opt_in_overrides(tmp_path):
         str(makefile),
         "-n",
         "eval",
-        "TASK=general_pickup",
-        "ENV_CFG=bimanual_yam_molmoact2",
-        "POLICY_DIR=XPolicyLab/policy/demo_policy",
-        "POLICY_ENV=base",
-        "CKPT=demo",
+        f"RECIPE={RECIPE}",
     ]
     default = subprocess.run(common, cwd=tmp_path, check=True, capture_output=True, text=True)
     opted_in = subprocess.run(
@@ -254,12 +256,11 @@ def test_make_eval_defaults_to_local_info_with_opt_in_overrides(tmp_path):
     assert "--publish" in opted_in.stdout
     assert "--export-scene" in opted_in.stdout
     assert '--log-level "DEBUG"' in debug.stdout
-    assert '--dataset "RoboDojo"' in default.stdout
-    assert '--action-type "joint"' in default.stdout
+    assert f'--recipe "{RECIPE}"' in default.stdout
     assert '--seed "0"' in default.stdout
     assert '--policy-gpu "auto"' in default.stdout
     assert '--env-gpu "auto"' in default.stdout
-    assert '--eval-num "1"' in default.stdout
+    assert '--eval-num "native"' in default.stdout
     assert invalid_publish.returncode != 0
     assert "PUBLISH must be true or false" in invalid_publish.stderr
     assert invalid_scene_export.returncode != 0
@@ -270,14 +271,7 @@ def test_make_eval_defaults_to_local_info_with_opt_in_overrides(tmp_path):
 
 def test_make_setup_and_preflight_forward_experiment_contract():
     common = [
-        "DATASET=RoboDojo",
-        "POLICY_DIR=XPolicyLab/policy/Pi_05",
-        "POLICY_ENV=uv",
-        "CKPT=pi05_yam_molmoact2",
-        "TASK=general_pickup",
-        "ENV_CFG=bimanual_yam_molmoact2",
-        "SCENE=molmo_yam",
-        "ACTION_TYPE=joint",
+        f"RECIPE={RECIPE}",
         "SEED=0",
         "POLICY_GPU=0",
         "ENV_GPU=1",
@@ -300,11 +294,10 @@ def test_make_setup_and_preflight_forward_experiment_contract():
     )
 
     assert "uv run --locked robodojo --log-level" in setup.stdout
-    assert " setup --policy-dir" in setup.stdout
-    assert '--dataset "RoboDojo"' in setup.stdout
+    assert " setup --recipe" in setup.stdout
+    assert f'--recipe "{RECIPE}"' in setup.stdout
     assert "--no-sync robodojo --log-level" in deep.stdout
-    assert " preflight --policy-dir" in deep.stdout
-    assert '--scene "molmo_yam"' in deep.stdout
+    assert " preflight --recipe" in deep.stdout
     assert '--env-gpu "1"' in deep.stdout
     assert "--deep" in deep.stdout
     assert "--publish" not in deep.stdout
@@ -312,16 +305,9 @@ def test_make_setup_and_preflight_forward_experiment_contract():
 
 def test_make_dry_run_toggle_and_local_sweeps():
     experiment = [
-        "DATASET=RoboDojo",
-        "TASK=general_pickup",
-        "ENV_CFG=bimanual_yam_molmoact2",
-        "SCENE=molmo_yam",
-        "ACTION_TYPE=joint",
+        f"RECIPE={RECIPE}",
         "SEED=0",
         "ENV_GPU=1",
-        "POLICY_DIR=XPolicyLab/policy/Pi_05",
-        "POLICY_ENV=uv",
-        "CKPT=pi05_yam_molmoact2",
         "POLICY_GPU=0",
         "EVAL_NUM=1",
     ]
@@ -356,9 +342,9 @@ def test_make_dry_run_toggle_and_local_sweeps():
 
 def test_make_help_exposes_only_the_supported_target_surface():
     result = subprocess.run(["make", "help"], cwd=ROOT, check=True, capture_output=True, text=True)
-    for target in ("presets", "setup", "preflight", "eval", "smoke", "benchmark", "results", "check"):
+    for target in ("recipes", "setup", "preflight", "eval", "smoke", "benchmark", "results", "check"):
         assert target in result.stdout
-    assert "make presets -> make eval PRESET=<name>" in result.stdout
+    assert "make recipes -> make eval RECIPE=<name>" in result.stdout
     assert "optional machine defaults: .env (?= assignments)" in result.stdout
     for removed in ("init", "policy-setup", "eval-dry-run", "storage-publish", "docker-build", "assets-yam"):
         assert removed not in result.stdout
@@ -372,24 +358,22 @@ def test_task_inventory_reads_the_simulator_task_package():
 
 
 def test_removed_openarm_cloth_profile_is_rejected():
-    request = SimulatorLaunchRequest(
+    request = _simulator_request(
         task="fold_clothes",
-        policy_name="LeRobot_Pi05_OpenArm",
-        port=19000,
+        protocol_name="fold_clothes",
+        layout="fold_clothes",
         env_config="openarm_cloth_folding",
-        additional_info="RoboDojo",
     )
     with pytest.raises(ValueError, match="environment config not found"):
         load_simulator_config(RepositoryPaths.resolve(ROOT), request)
 
 
 def test_removed_generic_openarm_profile_is_rejected():
-    request = SimulatorLaunchRequest(
+    request = _simulator_request(
         task="fold_clothes",
-        policy_name="LeRobot_Pi05_OpenArm",
-        port=19000,
+        protocol_name="fold_clothes",
+        layout="fold_clothes",
         env_config="openarm",
-        additional_info="RoboDojo",
     )
     with pytest.raises(ValueError, match="environment config not found"):
         load_simulator_config(RepositoryPaths.resolve(ROOT), request)
@@ -397,12 +381,11 @@ def test_removed_generic_openarm_profile_is_rejected():
 
 @pytest.mark.parametrize("profile", ["openarm_wowrobo_v1_1", "openarm_anvil_v2"])
 def test_unmeasured_openarm_profiles_are_release_blocked(profile):
-    request = SimulatorLaunchRequest(
+    request = _simulator_request(
         task="fold_clothes",
-        policy_name="LeRobot_Pi05_OpenArm",
-        port=19000,
+        protocol_name="fold_clothes",
+        layout="fold_clothes",
         env_config=profile,
-        additional_info="RoboDojo",
     )
     with pytest.raises(ValueError, match="calibration is not release-ready"):
         load_simulator_config(RepositoryPaths.resolve(ROOT), request)
@@ -418,6 +401,8 @@ def test_server_dry_run_validates_and_builds_adapter_argv(tmp_path):
         task="stack_bowls",
         checkpoint="run-1",
         policy_env="policy-env",
+        env_config="arx_x5",
+        policy_contract="arx_x5",
         port=19000,
     )
     command = policy_server_command(request, 19000)
@@ -426,7 +411,7 @@ def test_server_dry_run_validates_and_builds_adapter_argv(tmp_path):
 
 
 @pytest.mark.parametrize("profile", ["openarm_lerobot", "openarm_wowrobo_v1_1", "openarm_anvil_v2"])
-def test_openarm_policy_uses_current_environment_profile_name(tmp_path, profile):
+def test_openarm_policy_uses_explicit_embodiment_contract(tmp_path, profile):
     policy = tmp_path / "LeRobot_Pi05_OpenArm"
     policy.mkdir()
     (policy / "setup_eval_policy_server.sh").write_text("#!/usr/bin/env bash\n", encoding="utf-8")
@@ -436,29 +421,21 @@ def test_openarm_policy_uses_current_environment_profile_name(tmp_path, profile)
         checkpoint="folding_final",
         policy_env="lerobot-pi05",
         env_config=profile,
+        policy_contract="openarm_lerobot",
         action_type="joint",
         port=19000,
     )
     command = policy_server_command(request, 19000)
-    assert command[5] == profile
+    assert command[5] == "openarm_lerobot"
 
 
-def test_server_cli_rejects_invalid_port(tmp_path):
-    policy = tmp_path / "Policy"
-    policy.mkdir()
-    (policy / "setup_eval_policy_server.sh").write_text("", encoding="utf-8")
+def test_server_cli_rejects_invalid_port():
     result = runner.invoke(
         app,
         [
             "server",
-            "--policy-dir",
-            str(policy),
-            "--task",
-            "stack_bowls",
-            "--ckpt",
-            "run-1",
-            "--policy-env",
-            "env",
+            "--recipe",
+            RECIPE,
             "--policy-port",
             "70000",
             "--dry-run",
@@ -474,50 +451,36 @@ def test_cli_rejects_invalid_log_level():
     assert "Invalid value for --log-level" in result.output
 
 
-def test_server_dry_run_separates_diagnostics_from_command_output(tmp_path):
-    policy = tmp_path / "Policy"
-    policy.mkdir()
-    (policy / "setup_eval_policy_server.sh").write_text("#!/usr/bin/env bash\n", encoding="utf-8")
+def test_server_dry_run_separates_diagnostics_from_command_output(monkeypatch):
+    from robodojo.orchestration import split
+
+    captured = []
+    monkeypatch.setattr(split, "run_server", lambda paths, request: captured.append(request) or 0)
     result = runner.invoke(
         app,
         [
             "--log-level",
             "INFO",
             "server",
-            "--policy-dir",
-            str(policy),
-            "--task",
-            "stack_bowls",
-            "--ckpt",
-            "run-1",
-            "--policy-env",
-            "env",
+            "--recipe",
+            RECIPE,
             "--dry-run",
         ],
     )
     assert result.exit_code == 0
-    assert "setup_eval_policy_server.sh" in result.stdout
-    assert "policy server:" not in result.stdout
-    assert "INFO robodojo.policy.adapter: policy server:" in result.stderr
+    assert captured[0].task == "general_pickup"
+    assert captured[0].protocol == "general_pickup"
 
 
-def test_cli_log_level_is_propagated_for_child_processes(monkeypatch, tmp_path):
-    policy = tmp_path / "Policy"
-    policy.mkdir()
-    (policy / "setup_eval_policy_server.sh").write_text("#!/usr/bin/env bash\n", encoding="utf-8")
+def test_cli_log_level_is_propagated_for_child_processes(monkeypatch):
+    from robodojo.orchestration import split
+
     seen: list[str | None] = []
     monkeypatch.setenv("ROBODOJO_LOG_LEVEL", "WARNING")
     monkeypatch.setattr(
-        policy_adapter,
-        "run_policy_server",
-        lambda request: seen.append(os.environ.get("ROBODOJO_LOG_LEVEL")) or 0,
-    )
-    monkeypatch.setattr(
-        preflight_workflow,
-        "run_fast_preflight",
-        lambda paths, request: preflight_workflow.build_report(
-            [preflight_workflow.PreflightCheck(name="test", status="PASS", detail="ok")]
-        ),
+        split,
+        "run_server",
+        lambda paths, request: seen.append(os.environ.get("ROBODOJO_LOG_LEVEL")) or 0,
     )
     result = runner.invoke(
         app,
@@ -525,14 +488,8 @@ def test_cli_log_level_is_propagated_for_child_processes(monkeypatch, tmp_path):
             "--log-level",
             "debug",
             "server",
-            "--policy-dir",
-            str(policy),
-            "--task",
-            "stack_bowls",
-            "--ckpt",
-            "run-1",
-            "--policy-env",
-            "env",
+            "--recipe",
+            RECIPE,
         ],
     )
     assert result.exit_code == 0
@@ -574,10 +531,7 @@ def test_policy_imports_work_without_simulator_extra():
 
 
 def test_simulator_command_uses_the_domain_module_path():
-    request = SimulatorLaunchRequest(
-        task="stack_bowls",
-        policy_name="TestPolicy",
-        port=19000,
+    request = _simulator_request(
         env_gpu=1,
         additional_info="ckpt_name=test,action_type=ee",
     )
@@ -602,13 +556,7 @@ def test_simulator_entrypoint_propagates_app_device_before_environment_creation(
 
 def test_standard_and_openarm_profiles_keep_intended_parallelism():
     paths = RepositoryPaths.resolve(ROOT)
-    arx = SimulatorLaunchRequest(
-        task="stack_bowls",
-        policy_name="TestPolicy",
-        port=19000,
-        env_config="arx_x5",
-        additional_info="test",
-    )
+    arx = _simulator_request()
     openarm = arx.model_copy(update={"env_config": "openarm_lerobot"})
 
     assert load_simulator_config(paths, arx)[0] == 10

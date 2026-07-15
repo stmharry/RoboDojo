@@ -1,7 +1,7 @@
 # Upstream review notes
 
-This is a historical snapshot from an LLM-assisted review, not a compatibility
-manifest or an enforced baseline.
+This document is a historical review snapshot. Canonical task semantics are
+now enforced separately by `configs/reference/upstream_task_contracts.yml`.
 
 ## Review snapshot — 2026-07-15
 
@@ -16,6 +16,20 @@ manifest or an enforced baseline.
   retained only for the classic `bimanual_yam_molmoact2` setup.
 - Official XPolicyLab `fe71eb5` was an ancestor of the configured local fork
   revision `20b0af3`, which contained 13 additional commits.
+
+## Task and protocol ownership
+
+The semantic lock covers the canonical task Python AST and normalized task YAML
+at the reviewed upstream revision. It deliberately ignores local import-path
+mapping while detecting prompt, observation, reward, reset, object-role, and
+horizon changes. Task code is also rejected when it branches on policy,
+environment, scene, camera, robot, or protocol identity.
+
+Following the task/benchmark-protocol separation described in the
+[MagicSim paper](https://arxiv.org/html/2606.17511), canonical task modules own
+the MDP while `configs/protocols.yml` owns explicit layout, horizon, evaluation
+count, and scene-compatibility choices. `configs/recipes.yml` then selects one
+policy, environment, scene, and protocol without implicit rebinding.
 
 ## Future reviews
 

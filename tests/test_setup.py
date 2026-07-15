@@ -23,14 +23,19 @@ def _request(tmp_path: Path, *stages: SetupStage) -> SetupRequest:
         checkpoint="release",
         policy_env="uv",
         env_config="bimanual_yam_molmoact2",
+        policy_contract="bimanual_yam",
         scene_config="molmo_yam",
         action_type="joint",
+        protocol="general_pickup",
+        layout="general_pickup",
+        episode_horizon=200,
+        native_eval_num=50,
     )
 
 
 def test_setup_stage_arguments_are_conditional(tmp_path):
     assert SetupRequest(stages=(SetupStage.ROOT,)).selected_stages() == (SetupStage.ROOT,)
-    with pytest.raises(ValidationError, match="env_config, task"):
+    with pytest.raises(ValidationError, match="episode_horizon.*layout.*protocol.*scene_config.*task"):
         SetupRequest(stages=(SetupStage.ASSETS,))
     with pytest.raises(ValidationError, match="policy_dir"):
         SetupRequest(stages=(SetupStage.POLICY,))

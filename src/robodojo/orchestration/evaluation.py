@@ -14,7 +14,6 @@ from robodojo.core.gpu import GpuSelectionError, resolve_gpus
 from robodojo.core.models import EvaluationRequest, PolicyServerLaunchRequest, SimulatorLaunchRequest
 from robodojo.core.paths import RepositoryPaths
 from robodojo.core.processes import format_command, free_port, start, terminate_process_group, wait_for_port
-from robodojo.core.profiles import bind_policy_contract
 from robodojo.core.storage import checkpoint_label, s3_uri
 from robodojo.policy.adapter import policy_launch_environment, policy_server_command
 from robodojo.sim.launcher import run_simulator, simulator_command
@@ -63,7 +62,6 @@ def _publish_evaluation(run_id: str) -> int:
 
 def run_evaluation(paths: RepositoryPaths, request: EvaluationRequest, *, preflight: bool = True) -> int:
     """Run the policy adapter and simulator as one deterministic lifecycle."""
-    request = bind_policy_contract(paths, request)
     visual_audit = _env_flag(SCENE_VISUAL_AUDIT_ENV)
     if visual_audit and not request.export_scene_only:
         raise ValueError(f"{SCENE_VISUAL_AUDIT_ENV}=1 is valid only with --export-scene-only")
@@ -105,13 +103,16 @@ def run_evaluation(paths: RepositoryPaths, request: EvaluationRequest, *, prefli
     policy_dir = request.policy_dir.expanduser().resolve()
     policy_name = _policy_name(policy_dir)
     label = checkpoint_label(request.checkpoint, request.checkpoint_label)
-    if request.eval_num is None:
-        eval_num: int | str = int(os.environ.get("EVAL_NUM", "1"))
-    else:
-        eval_num = request.eval_num
+    eval_num: int | str = request.eval_num or "native"
     port = 1 if request.export_scene_only else free_port()
     simulator_request = SimulatorLaunchRequest(
         task=request.task,
+        protocol_name=request.protocol,
+        layout=request.layout,
+        episode_horizon=request.episode_horizon,
+        native_eval_num=request.native_eval_num,
+        recipe=request.recipe,
+        contract_hash=request.contract_hash,
         policy_name=policy_name,
         host="127.0.0.1",
         port=port,

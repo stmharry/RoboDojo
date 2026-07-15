@@ -12,10 +12,7 @@ The normal setup workflow infers and builds the licensed I2RT-derived runtime
 asset from the selected YAM setup before launching the profile:
 
 ```bash
-make setup \
-  TASK=general_pickup ENV_CFG=bimanual_yam_molmoact2 SCENE=molmo_yam \
-  POLICY_DIR=XPolicyLab/policy/MolmoACT2 POLICY_ENV=molmoact2 \
-  CKPT=molmoact2_bimanual_yam
+make setup RECIPE=molmoact2-bimanual_yam-molmo_yam-general_pickup
 ```
 
 For a granular support operation, use
@@ -44,8 +41,8 @@ policy adapter and are intentionally absent from that reference.
 
 ## Independent workspace selection
 
-Scene selection comes from task metadata or the explicit `--scene` option; it
-is not stored in an environment profile. The typed `molmo_yam` scene profile
+Scene selection comes only from the explicit recipe or the complete four-part
+manual selection; task metadata never selects it. The typed `molmo_yam` scene profile
 selects its rendering component, an explicitly bundled layout source, and typed
 asset recipes required by those layouts. Bundled layouts are never silently
 shadowed by a downloaded layout with the same name; `default` and `conveyor`
@@ -73,6 +70,12 @@ and 10 cm lift reward. The classic and Moonlake fixed layouts contain the same
 green ball pose in their respective `Table` frames. The task YAML owns the
 label and support plane, while the selected saved layout owns the exact replay
 position. No environment or scene profile overrides the instruction.
+
+`moonlake_office_general_pickup` is an explicit benchmark protocol over that
+unchanged task. It selects the same `general_pickup` layout family and native
+episode count, but applies a 400-step horizon and is compatible only with the
+Moonlake scene. Result paths and publication identities use the protocol name;
+artifacts record both the protocol and its `general_pickup` base task.
 
 Container placement is a separate behavior under `pack_item_into_container`.
 That task owns the `item` and `container` roles, box-and-lid instruction,
@@ -103,26 +106,14 @@ For example, a YAM evaluation may opt into that workspace explicitly:
 
 ```bash
 uv run --extra sim --locked robodojo eval \
-  --policy-dir XPolicyLab/policy/MolmoACT2 \
-  --task general_pickup \
-  --ckpt molmoact2_bimanual_yam \
-  --policy-env molmoact2 \
-  --env-cfg bimanual_yam_molmoact2 \
-  --action-type joint \
-  --scene molmo_yam
+  --recipe molmoact2-bimanual_yam-molmo_yam-general_pickup
 ```
 
 The same scene remains independently composable with other policies:
 
 ```bash
 uv run --extra sim --locked robodojo eval \
-  --policy-dir XPolicyLab/policy/MolmoACT2 \
-  --task fold_clothes \
-  --ckpt molmoact2_bimanual_yam \
-  --policy-env molmoact2 \
-  --env-cfg bimanual_yam_molmoact2 \
-  --action-type joint \
-  --scene molmo_yam
+  --recipe molmoact2-bimanual_yam-molmo_yam-fold_clothes
 ```
 
 The released PI0.5 fine-tune uses the same embodiment and dataset-frame
@@ -132,13 +123,7 @@ selected independently:
 ```bash
 bash XPolicyLab/policy/Pi_05/prepare_checkpoint.sh pi05_yam_molmoact2
 uv run --extra sim --locked robodojo eval \
-  --policy-dir XPolicyLab/policy/Pi_05 \
-  --task general_pickup \
-  --ckpt pi05_yam_molmoact2 \
-  --policy-env uv \
-  --env-cfg bimanual_yam_molmoact2 \
-  --action-type joint \
-  --scene molmo_yam
+  --recipe pi05-bimanual_yam-molmo_yam-general_pickup
 ```
 
 `pi05_yam_molmoact2` consumes the shared `bimanual_yam` policy contract, but it
@@ -174,13 +159,7 @@ Scene-only exports can opt into a two-second, no-policy visual audit:
 
 ```bash
 ROBODOJO_SCENE_VISUAL_AUDIT=1 uv run --extra sim --locked robodojo eval \
-  --policy-dir XPolicyLab/policy/MolmoACT2 \
-  --task fold_clothes \
-  --ckpt molmoact2_bimanual_yam \
-  --policy-env uv \
-  --env-cfg bimanual_yam_molmoact2 \
-  --action-type joint \
-  --scene molmo_yam \
+  --recipe molmoact2-bimanual_yam-molmo_yam-fold_clothes \
   --seed 0 \
   --layout-id 0 \
   --export-scene-only

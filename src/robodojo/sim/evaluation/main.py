@@ -28,7 +28,13 @@ MAX_INPROC_RESTARTS = 3
 # option. Disable prefix matching so argparse does not mistake that option for
 # RoboDojo's upstream-compatible --device_id during the inspection pass.
 parser = argparse.ArgumentParser(allow_abbrev=False)
-parser.add_argument("--task_name", type=str)
+parser.add_argument("--task_name", type=str, required=True)
+parser.add_argument("--protocol_name", type=str, required=True)
+parser.add_argument("--layout_name", type=str, required=True)
+parser.add_argument("--episode_horizon", type=int, required=True)
+parser.add_argument("--native_eval_num", type=int, required=True)
+parser.add_argument("--recipe_name", type=str, required=True)
+parser.add_argument("--contract_hash", type=str, required=True)
 parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to spawn.")
 parser.add_argument(
     "--env_cfg_type",
@@ -39,7 +45,7 @@ parser.add_argument(
 parser.add_argument(
     "--scene_config",
     type=str,
-    default=None,
+    required=True,
     help="resolved simulator scene config name",
 )
 parser.add_argument("--device_id", type=int, required=True, help="the device id for current process")
@@ -130,6 +136,12 @@ RESOLVED_SCENE_CONFIG = resolve_scene_config(
     REPOSITORY_PATHS,
     SimulatorLaunchRequest(
         task=args_cli.task_name,
+        protocol_name=args_cli.protocol_name,
+        layout=args_cli.layout_name,
+        episode_horizon=args_cli.episode_horizon,
+        native_eval_num=args_cli.native_eval_num,
+        recipe=args_cli.recipe_name,
+        contract_hash=args_cli.contract_hash,
         policy_name=args_cli.policy_name,
         host=args_cli.host,
         port=args_cli.port,
@@ -146,7 +158,7 @@ RESOLVED_LAYOUT_SET = resolve_layout_set(
     benchmark="RoboDojo",
     layout_set=SCENE_PROFILE.document.layout_set,
     layout_source=SCENE_PROFILE.document.layout_source,
-    task=args_cli.task_name,
+    task=args_cli.layout_name,
     seed=args_cli.seed,
 )
 validate_resolved_layout_set(
@@ -230,7 +242,7 @@ def _resume_manifest_path(eval_cfg, run_id):
     """
     return os.path.join(
         str(eval_work_root()),
-        eval_cfg["task_name"],
+        eval_cfg["protocol_name"],
         eval_cfg["policy_name"],
         eval_cfg["config_name"],
         f"{eval_cfg.get('seed', 0)}_{eval_cfg.get('additional_info', '')}",
@@ -350,7 +362,29 @@ def main():
     eval_cfg["layout_source"] = SCENE_PROFILE.document.layout_source
     eval_cfg["layout_set_hash"] = RESOLVED_LAYOUT_SET.identity_hash
     eval_cfg["scene_asset_hash"] = PREPARED_SCENE_ASSETS.identity_hash
+    eval_cfg["scene_asset_builds"] = list(
+        dict.fromkeys(
+            (
+                *SCENE_PROFILE.document.asset_builds,
+                *SCENE_PROFILE.document.task_asset_builds.get(task_name, ()),
+            )
+        )
+    )
+    eval_cfg["scene_asset_identities"] = [
+        {
+            "destination": artifact.destination_root.relative_to(assets_root()).as_posix(),
+            "derivation_hash": artifact.derivation_hash,
+            "manifest_hash": artifact.manifest_hash,
+        }
+        for artifact in PREPARED_SCENE_ASSETS.artifacts
+    ]
     eval_cfg["task_name"] = task_name
+    eval_cfg["protocol_name"] = args_cli.protocol_name
+    eval_cfg["layout_name"] = args_cli.layout_name
+    eval_cfg["episode_horizon"] = args_cli.episode_horizon
+    eval_cfg["native_eval_num"] = args_cli.native_eval_num
+    eval_cfg["recipe_name"] = args_cli.recipe_name
+    eval_cfg["contract_hash"] = args_cli.contract_hash
     eval_cfg["num_envs"] = num_envs
     eval_cfg["device_id"] = args_cli.device_id
     eval_batch = False if SCENE_EXPORT_ONLY else _eval_batch_from_deploy(args_cli.policy_name)
@@ -367,8 +401,8 @@ def main():
     deploy_cfg["protocol"] = args_cli.protocol
     deploy_cfg["policy_server_url"] = args_cli.policy_server_url or f"ws://{args_cli.host}:{args_cli.port}"
     deploy_cfg["evaluation_id"] = os.environ["ROBODOJO_RUN_ID"]
-    deploy_cfg["trial_id"] = f"{task_name}-{os.environ['ROBODOJO_RUN_ID']}"
-    deploy_cfg["action_case_id"] = f"{task_name}_case"
+    deploy_cfg["trial_id"] = f"{args_cli.protocol_name}-{os.environ['ROBODOJO_RUN_ID']}"
+    deploy_cfg["action_case_id"] = f"{args_cli.protocol_name}_case"
     deploy_cfg["repeat_index"] = None
     env_cfg = OmegaConf.create(
         {
@@ -415,7 +449,7 @@ def main():
     env_cfg, eval_num = process_config(
         env_cfg,
         task_name=task_name,
-        resolved_scene_config=RESOLVED_SCENE_CONFIG,
+        native_eval_num=args_cli.native_eval_num,
     )
 
     if os.environ.get("EVAL_NUM"):

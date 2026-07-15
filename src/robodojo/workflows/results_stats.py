@@ -5,7 +5,7 @@ Example output (conceptually):
     stack_bowls / Pi_05: 5 x 0.5, 10 x 0.0, ...
 
 Directory layout (same as summarize_result.py):
-    <task>/<policy>/<embodiment>/<seed>_ckpt_name=...,action_type=.../<timestamp>/_result.json
+    <protocol>/<policy>/<environment>/<seed>_ckpt_name=...,action_type=.../<timestamp>/_result.json
 
 Rules:
   * Only the latest timestamp folder is read for each

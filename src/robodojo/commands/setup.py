@@ -6,7 +6,7 @@ from pathlib import Path
 
 import typer
 
-from robodojo.commands.common import model, paths, report_format
+from robodojo.commands.common import contract_values, model, paths, report_format
 from robodojo.core.models import SetupRequest, SetupStage
 
 
@@ -16,14 +16,11 @@ def setup(
         "--only",
         help="Prepare only this stage; repeat for root, assets, or policy.",
     ),
-    policy_dir: Path | None = typer.Option(None, "--policy-dir", help="XPolicyLab policy adapter directory."),
-    task: str | None = typer.Option(None, "--task", help="Canonical task used to resolve assets and policy setup."),
-    checkpoint: str | None = typer.Option(None, "--ckpt", help="Checkpoint alias or path to prepare."),
-    policy_env: str | None = typer.Option(None, "--policy-env", help="Policy runtime environment name or path."),
-    dataset: str = typer.Option("RoboDojo", "--dataset", help="Benchmark or dataset family."),
-    env_config: str | None = typer.Option(None, "--env-cfg", help="Environment profile used to infer assets."),
-    scene_config: str | None = typer.Option(None, "--scene", help="Optional scene profile override."),
-    action_type: str | None = typer.Option(None, "--action-type", help="Policy action representation."),
+    recipe: str | None = typer.Option(None, "--recipe", help="Tracked evaluation recipe."),
+    policy_profile: str | None = typer.Option(None, "--policy-profile", help="Manual policy profile."),
+    environment: str | None = typer.Option(None, "--environment", help="Manual environment profile."),
+    scene: str | None = typer.Option(None, "--scene", help="Manual scene profile."),
+    protocol: str | None = typer.Option(None, "--protocol", help="Manual task protocol."),
     seed: int = typer.Option(0, "--seed", help="Nonnegative experiment seed."),
     policy_gpu: str = typer.Option(
         "auto",
@@ -41,18 +38,23 @@ def setup(
     """Prepare repository-local dependencies, assets, policy runtime, and checkpoint."""
     from robodojo.workflows.setup import setup as setup_workflow
 
+    repository = paths(root)
+    selected = set(only or tuple(SetupStage))
+    contract = {}
+    if selected != {SetupStage.ROOT}:
+        contract = contract_values(
+            repository,
+            recipe=recipe,
+            policy_profile=policy_profile,
+            environment=environment,
+            scene=scene,
+            protocol=protocol,
+        )
     request = model(
         SetupRequest,
+        **contract,
         stages=tuple(only or ()),
-        policy_dir=policy_dir,
-        task=task,
-        checkpoint=checkpoint,
-        policy_env=policy_env,
-        dataset=dataset,
-        env_config=env_config,
-        scene_config=scene_config,
-        action_type=action_type,
         seed=seed,
         policy_gpu=policy_gpu,
     )
-    raise typer.Exit(setup_workflow(paths(root), request, output_format=report_format(output_format)))
+    raise typer.Exit(setup_workflow(repository, request, output_format=report_format(output_format)))

@@ -228,6 +228,14 @@ def _find_eval_run(run_id: str) -> Path:
     matches = [path.parent for path in eval_work_root().rglob("_result.json") if path.parent.name == run_id]
     if len(matches) != 1:
         raise SystemExit(f"expected one completed local eval run named {run_id!r}, found {len(matches)}")
+    result_path = matches[0] / "_result.json"
+    try:
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+        eval_time = int(result.get("eval_time", 0))
+    except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise SystemExit(f"evaluation result is invalid: {result_path}: {exc}") from exc
+    if eval_time < 1:
+        raise SystemExit(f"evaluation result is incomplete: {result_path} has eval_time={eval_time}")
     return matches[0]
 
 

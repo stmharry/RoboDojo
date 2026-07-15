@@ -2,6 +2,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 
 import pytest
 
@@ -22,6 +23,12 @@ ROOT = Path(__file__).resolve().parents[1]
 def _identity(**overrides) -> ExportIdentity:
     values = {
         "task": "fold_clothes",
+        "protocol": "fold_clothes",
+        "layout": "fold_clothes",
+        "episode_horizon": 500,
+        "native_eval_num": 25,
+        "recipe": "pi05-arx_x5-default-fold_clothes",
+        "contract_hash": "d" * 64,
         "profile": "arx_x5",
         "scene_config": "default",
         "seed": 0,
@@ -165,24 +172,15 @@ def test_scene_export_inputs_follow_canonical_config_domains():
     }
 
 
-def test_scene_only_eval_dry_run_bypasses_policy_orchestrator(tmp_path):
-    policy_dir = tmp_path / "TestPolicy"
-    policy_dir.mkdir()
-    (policy_dir / "setup_eval_policy_server.sh").write_text("#!/usr/bin/env bash\n", encoding="utf-8")
+def test_scene_only_eval_dry_run_bypasses_policy_orchestrator():
     result = subprocess.run(
         [
-            str(ROOT / ".venv/bin/robodojo"),
+            sys.executable,
+            "-m",
+            "robodojo.cli",
             "eval",
-            "--policy-dir",
-            str(policy_dir),
-            "--task",
-            "fold_clothes",
-            "--ckpt",
-            "folding_final",
-            "--policy-env",
-            "unused-in-scene-only",
-            "--env-cfg",
-            "arx_x5",
+            "--recipe",
+            "pi05-arx_x5-default-fold_clothes",
             "--env-gpu",
             "0",
             "--seed",
@@ -202,24 +200,15 @@ def test_scene_only_eval_dry_run_bypasses_policy_orchestrator(tmp_path):
     assert "setup_eval_policy_server.sh" not in result.stdout
 
 
-def test_scene_visual_audit_dry_run_is_propagated_only_through_scene_only_path(tmp_path):
-    policy_dir = tmp_path / "TestPolicy"
-    policy_dir.mkdir()
-    (policy_dir / "setup_eval_policy_server.sh").write_text("#!/usr/bin/env bash\n", encoding="utf-8")
+def test_scene_visual_audit_dry_run_is_propagated_only_through_scene_only_path():
     result = subprocess.run(
         [
-            str(ROOT / ".venv/bin/robodojo"),
+            sys.executable,
+            "-m",
+            "robodojo.cli",
             "eval",
-            "--policy-dir",
-            str(policy_dir),
-            "--task",
-            "fold_clothes",
-            "--ckpt",
-            "folding_final",
-            "--policy-env",
-            "unused-in-scene-only",
-            "--env-cfg",
-            "arx_x5",
+            "--recipe",
+            "pi05-arx_x5-default-fold_clothes",
             "--env-gpu",
             "0",
             "--export-scene-only",
@@ -248,28 +237,28 @@ def test_scene_visual_audit_rejects_non_scene_only_evaluation(monkeypatch, tmp_p
         task="fold_clothes",
         checkpoint="folding_final",
         policy_env="test-policy-env",
+        env_config="arx_x5",
+        policy_contract="arx_x5",
+        protocol="fold_clothes",
+        layout="fold_clothes",
+        episode_horizon=500,
+        native_eval_num=25,
+        scene_config="default",
         export_scene=True,
     )
     with pytest.raises(ValueError, match="valid only with --export-scene-only"):
         evaluation.run_evaluation(RepositoryPaths.resolve(ROOT), request)
 
 
-def test_export_and_continue_keeps_policy_orchestrator(tmp_path):
-    policy_dir = tmp_path / "TestPolicy"
-    policy_dir.mkdir()
-    (policy_dir / "setup_eval_policy_server.sh").write_text("#!/usr/bin/env bash\n", encoding="utf-8")
+def test_export_and_continue_keeps_policy_orchestrator():
     result = subprocess.run(
         [
-            str(ROOT / ".venv/bin/robodojo"),
+            sys.executable,
+            "-m",
+            "robodojo.cli",
             "eval",
-            "--policy-dir",
-            str(policy_dir),
-            "--task",
-            "fold_clothes",
-            "--ckpt",
-            "folding_final",
-            "--policy-env",
-            "test-policy-env",
+            "--recipe",
+            "pi05-arx_x5-default-fold_clothes",
             "--policy-gpu",
             "0",
             "--env-gpu",

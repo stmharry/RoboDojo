@@ -2,7 +2,7 @@
 """Aggregate RoboDojo eval results into a markdown table.
 
 Layout on disk:
-    <task>/<policy>/<embodiment>/<seed>_ckpt_name=...,action_type=.../<timestamp>/_result.json
+    <protocol>/<policy>/<environment>/<seed>_ckpt_name=...,action_type=.../<timestamp>/_result.json
 
 Rules:
   * For every (task, policy, embodiment, scene, seed) we only read the
@@ -254,6 +254,7 @@ def main(argv=None):
     data = {policy: {} for policy in policy_seeds}
     # gen_split[policy][task][seed] = {"base": (sr, score), "random": (sr, score)}
     gen_split = {policy: {} for policy in policy_seeds}
+    additional_protocols = []
 
     def record(policy, task, seed, sr, score):
         data.setdefault(policy, {}).setdefault(task, {})[seed] = (sr, score)
@@ -292,7 +293,17 @@ def main(argv=None):
                 policy, _embodiment, _scene, seed = key
                 record(policy, task, seed, sr, score)
 
-    write_markdown(data, gen_split, output_md)
+    canonical_result_dirs = set(ALL_TASKS) | set(random_of.values())
+    for protocol in sorted(set(list_subdirs(ROOT)) - canonical_result_dirs):
+        scan = scan_task(protocol, args.env_cfg, args.scene)
+        ensure_unambiguous(protocol, scan)
+        for (policy, environment, scene, seed), entries in sorted(scan.items()):
+            if not entries:
+                continue
+            count, sr, score = stats(entries)
+            additional_protocols.append((protocol, policy, environment, scene, seed, count, sr, score))
+
+    write_markdown(data, gen_split, additional_protocols, output_md)
     n_cells = sum(len(seeds) for tasks in data.values() for seeds in tasks.values())
     complete = sum(1 for p in data if policy_is_complete(p, data))
     tested = sum(1 for p in data if policy_progress(p, data)[0] > 0)
@@ -628,6 +639,26 @@ def build_overview(data):
     return lines
 
 
+def build_additional_protocols(rows):
+    """Render named protocols without folding them into the upstream scorecard."""
+
+    lines = [
+        "## Additional named protocols",
+        "",
+        "These explicit protocols are reported by protocol identity and are not "
+        "counted in the canonical 42-task overview.",
+        "",
+        "| Protocol | Policy | Environment | Scene | Seed | Episodes | SR (%) | Score |",
+        "| --- | --- | --- | --- | ---: | ---: | ---: | ---: |",
+    ]
+    lines.extend(
+        f"| `{protocol}` | {policy} | `{environment}` | `{scene}` | {seed} | {count} | {sr:.0f} | {score:.2f} |"
+        for protocol, policy, environment, scene, seed, count, sr, score in rows
+    )
+    lines.append("")
+    return lines
+
+
 def seed_column_means(policy_data, seed):
     """Average SR/Score for one seed across all tasks with data."""
     srs = []
@@ -689,10 +720,11 @@ def format_seed_avg_row(policy_data):
     return cells
 
 
-def write_markdown(data, gen_split, output_md):
+def write_markdown(data, gen_split, additional_protocols, output_md):
     lines = ["# RoboDojo Evaluation Summary", ""]
     lines += build_overview(data)
     lines += build_generalization_split(gen_split)
+    lines += build_additional_protocols(additional_protocols)
 
     for policy in sorted(data):
         lines.append(f"## {policy}")

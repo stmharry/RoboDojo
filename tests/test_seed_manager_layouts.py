@@ -12,6 +12,7 @@ def _manager(layout_source="bundled", expected_hash=None):
         {
             "num_envs": 1,
             "task_name": "general_pickup",
+            "layout_name": "general_pickup",
             "config_name": "bimanual_yam",
             "layout_config_name": "molmo_yam",
             "layout_source": layout_source,

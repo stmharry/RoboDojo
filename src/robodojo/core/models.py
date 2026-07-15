@@ -39,6 +39,12 @@ class PolicyExperimentBase(StrictModel):
     env_config: str | None = None
     policy_contract: str | None = None
     action_type: str | None = None
+    recipe: str | None = None
+    contract_hash: str | None = None
+    protocol: str | None = None
+    layout: str | None = None
+    episode_horizon: Annotated[int, Field(ge=1)] | None = None
+    native_eval_num: Annotated[int, Field(ge=1)] | None = None
     seed: NonNegativeInt = 0
     policy_gpu: GpuSelector = "auto"
 
@@ -50,6 +56,10 @@ class PolicyExperimentBase(StrictModel):
         "env_config",
         "policy_contract",
         "action_type",
+        "recipe",
+        "contract_hash",
+        "protocol",
+        "layout",
     )
     @classmethod
     def experiment_value_non_empty(cls, value: str | None) -> str | None:
@@ -63,7 +73,8 @@ class PolicyExperimentRequest(PolicyExperimentBase):
     task: str
     checkpoint: str
     policy_env: str
-    env_config: str = "arx_x5"
+    env_config: str
+    policy_contract: str
     action_type: str = "ee"
 
     def policy_request(
@@ -91,7 +102,11 @@ class PolicyExperimentRequest(PolicyExperimentBase):
 
 
 class ExperimentRequest(PolicyExperimentRequest):
-    scene_config: str | None = None
+    protocol: str
+    layout: str
+    episode_horizon: Annotated[int, Field(ge=1)]
+    native_eval_num: Annotated[int, Field(ge=1)]
+    scene_config: str
     env_gpu: GpuSelector = "auto"
 
     @field_validator("scene_config")
@@ -170,9 +185,34 @@ class SetupRequest(PolicyExperimentBase):
         selected = set(self.stages) or set(SetupStage)
         required: set[str] = set()
         if SetupStage.ASSETS in selected:
-            required.update({"task", "env_config"})
+            required.update(
+                {
+                    "task",
+                    "env_config",
+                    "policy_contract",
+                    "scene_config",
+                    "protocol",
+                    "layout",
+                    "episode_horizon",
+                    "native_eval_num",
+                }
+            )
         if SetupStage.POLICY in selected:
-            required.update({"policy_dir", "task", "checkpoint", "policy_env", "env_config", "action_type"})
+            required.update(
+                {
+                    "policy_dir",
+                    "task",
+                    "checkpoint",
+                    "policy_env",
+                    "env_config",
+                    "policy_contract",
+                    "action_type",
+                    "protocol",
+                    "layout",
+                    "episode_horizon",
+                    "native_eval_num",
+                }
+            )
         missing = sorted(name for name in required if not getattr(self, name))
         if missing:
             raise ValueError(f"setup stage arguments are missing: {', '.join(missing)}")
@@ -222,11 +262,17 @@ class PreflightReport(StrictModel):
 
 class SimulatorLaunchRequest(StrictModel):
     task: str
+    protocol_name: str
+    layout: str
+    episode_horizon: Annotated[int, Field(ge=1)]
+    native_eval_num: Annotated[int, Field(ge=1)]
+    recipe: str | None = None
+    contract_hash: str | None = None
     policy_name: str
     host: str = "127.0.0.1"
     port: Port
     env_config: str = "arx_x5"
-    scene_config: str | None = None
+    scene_config: str
     env_gpu: NonNegativeInt = 0
     seed: NonNegativeInt = 0
     eval_num: Annotated[int, Field(ge=1)] | Literal["native"] = 1
@@ -235,7 +281,7 @@ class SimulatorLaunchRequest(StrictModel):
     policy_server_url: str = ""
     dry_run: bool = False
 
-    @field_validator("scene_config")
+    @field_validator("protocol_name", "scene_config", "recipe", "contract_hash")
     @classmethod
     def optional_non_empty(cls, value: str | None) -> str | None:
         if value is not None and not value.strip():
@@ -243,22 +289,142 @@ class SimulatorLaunchRequest(StrictModel):
         return value
 
 
-class SweepRequest(ExperimentRequest):
-    task: str = "__sweep__"
+class SweepRequest(StrictModel):
+    recipes: tuple[str, ...]
+    seed: NonNegativeInt = 0
+    policy_gpu: GpuSelector = "auto"
+    env_gpu: GpuSelector = "auto"
     eval_num: Annotated[int, Field(ge=1)] | Literal["native"] = 1
-    only: tuple[str, ...] = ()
-    tasks_file: Path | None = None
     limit: Annotated[int, Field(ge=1)] | None = None
     resume: bool = False
     fail_fast: bool = False
     run_id: str | None = None
     dry_run: bool = False
 
+    @field_validator("recipes")
+    @classmethod
+    def non_empty_recipe_list(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        if not value:
+            raise ValueError("at least one recipe is required")
+        if len(value) != len(set(value)):
+            raise ValueError("recipe selections must be unique")
+        return value
+
 
 class EnvironmentConfigReferences(StrictModel):
     sim: str
     robot: str
     camera: str
+
+
+class PolicyProfileDocument(StrictModel):
+    """One policy adapter/checkpoint bound to an embodiment contract."""
+
+    policy_dir: Path
+    runtime: str
+    checkpoint: str
+    embodiment: str
+    dataset: str = "RoboDojo"
+    action_type: str
+
+    @field_validator("runtime", "checkpoint", "embodiment", "dataset", "action_type")
+    @classmethod
+    def non_empty_policy_value(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("must not be empty")
+        return value
+
+    @field_validator("policy_dir")
+    @classmethod
+    def relative_policy_dir(cls, value: Path) -> Path:
+        if value.is_absolute() or ".." in value.parts:
+            raise ValueError("policy_dir must be a repository-relative path")
+        return value
+
+
+class TaskProtocolDocument(StrictModel):
+    """Named benchmark settings layered over an unchanged task MDP."""
+
+    task: str
+    layout: str
+    episode_horizon: Annotated[int, Field(ge=1)]
+    evaluation_episodes: Annotated[int, Field(ge=1)]
+    compatible_scenes: list[str] = Field(default_factory=list)
+
+    @field_validator("task", "layout")
+    @classmethod
+    def safe_protocol_component(cls, value: str) -> str:
+        if re.fullmatch(r"[A-Za-z0-9_]+", value) is None:
+            raise ValueError("must contain only letters, digits, and underscores")
+        return value
+
+    @field_validator("compatible_scenes")
+    @classmethod
+    def safe_protocol_scenes(cls, value: list[str]) -> list[str]:
+        if len(value) != len(set(value)):
+            raise ValueError("compatible scenes must be unique")
+        invalid = sorted(scene for scene in value if re.fullmatch(r"[A-Za-z0-9_]+", scene) is None)
+        if invalid:
+            raise ValueError(f"invalid compatible scene names: {invalid}")
+        return value
+
+
+class EvaluationRecipeDocument(StrictModel):
+    """Explicit composition of policy, embodiment setup, scene, and protocol."""
+
+    policy: str
+    environment: str
+    scene: str
+    protocol: str
+
+    @field_validator("policy", "environment", "scene", "protocol")
+    @classmethod
+    def safe_recipe_component(cls, value: str) -> str:
+        if re.fullmatch(r"[A-Za-z0-9_]+", value) is None:
+            raise ValueError("must contain only letters, digits, and underscores")
+        return value
+
+
+class PolicyProfileCatalog(StrictModel):
+    policies: dict[str, PolicyProfileDocument]
+
+    @field_validator("policies")
+    @classmethod
+    def safe_policy_names(cls, value: dict[str, PolicyProfileDocument]) -> dict[str, PolicyProfileDocument]:
+        if not value:
+            raise ValueError("policy catalog must not be empty")
+        invalid = sorted(name for name in value if re.fullmatch(r"[A-Za-z0-9_]+", name) is None)
+        if invalid:
+            raise ValueError(f"invalid policy profile names: {invalid}")
+        return value
+
+
+class TaskProtocolCatalog(StrictModel):
+    protocols: dict[str, TaskProtocolDocument]
+
+    @field_validator("protocols")
+    @classmethod
+    def safe_protocol_names(cls, value: dict[str, TaskProtocolDocument]) -> dict[str, TaskProtocolDocument]:
+        if not value:
+            raise ValueError("protocol catalog must not be empty")
+        invalid = sorted(name for name in value if re.fullmatch(r"[A-Za-z0-9_]+", name) is None)
+        if invalid:
+            raise ValueError(f"invalid protocol names: {invalid}")
+        return value
+
+
+class EvaluationRecipeCatalog(StrictModel):
+    recipes: dict[str, EvaluationRecipeDocument]
+
+    @field_validator("recipes")
+    @classmethod
+    def safe_recipe_names(cls, value: dict[str, EvaluationRecipeDocument]) -> dict[str, EvaluationRecipeDocument]:
+        if not value:
+            raise ValueError("recipe catalog must not be empty")
+        invalid = sorted(name for name in value if re.fullmatch(r"[A-Za-z0-9_-]+", name) is None)
+        if invalid:
+            raise ValueError(f"invalid recipe names: {invalid}")
+        return value
 
 
 class EnvironmentDiagnostics(StrictModel):
@@ -541,7 +707,7 @@ class SceneConfigDocument(StrictModel):
 
 class SmokeRecord(StrictModel):
     status: Literal["PASS", "FAIL", "SKIP", "DRY_RUN"]
-    task: str
+    recipe: str
     scene_config: str | None = None
     exit_code: int
     elapsed_sec: float

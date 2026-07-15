@@ -84,7 +84,7 @@ def _enable_teleop_physx_stabilization(sim_cfg):
     sim_cfg["physx"]["enable_stabilization"] = True
 
 
-def process_config(env_cfg, task_name, resolved_scene_config=None):
+def process_config(env_cfg, task_name, native_eval_num):
     env_cfg = configure_task_physics_device(env_cfg)
     task_index_path = os.path.join(TASK_CONFIG_PATH, "_task.yml")
     info = load_yaml(task_index_path)
@@ -99,25 +99,8 @@ def process_config(env_cfg, task_name, resolved_scene_config=None):
     if render_interval != default_render_interval:
         env_cfg["sim"]["render_interval"] = render_interval
 
-    if resolved_scene_config is None:
-        default_scene = "default"
-        scene_config = _task_setting(task_info, common_info, "scene_config", default_scene)
-        if scene_config != default_scene:
-            env_cfg.scene = load_yaml(os.path.join(ENV_CONFIG_PATH, "scene", scene_config + ".yml"))
-
-    default_camera = "camera_config"
-    camera_config = _task_setting(task_info, common_info, "camera_config", default_camera)
-    if camera_config != default_camera:
-        env_cfg.camera = load_yaml(os.path.join(ENV_CONFIG_PATH, "camera", camera_config + ".yml"))
-
-    default_robot = "dual_x5"
-    robot_config = _task_setting(task_info, common_info, "robot_config", default_robot)
-    if robot_config != default_robot:
-        env_cfg.robot = load_yaml(os.path.join(ENV_CONFIG_PATH, "robot", robot_config + ".yml"))
-
     if not _task_setting(task_info, common_info, "robot_self_collision", True):
         for cfg in env_cfg.robot.robots:
             cfg["enabled_self_collisions"] = False
 
-    eval_num = task_info.get("eval_nums", common_info.get("eval_nums", 50))
-    return env_cfg, eval_num
+    return env_cfg, int(native_eval_num)

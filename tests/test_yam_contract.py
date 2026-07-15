@@ -8,9 +8,9 @@ from omegaconf import OmegaConf
 import pytest
 import yaml
 
-from robodojo.core.models import PreflightRequest
+from robodojo.core.contracts import resolve_recipe
 from robodojo.core.paths import RepositoryPaths
-from robodojo.core.profiles import bind_policy_contract, load_environment_profile, load_scene_profile
+from robodojo.core.profiles import load_environment_profile, load_scene_profile
 from robodojo.sim.camera_template import YAM_TOP, YAM_WRIST, resolve_pinhole_lens
 from robodojo.sim.environment.camera_manager.mount_registry import (
     apply_optical_roll,
@@ -55,15 +55,8 @@ def test_named_yam_profiles_inherit_one_30hz_policy_contract():
     assert robot_info["dual_yam_molmoact2"] == expected_dimensions
     assert robot_info["dual_yam_moonlake_office"] == expected_dimensions
 
-    request = PreflightRequest(
-        policy_dir=ROOT / "XPolicyLab/policy/MolmoACT2",
-        task="general_pickup",
-        checkpoint="molmoact2_bimanual_yam",
-        policy_env="molmoact2",
-        env_config="bimanual_yam_molmoact2",
-        action_type="joint",
-    )
-    assert bind_policy_contract(paths, request).policy_contract == "bimanual_yam"
+    contract = resolve_recipe(paths, "molmoact2-bimanual_yam-molmo_yam-general_pickup")
+    assert contract.policy.embodiment == contract.environment.policy_contract == "bimanual_yam"
 
 
 def test_task_instruction_is_independent_of_environment_and_scene_profiles():
@@ -160,7 +153,7 @@ def test_fold_clothes_does_not_replace_yam_profile_components():
             "eval_cfg": payload,
         }
     )
-    processed, eval_num = process_config(env_cfg, "fold_clothes")
+    processed, eval_num = process_config(env_cfg, "fold_clothes", native_eval_num=25)
     assert [robot.robot_name for robot in processed.robot.robots] == ["yam", "yam"]
     assert processed.camera.camera_rig.profile_id == "bimanual_yam_molmoact2"
     assert processed.sim.render_interval == 8
@@ -221,9 +214,7 @@ def test_yam_camera_rig_matches_embodiment_contract_and_runtime_templates():
 
 
 def test_yam_setup_profiles_keep_their_source_camera_aspect_ratios():
-    molmo = normalize_camera_rig(
-        yaml.safe_load((ROOT / "configs/camera/bimanual_yam_molmoact2.yml").read_text())
-    )
+    molmo = normalize_camera_rig(yaml.safe_load((ROOT / "configs/camera/bimanual_yam_molmoact2.yml").read_text()))
     moonlake = normalize_camera_rig(
         yaml.safe_load((ROOT / "configs/camera/bimanual_yam_moonlake_office.yml").read_text())
     )

@@ -94,7 +94,7 @@ def checkpoint_root() -> Path:
 
 
 def eval_root() -> Path:
-    """Local result root whose children are benchmark task names."""
+    """Local result root whose children are benchmark protocol names."""
     return storage_root() / "runs" / "eval_result" / "RoboDojo"
 
 

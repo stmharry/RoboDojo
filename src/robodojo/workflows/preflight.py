@@ -13,6 +13,7 @@ from typing import Iterable
 
 import yaml
 
+from robodojo.core.contracts import load_protocol_catalog
 from robodojo.core.gpu import GpuSelectionError, resolve_gpus, validate_gpu_assignment
 from robodojo.core.models import (
     ExperimentRequest,
@@ -26,7 +27,6 @@ from robodojo.core.processes import free_port, start, terminate_process_group, w
 from robodojo.core.profiles import (
     EnvironmentProfile,
     SceneProfile,
-    bind_policy_contract,
     load_environment_profile,
     validate_scene_environment_compatibility,
 )
@@ -52,32 +52,12 @@ ROOT_SETUP_REMEDIATION = "make setup; or " + shlex.join(
 
 def _setup_remediation(request: PreflightRequest, stage: str) -> str:
     arguments = ["uv", "run", "--locked", "robodojo", "setup", "--only", stage]
-    if stage == "assets":
-        arguments += ["--task", request.task, "--env-cfg", request.env_config]
-        if request.scene_config:
-            arguments += ["--scene", request.scene_config]
-    elif stage == "policy":
-        arguments += [
-            "--policy-dir",
-            str(request.policy_dir),
-            "--dataset",
-            request.dataset,
-            "--task",
-            request.task,
-            "--ckpt",
-            request.checkpoint,
-            "--policy-env",
-            request.policy_env,
-            "--env-cfg",
-            request.env_config,
-            "--action-type",
-            request.action_type,
-            "--seed",
-            str(request.seed),
-            "--policy-gpu",
-            str(request.policy_gpu),
-        ]
-    return f"make setup; or {shlex.join(arguments)}"
+    if request.recipe:
+        arguments += ["--recipe", request.recipe, "--seed", str(request.seed)]
+        if stage == "policy":
+            arguments += ["--policy-gpu", str(request.policy_gpu)]
+        return f"make setup RECIPE={shlex.quote(request.recipe)}; or {shlex.join(arguments)}"
+    return "make setup with the same complete manual contract"
 
 
 def request_from_evaluation(request: ExperimentRequest, *, task: str | None = None) -> PreflightRequest:
@@ -90,6 +70,12 @@ def request_from_evaluation(request: ExperimentRequest, *, task: str | None = No
         dataset=request.dataset,
         env_config=request.env_config,
         policy_contract=request.policy_contract,
+        recipe=request.recipe,
+        contract_hash=request.contract_hash,
+        protocol=request.protocol,
+        layout=request.layout,
+        episode_horizon=request.episode_horizon,
+        native_eval_num=request.native_eval_num,
         scene_config=request.scene_config,
         action_type=request.action_type,
         seed=request.seed,
@@ -179,8 +165,49 @@ def _configuration_checks(
         checks.append(_check("environment", "FAIL", str(exc), "select a valid ENV_CFG"))
         return checks, None, None
 
+    if request.policy_contract != profile.policy_contract:
+        checks.append(
+            _check(
+                "policy_environment",
+                "FAIL",
+                f"policy embodiment {request.policy_contract!r} does not match "
+                f"environment contract {profile.policy_contract!r}",
+                "select a compatible policy profile and environment recipe",
+            )
+        )
+    else:
+        checks.append(_check("policy_environment", "PASS", profile.policy_contract))
+
+    try:
+        protocol = load_protocol_catalog(paths).protocols[request.protocol]
+        actual = (
+            request.task,
+            request.layout,
+            request.episode_horizon,
+            request.native_eval_num,
+        )
+        expected = (
+            protocol.task,
+            protocol.layout,
+            protocol.episode_horizon,
+            protocol.evaluation_episodes,
+        )
+        if actual != expected:
+            raise ValueError(f"resolved fields {actual} do not match catalog {expected}")
+        if protocol.compatible_scenes and request.scene_config not in protocol.compatible_scenes:
+            raise ValueError(f"compatible scenes are {protocol.compatible_scenes}, received {request.scene_config!r}")
+        checks.append(_check("protocol", "PASS", f"{request.protocol} -> task={request.task} layout={request.layout}"))
+    except (KeyError, TypeError, ValueError) as exc:
+        checks.append(_check("protocol", "FAIL", str(exc), "select a valid recipe or complete manual contract"))
+
     simulator_request = SimulatorLaunchRequest(
         task=request.task,
+        protocol_name=request.protocol,
+        layout=request.layout,
+        episode_horizon=request.episode_horizon,
+        native_eval_num=request.native_eval_num,
+        recipe=request.recipe,
+        contract_hash=request.contract_hash,
         policy_name=request.policy_dir.name,
         port=1,
         env_config=request.env_config,
@@ -217,7 +244,7 @@ def _layout_check(
         paths.environment_configs / "layout" / relative,
     )
     for directory in candidates:
-        matches = sorted(directory.glob(f"{request.task}_*.json")) if directory.is_dir() else []
+        matches = sorted(directory.glob(f"{request.layout}_*.json")) if directory.is_dir() else []
         if not matches:
             continue
         failed_path = matches[0]
@@ -250,7 +277,7 @@ def _layout_check(
     return _check(
         "layout",
         "FAIL",
-        f"no {request.task}_*.json layout for seed {request.seed}; searched {searched}",
+        f"no {request.layout}_*.json layout for seed {request.seed}; searched {searched}",
         _setup_remediation(request, "assets"),
     )
 
@@ -283,11 +310,16 @@ def _scene_asset_check(paths: RepositoryPaths, request: PreflightRequest, scene:
         prepared = inspect_scene_assets(scene, request.task)
     except (FileNotFoundError, RuntimeError, ValueError) as exc:
         return _check("scene_assets", "FAIL", str(exc), remediation)
+    identities = [
+        f"{artifact.destination_root.name}:{artifact.derivation_hash[:12]}:{artifact.manifest_hash[:12]}"
+        for artifact in prepared.artifacts
+    ]
+    resolved = ", ".join((*required_builds, *identities)) or "none"
     return _check(
         "scene_assets",
         "PASS",
         f"verified {len(prepared.artifacts)} task-derived asset(s) and "
-        f"{len(required_builds)} generated scene asset build(s)",
+        f"{len(required_builds)} generated scene asset build(s); identities={resolved}",
     )
 
 
@@ -548,7 +580,6 @@ def _run_fast_preflight_resolved(
 
 def run_fast_preflight(paths: RepositoryPaths, request: PreflightRequest) -> PreflightReport:
     """Run every read-only experiment check without starting a process."""
-    request = bind_policy_contract(paths, request)
     resolved, gpu_check = _resolve_preflight_gpus(request)
     if resolved is None:
         return build_report([_root_runtime_check(paths), gpu_check])
@@ -557,7 +588,6 @@ def run_fast_preflight(paths: RepositoryPaths, request: PreflightRequest) -> Pre
 
 def run_simulator_preflight(paths: RepositoryPaths, request: PreflightRequest) -> PreflightReport:
     """Validate only the simulator-side contract for scene-only export."""
-    request = bind_policy_contract(paths, request)
     resolved, gpu_check = _resolve_preflight_gpus(request, simulator_only=True)
     if resolved is None:
         return build_report([_root_runtime_check(paths), gpu_check])
@@ -591,7 +621,6 @@ def run_sweep_preflight(
 
 def run_deep_preflight(paths: RepositoryPaths, request: PreflightRequest) -> PreflightReport:
     """Run fast checks, then start and always stop the normal policy server."""
-    request = bind_policy_contract(paths, request)
     resolved, gpu_check = _resolve_preflight_gpus(request)
     if resolved is None:
         return build_report([_root_runtime_check(paths), gpu_check])

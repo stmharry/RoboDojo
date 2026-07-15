@@ -24,22 +24,10 @@ from robodojo.core.profiles import (
 logger = logging.getLogger(__name__)
 
 
-def _task_scene_config(paths: RepositoryPaths, task: str) -> str | None:
-    """Return a task-specific scene override, including an explicit ``default``."""
-    index_path = paths.task_configs / "_task.yml"
-    payload = yaml.safe_load(index_path.read_text(encoding="utf-8")) or {}
-    common = payload.get("common", {})
-    task_config = payload.get("tasks", {}).get(task, {})
-    if "scene_config" in task_config:
-        return str(task_config["scene_config"])
-    return str(common.get("scene_config", "default"))
-
-
 def resolve_scene_profile(paths: RepositoryPaths, request: SimulatorLaunchRequest) -> SceneProfile:
-    """Resolve the explicit or task-selected scene profile."""
+    """Resolve the explicitly selected scene profile."""
 
-    scene_name = request.scene_config or _task_scene_config(paths, request.task) or "default"
-    return load_scene_profile(paths, scene_name)
+    return load_scene_profile(paths, request.scene_config)
 
 
 def resolve_scene_config(
@@ -48,7 +36,7 @@ def resolve_scene_config(
     *,
     profile: EnvironmentProfile | None = None,
 ) -> str:
-    """Return the name of the explicit or task-selected scene profile."""
+    """Return the name of the explicit scene profile."""
 
     environment = profile or load_environment_profile(paths, request.env_config)
     scene = resolve_scene_profile(paths, request)
@@ -102,6 +90,14 @@ def simulator_command(paths: RepositoryPaths, request: SimulatorLaunchRequest) -
         "robodojo.sim.evaluation.main",
         "--task_name",
         request.task,
+        "--protocol_name",
+        request.protocol_name,
+        "--layout_name",
+        request.layout,
+        "--episode_horizon",
+        str(request.episode_horizon),
+        "--native_eval_num",
+        str(request.native_eval_num),
         "--env_cfg_type",
         request.env_config,
         "--scene_config",
@@ -127,6 +123,10 @@ def simulator_command(paths: RepositoryPaths, request: SimulatorLaunchRequest) -
         server_url,
         "--additional_info",
         request.additional_info,
+        "--recipe_name",
+        request.recipe or "manual",
+        "--contract_hash",
+        request.contract_hash or "manual",
         "--seed",
         str(request.seed),
         "--host",

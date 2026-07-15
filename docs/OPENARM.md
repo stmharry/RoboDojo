@@ -32,13 +32,11 @@ wrist camera instead uses its own rigid camera-to-link-7 transform and native
 OpenCV fisheye parameters fitted from pinned training-video jaw landmarks.
 
 ```bash
-make setup \
-  TASK=fold_clothes ENV_CFG=openarm_lerobot \
-  POLICY_DIR=XPolicyLab/policy/LeRobot_Pi05_OpenArm \
-  POLICY_ENV=lerobot-pi05 CKPT=folding_final
+make setup RECIPE=lerobot_pi05_openarm-openarm_lerobot-default-fold_clothes
 ```
 
-The setup workflow infers this builder from `ENV_CFG=openarm_lerobot`. For a
+The setup workflow infers this builder from the `openarm_lerobot` environment
+selected by the recipe. For a
 granular support operation, run
 `uv run --extra sim --locked robodojo assets build-openarm`.
 
@@ -77,10 +75,8 @@ public launcher argument.
 ```bash
 ROBODOJO_MATCHED_REPLAY_DIR=/tmp/openarm-matched-replay \
   OMNI_KIT_ACCEPT_EULA=YES uv run --extra sim --locked robodojo eval \
-  --policy-dir XPolicyLab/policy/LeRobot_Pi05_OpenArm \
-  --task fold_clothes --ckpt folding_final --env-cfg openarm_lerobot \
-  --action-type joint --seed 0 --layout-id 0 --env-gpu 0 \
-  --policy-env lerobot-pi05 --export-scene-only
+  --recipe lerobot_pi05_openarm-openarm_lerobot-default-fold_clothes \
+  --seed 0 --layout-id 0 --env-gpu 0 --export-scene-only
 ```
 
 ## Install the folding policy
@@ -96,9 +92,7 @@ Verify the installation with:
 
 ```bash
 uv run --extra sim --locked robodojo doctor \
-  --policy-dir XPolicyLab/policy/LeRobot_Pi05_OpenArm \
-  --task fold_clothes --env-cfg openarm_lerobot \
-  --ckpt folding_final --policy-env lerobot-pi05
+  --recipe lerobot_pi05_openarm-openarm_lerobot-default-fold_clothes
 ```
 
 ## Evaluate
@@ -107,20 +101,16 @@ Run one recorded episode:
 
 ```bash
 OMNI_KIT_ACCEPT_EULA=YES uv run --extra sim --locked robodojo eval \
-  --policy-dir XPolicyLab/policy/LeRobot_Pi05_OpenArm \
-  --task fold_clothes --ckpt folding_final \
-  --env-cfg openarm_lerobot --action-type joint --seed 0 \
-  --policy-gpu 0 --env-gpu 1 --policy-env lerobot-pi05 --eval-num 1
+  --recipe lerobot_pi05_openarm-openarm_lerobot-default-fold_clothes \
+  --seed 0 --policy-gpu 0 --env-gpu 1 --eval-num 1
 ```
 
 Export the composed pre-rollout scene without starting the policy:
 
 ```bash
 OMNI_KIT_ACCEPT_EULA=YES uv run --extra sim --locked robodojo eval \
-  --policy-dir XPolicyLab/policy/LeRobot_Pi05_OpenArm \
-  --task fold_clothes --ckpt folding_final \
-  --env-cfg openarm_lerobot --action-type joint --seed 0 \
-  --layout-id 0 --env-gpu 0 --policy-env lerobot-pi05 \
+  --recipe lerobot_pi05_openarm-openarm_lerobot-default-fold_clothes \
+  --seed 0 --layout-id 0 --env-gpu 0 \
   --export-scene-only
 ```
 

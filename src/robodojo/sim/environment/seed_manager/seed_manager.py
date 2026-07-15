@@ -19,6 +19,7 @@ class SeedManager:
 
         # config fields used for directory layout
         self.task_name: str = str(self.config["task_name"])
+        self.layout_name: str = str(self.config["layout_name"])
         self.config_name: str = str(self.config["config_name"])
         self.layout_config_name: str = str(self.config.get("layout_config_name", self.config_name))
         self.layout_source: str = str(self.config.get("layout_source", "assets"))
@@ -41,7 +42,7 @@ class SeedManager:
             benchmark=BENCHMARK,
             layout_set=self.layout_config_name,
             layout_source=self.layout_source,
-            task=self.task_name,
+            task=self.layout_name,
             seed=int(self.eval_seed),
         )
         self.layout_set_hash = resolved.identity_hash

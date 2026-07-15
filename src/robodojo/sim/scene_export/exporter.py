@@ -588,6 +588,12 @@ def export_scene_snapshot(env, output_dir: str | os.PathLike[str], layout_id: in
     revision, dirty = _git_revision(repo_root)
     identity = ExportIdentity(
         task=str(env.task_name),
+        protocol=str(env.protocol_name),
+        layout=str(env.layout_name),
+        episode_horizon=int(env.step_lim),
+        native_eval_num=int(env.eval_cfg["native_eval_num"]),
+        recipe=env.recipe_name,
+        contract_hash=env.contract_hash,
         profile=str(env.config_name),
         scene_config=str(env.scene_config),
         seed=int(env.eval_seed),
@@ -647,6 +653,12 @@ def export_scene_snapshot(env, output_dir: str | os.PathLike[str], layout_id: in
             "created_at": datetime.now(UTC).isoformat(),
             "snapshot_boundary": "post_reset_pre_rollout",
             "task": env.task_name,
+            "protocol": env.protocol_name,
+            "layout_name": env.layout_name,
+            "episode_horizon": int(env.step_lim),
+            "native_eval_num": int(env.eval_cfg["native_eval_num"]),
+            "recipe": env.recipe_name,
+            "contract_hash": env.contract_hash,
             "profile": {
                 "config_name": env.config_name,
                 "camera_profile_id": env.camera_rig.profile_id,

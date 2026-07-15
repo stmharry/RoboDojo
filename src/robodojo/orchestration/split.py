@@ -8,7 +8,6 @@ import socket
 from robodojo.core.gpu import GpuSelectionError, resolve_gpus
 from robodojo.core.models import PreflightRequest, ServerRequest, SimulatorLaunchRequest
 from robodojo.core.paths import RepositoryPaths
-from robodojo.core.profiles import bind_policy_contract
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +23,7 @@ def run_server(paths: RepositoryPaths, request: ServerRequest) -> int:
     except GpuSelectionError as exc:
         logger.error("GPU selection failed: %s", exc)
         return 2
-    request = bind_policy_contract(
-        paths,
-        request.model_copy(update={"policy_gpu": assignment.policy_gpu, "env_gpu": assignment.env_gpu}),
-    )
+    request = request.model_copy(update={"policy_gpu": assignment.policy_gpu, "env_gpu": assignment.env_gpu})
     policy_request = request.policy_request(host=request.host, port=request.port, dry_run=request.dry_run)
     if not request.dry_run:
         report = run_fast_preflight(

@@ -2,6 +2,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -35,7 +36,7 @@ def test_summarize_reads_and_writes_single_local_root(tmp_path):
     environment["ROBODOJO_STORAGE_ROOT"] = str(local)
 
     result = subprocess.run(
-        [str(ROOT / ".venv/bin/robodojo"), "summarize"],
+        [sys.executable, "-m", "robodojo.cli", "results", "summarize"],
         cwd=ROOT,
         env=environment,
         check=False,
@@ -58,7 +59,7 @@ def test_cli_output_overrides_environment_and_creates_parents(tmp_path):
     output = tmp_path / "nested/cli/summary.md"
 
     result = subprocess.run(
-        [str(ROOT / ".venv/bin/robodojo"), "summarize", "--output", str(output)],
+        [sys.executable, "-m", "robodojo.cli", "results", "summarize", "--output", str(output)],
         cwd=ROOT,
         env=environment,
         check=False,

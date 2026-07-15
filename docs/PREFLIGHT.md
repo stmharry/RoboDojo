@@ -1,25 +1,25 @@
 # Experiment setup and preflight
 
 RoboDojo separates repository-local setup from launch-time validation. Select a
-tracked preset and run the complete local workflow with one Make invocation:
+tracked recipe and run the complete local workflow with one Make invocation:
 
 ```bash
-make presets
-make eval PRESET=pi05-bimanual_yam-molmo_yam-general_pickup
+make recipes
+make eval RECIPE=pi05-bimanual_yam-molmo_yam-general_pickup
 ```
 
-The preset resolves the policy directory and environment, checkpoint,
-environment, scene, and task. Explicit per-field Make assignments override the
-selected preset. Without `PRESET`, those required values can still come from
-Make arguments or exported process variables. The Makefile defaults to the
-RoboDojo dataset, joint actions, seed 0, automatic policy and simulator GPU
-selection, one episode, `INFO` verbosity, no scene export, and no publication.
-Override any default with a Make assignment such as
-`make eval PRESET=<name> EVAL_NUM=25`, `EXPORT_SCENE=true`, `PUBLISH=true`, or
+The recipe resolves four typed components: policy, environment, scene, and task
+protocol. A recipe cannot be combined with component overrides. Direct CLI
+manual mode requires all four named components, which prevents a partial
+selection from silently changing the policy, embodiment, scene, or benchmark
+behavior. The Makefile defaults to seed 0, automatic policy and simulator GPU
+selection, the protocol's native episode count, `INFO` verbosity, no scene
+export, and no publication. Override workflow controls with assignments such as
+`make eval RECIPE=<name> EVAL_NUM=25`, `EXPORT_SCENE=true`, `PUBLISH=true`, or
 `VERBOSITY=DEBUG`. Make also loads an optional ignored `.env` from the repository
 root. Entries use Make syntax and should use `?=` so Make arguments and exported
 process variables retain precedence. Direct `robodojo` commands continue to
-read the process environment only.
+read the process environment only. `PRESET` is rejected with a migration error.
 
 A normal `make eval` runs idempotent setup first and then calls the managed
 evaluation. The managed evaluation performs fast preflight exactly once before
@@ -28,9 +28,9 @@ preflight so it remains mutation-free. Standalone setup and deep preflight are
 available when diagnosing readiness:
 
 ```bash
-make setup PRESET=pi05-bimanual_yam-molmo_yam-general_pickup
-make preflight PRESET=pi05-bimanual_yam-molmo_yam-general_pickup
-make preflight PRESET=pi05-bimanual_yam-molmo_yam-general_pickup DEEP=true
+make setup RECIPE=pi05-bimanual_yam-molmo_yam-general_pickup
+make preflight RECIPE=pi05-bimanual_yam-molmo_yam-general_pickup
+make preflight RECIPE=pi05-bimanual_yam-molmo_yam-general_pickup DEEP=true
 ```
 
 GPU selectors accept a nonnegative physical device index or lowercase `auto`.
@@ -42,9 +42,9 @@ use the most-free device and therefore support one-GPU hosts. CLI flags override
 exported `POLICY_GPU` and `ENV_GPU`, which override the `auto` default:
 
 ```bash
-make eval PRESET=pi05-bimanual_yam-molmo_yam-general_pickup POLICY_GPU=0 ENV_GPU=1
+make eval RECIPE=pi05-bimanual_yam-molmo_yam-general_pickup POLICY_GPU=0 ENV_GPU=1
 export POLICY_GPU=0 ENV_GPU=1
-make eval PRESET=pi05-bimanual_yam-molmo_yam-general_pickup
+make eval RECIPE=pi05-bimanual_yam-molmo_yam-general_pickup
 ```
 
 On a direct CLI call, `--policy-gpu 2 --env-gpu 3` takes precedence over those
@@ -69,9 +69,14 @@ legacy README-driven setup.
 Fast preflight is read-only. It validates:
 
 - the root `.venv`, `uv.lock`, and installed simulator distributions;
-- task code/YAML, environment components, scene profile, and every selected layout;
+- the policy/environment, scene/environment, and protocol/scene compatibility
+  edges before launch;
+- canonical task code/YAML, protocol horizon and evaluation count, environment
+  components, scene profile, and every protocol-selected layout;
 - task label/support-plane contracts and environment robot roots in the resolved
   scene workspace frame;
+- scene-owned task asset builds and identities, resolved against the protocol's
+  base task;
 - generated robot manifests and declared output checksums;
 - policy and simulator GPU indices;
 - S3 URI and AWS CLI presence when publication is requested;
@@ -95,37 +100,32 @@ available from the CLI:
 
 ```bash
 uv run --extra sim --locked --no-sync robodojo preflight \
-  --policy-dir XPolicyLab/policy/Pi_05 \
-  --task general_pickup \
-  --ckpt pi05_yam_molmoact2 \
-  --policy-env uv \
-  --env-cfg bimanual_yam_molmoact2 \
-  --scene molmo_yam \
-  --action-type joint \
+  --recipe pi05-bimanual_yam-molmo_yam-general_pickup \
   --policy-gpu auto \
   --env-gpu auto \
   --format json
 ```
 
 Setup provides the same human and JSON reporting style. Direct CLI callers can
-run every stage or repeat `--only` to select stages:
+run every stage or repeat `--only` to select stages while preserving the same
+complete recipe:
 
 ```bash
-uv run --locked robodojo setup --only root
-uv run --locked robodojo setup --only assets \
-  --task general_pickup --env-cfg bimanual_yam_molmoact2 --scene molmo_yam
-uv run --locked robodojo setup --only policy \
-  --policy-dir XPolicyLab/policy/Pi_05 --task general_pickup \
-  --ckpt pi05_yam_molmoact2 --policy-env uv --env-cfg bimanual_yam_molmoact2 \
-  --action-type joint
+uv run --locked robodojo setup \
+  --recipe pi05-bimanual_yam-molmo_yam-general_pickup --only root
+uv run --locked robodojo setup \
+  --recipe pi05-bimanual_yam-molmo_yam-general_pickup --only assets
+uv run --locked robodojo setup \
+  --recipe pi05-bimanual_yam-molmo_yam-general_pickup --only policy
 ```
 
 The preflight JSON object has a stable top-level `status` and a `checks` array whose
 records contain `name`, `status`, `detail`, and optional `remediation`.
 
 Real `eval`, `server`, `smoke`, and `benchmark` commands run fast preflight
-before selecting a free port or starting policy/simulator processes. A sweep
-runs the shared gate once, not once per child task. Dry runs intentionally skip
+before selecting a free port or starting policy/simulator processes. Sweeps
+accept explicit repeated recipes; they never synthesize arbitrary policy/task
+combinations. Dry runs intentionally skip
 preflight; automatic selectors still inspect `nvidia-smi` so the rendered
 commands contain concrete devices, while numeric dry runs remain GPU-query-free.
 Scene-only export runs simulator-side preflight and does not require a policy

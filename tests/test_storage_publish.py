@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 
 import pytest
 
@@ -11,10 +12,9 @@ from robodojo.workflows import storage as storage_cli
 
 
 def test_storage_cli_help_runs_through_typer():
-    root = Path(__file__).resolve().parents[1]
     environment = os.environ.copy()
     result = subprocess.run(
-        [str(root / ".venv/bin/robodojo"), "storage", "--help"],
+        [sys.executable, "-m", "robodojo.cli", "storage", "--help"],
         check=False,
         text=True,
         capture_output=True,

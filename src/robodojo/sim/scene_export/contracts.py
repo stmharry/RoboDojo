@@ -15,7 +15,7 @@ import numpy as np
 from robodojo.core.paths import RepositoryPaths
 from robodojo.core.profiles import load_environment_profile, load_scene_profile
 
-SCENE_EXPORT_FORMAT_VERSION = 5
+SCENE_EXPORT_FORMAT_VERSION = 6
 REQUIRED_EXPORT_ARTIFACTS = (
     "scene_referenced.usda",
     "scene_flattened.usdc",
@@ -40,6 +40,12 @@ REQUIRED_PREVIEW_DIAGNOSTICS = (
 @dataclass(frozen=True)
 class ExportIdentity:
     task: str
+    protocol: str
+    layout: str
+    episode_horizon: int
+    native_eval_num: int
+    recipe: str | None
+    contract_hash: str | None
     profile: str
     scene_config: str
     seed: int

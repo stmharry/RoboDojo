@@ -63,6 +63,27 @@ def test_summary_fails_on_ambiguous_environment_scene_and_filters_cleanly(monkey
     assert "RoboDojo Evaluation Summary" in output.read_text(encoding="utf-8")
 
 
+def test_summary_reports_named_protocols_without_folding_them_into_the_upstream_scorecard(monkeypatch, tmp_path):
+    _write_result(
+        tmp_path,
+        task="moonlake_office_general_pickup",
+        embodiment="bimanual_yam_moonlake_office",
+        scene="moonlake_office",
+        count=1,
+        score=0.0,
+        policy="Pi_05",
+    )
+    monkeypatch.setattr(results_summary, "ROOT", str(tmp_path))
+    output = tmp_path / "summary.md"
+
+    results_summary.main(["--output", str(output)])
+
+    report = output.read_text(encoding="utf-8")
+    assert "Additional named protocols" in report
+    assert "`moonlake_office_general_pickup`" in report
+    assert "| 0 | 1 | 0 | 0.00 |" in report
+
+
 def test_stats_filters_preserve_unambiguous_output_schema(tmp_path):
     _write_result(
         tmp_path,
@@ -152,7 +173,7 @@ def test_paired_results_require_the_same_environment_and_scene(tmp_path):
     assert matched["aggregated"] == {"fold_clothes": {"TestPolicy": {"1": 50}}}
 
 
-@pytest.mark.parametrize("command", [["summarize", "--help"], ["results", "stats", "--help"]])
+@pytest.mark.parametrize("command", [["results", "summarize", "--help"], ["results", "stats", "--help"]])
 def test_result_commands_expose_environment_and_scene_filters(command):
     result = RUNNER.invoke(app, command)
     assert result.exit_code == 0

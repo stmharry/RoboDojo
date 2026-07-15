@@ -16,7 +16,6 @@ from robodojo.core.gpu import GpuSelectionError, resolve_gpus
 from robodojo.core.models import SetupReport, SetupRequest, SetupStage, SetupStageResult, SimulatorLaunchRequest
 from robodojo.core.paths import RepositoryPaths
 from robodojo.core.profiles import (
-    bind_policy_contract,
     load_environment_profile,
     validate_scene_environment_compatibility,
 )
@@ -207,6 +206,12 @@ def _asset_context(paths: RepositoryPaths, request: SetupRequest):
     profile = load_environment_profile(paths, request.env_config)
     simulator = SimulatorLaunchRequest(
         task=request.task,
+        protocol_name=request.protocol,
+        layout=request.layout,
+        episode_horizon=request.episode_horizon,
+        native_eval_num=request.native_eval_num,
+        recipe=request.recipe,
+        contract_hash=request.contract_hash,
         policy_name=request.policy_dir.name if request.policy_dir else "setup",
         port=1,
         env_config=request.env_config,
@@ -281,7 +286,7 @@ def _policy_stage(paths: RepositoryPaths, request: SetupRequest) -> SetupStageRe
             f"GPU selection failed: {exc}",
             "set POLICY_GPU to 'auto' or an available nonnegative GPU index",
         )
-    request = bind_policy_contract(paths, request.model_copy(update={"policy_gpu": assignment.policy_gpu}))
+    request = request.model_copy(update={"policy_gpu": assignment.policy_gpu})
     policy = request.policy_request()
     prepare = policy_hook_command(policy, "prepare_eval_policy.sh")
     if prepare is None:

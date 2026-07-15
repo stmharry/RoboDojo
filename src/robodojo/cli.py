@@ -9,7 +9,12 @@ from typing import Any
 import typer
 
 from robodojo.commands.assets import assets_app, data_app
-from robodojo.commands.common import model as _model, paths as _paths, report_format as _report_format
+from robodojo.commands.common import (
+    contract_values as _contract_values,
+    model as _model,
+    paths as _paths,
+    report_format as _report_format,
+)
 from robodojo.commands.docker import docker_app
 from robodojo.commands.results import results_app
 from robodojo.commands.setup import setup as setup_command
@@ -52,22 +57,11 @@ def configure_cli_logging(
 
 @app.command()
 def doctor(
-    task: str = typer.Option("stack_bowls", "--task", help="Task whose configuration and assets should be checked."),
-    env_config: str = typer.Option(
-        "arx_x5",
-        "--env-cfg",
-        help="Environment profile that selects the robot, camera, simulator, and default scene.",
-    ),
-    scene_config: str | None = typer.Option(
-        None,
-        "--scene",
-        help="Scene configuration override; otherwise task and environment defaults apply.",
-    ),
-    policy_dir: Path | None = typer.Option(
-        None,
-        "--policy-dir",
-        help="XPolicyLab policy directory to validate in addition to the simulator checkout.",
-    ),
+    recipe: str | None = typer.Option(None, "--recipe", help="Tracked evaluation recipe."),
+    policy_profile: str | None = typer.Option(None, "--policy-profile", help="Manual policy profile."),
+    environment: str | None = typer.Option(None, "--environment", help="Manual environment profile."),
+    scene: str | None = typer.Option(None, "--scene", help="Manual scene profile."),
+    protocol: str | None = typer.Option(None, "--protocol", help="Manual task protocol."),
     skip_policy: bool = typer.Option(
         False,
         "--skip-policy",
@@ -82,7 +76,26 @@ def doctor(
     """Validate the checkout, configuration, assets, and optional policy adapter."""
     from robodojo.workflows.doctor import run_doctor
 
-    code = run_doctor(_paths(root), task, env_config, None if skip_policy else policy_dir, scene_config)
+    repository = _paths(root)
+    contract = _contract_values(
+        repository,
+        recipe=recipe,
+        policy_profile=policy_profile,
+        environment=environment,
+        scene=scene,
+        protocol=protocol,
+    )
+    code = run_doctor(
+        repository,
+        contract["task"],
+        contract["protocol"],
+        contract["layout"],
+        contract["episode_horizon"],
+        contract["native_eval_num"],
+        contract["env_config"],
+        None if skip_policy else contract["policy_dir"],
+        contract["scene_config"],
+    )
     raise typer.Exit(code)
 
 
@@ -123,15 +136,41 @@ def tasks(
 
 
 @app.command()
+def recipes(
+    format: str = typer.Option("plain", "--format", help="Output format: plain or json."),
+    check: bool = typer.Option(False, "--check", help="Validate every policy/protocol/recipe reference."),
+    root: Path | None = typer.Option(None, "--root", help="Repository checkout to inspect."),
+) -> None:
+    """List and validate explicit evaluation recipes."""
+    import json
+
+    from robodojo.core.contracts import recipe_rows
+
+    repository = _paths(root)
+    try:
+        rows = recipe_rows(repository)
+    except (OSError, RuntimeError, ValueError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1 if check else 2) from exc
+    if format == "json":
+        typer.echo(json.dumps(rows, indent=2, sort_keys=True))
+    elif format == "plain":
+        for row in rows:
+            typer.echo(
+                f"{row['recipe']}\t{row['policy']}\t{row['environment']}\t"
+                f"{row['scene']}\t{row['protocol']}\t{row['task']}\t{row['layout']}"
+            )
+    else:
+        raise typer.BadParameter("expected plain or json", param_hint="--format")
+
+
+@app.command()
 def preflight(
-    policy_dir: Path = typer.Option(..., "--policy-dir", help="XPolicyLab policy adapter directory."),
-    task: str = typer.Option(..., "--task", help="Canonical evaluation task."),
-    checkpoint: str = typer.Option(..., "--ckpt", help="Checkpoint alias or path."),
-    policy_env: str = typer.Option(..., "--policy-env", help="Policy runtime environment name or project path."),
-    dataset: str = typer.Option("RoboDojo", "--dataset", help="Benchmark or dataset family."),
-    env_config: str = typer.Option("arx_x5", "--env-cfg", help="Environment profile."),
-    scene_config: str | None = typer.Option(None, "--scene", help="Optional scene profile override."),
-    action_type: str = typer.Option("ee", "--action-type", help="Policy action representation."),
+    recipe: str | None = typer.Option(None, "--recipe", help="Tracked evaluation recipe."),
+    policy_profile: str | None = typer.Option(None, "--policy-profile", help="Manual policy profile."),
+    environment: str | None = typer.Option(None, "--environment", help="Manual environment profile."),
+    scene: str | None = typer.Option(None, "--scene", help="Manual scene profile."),
+    protocol: str | None = typer.Option(None, "--protocol", help="Manual task protocol."),
     seed: int = typer.Option(0, "--seed", help="Nonnegative experiment seed."),
     policy_gpu: str = typer.Option(
         "auto",
@@ -154,16 +193,18 @@ def preflight(
     """Validate an experiment without installing, downloading, simulating, or publishing."""
     from robodojo.workflows.preflight import run_preflight
 
+    repository = _paths(root)
+    contract = _contract_values(
+        repository,
+        recipe=recipe,
+        policy_profile=policy_profile,
+        environment=environment,
+        scene=scene,
+        protocol=protocol,
+    )
     request = _model(
         PreflightRequest,
-        policy_dir=policy_dir,
-        task=task,
-        checkpoint=checkpoint,
-        policy_env=policy_env,
-        dataset=dataset,
-        env_config=env_config,
-        scene_config=scene_config,
-        action_type=action_type,
+        **contract,
         seed=seed,
         policy_gpu=policy_gpu,
         env_gpu=env_gpu,
@@ -171,19 +212,12 @@ def preflight(
         deep=deep,
         timeout=timeout,
     )
-    raise typer.Exit(run_preflight(_paths(root), request, output_format=_report_format(output_format)))
+    raise typer.Exit(run_preflight(repository, request, output_format=_report_format(output_format)))
 
 
 def _evaluation_request(
     *,
-    policy_dir: Path,
-    task: str,
-    checkpoint: str,
-    policy_env: str,
-    dataset: str,
-    env_config: str,
-    scene_config: str | None,
-    action_type: str,
+    contract: dict[str, Any],
     seed: int,
     policy_gpu: str,
     env_gpu: str,
@@ -204,14 +238,7 @@ def _evaluation_request(
             raise typer.BadParameter("expected a positive integer or native", param_hint="--eval-num") from exc
     return _model(
         EvaluationRequest,
-        policy_dir=policy_dir,
-        task=task,
-        checkpoint=checkpoint,
-        policy_env=policy_env,
-        dataset=dataset,
-        env_config=env_config,
-        scene_config=scene_config,
-        action_type=action_type,
+        **contract,
         seed=seed,
         policy_gpu=policy_gpu,
         env_gpu=env_gpu,
@@ -228,42 +255,11 @@ def _evaluation_request(
 
 @app.command("eval")
 def evaluate(
-    policy_dir: Path = typer.Option(
-        ...,
-        "--policy-dir",
-        help="XPolicyLab policy directory containing setup_eval_policy_server.sh.",
-    ),
-    task: str = typer.Option(..., "--task", help="Canonical task module and configuration name to evaluate."),
-    checkpoint: str = typer.Option(
-        ...,
-        "--ckpt",
-        help="Checkpoint name or path passed unchanged to the policy adapter.",
-    ),
-    policy_env: str = typer.Option(
-        ...,
-        "--policy-env",
-        help="Policy runtime environment name, environment path, or uv project understood by the adapter.",
-    ),
-    dataset: str = typer.Option(
-        "RoboDojo",
-        "--dataset",
-        help="Benchmark or dataset family passed to XPolicyLab as bench_name.",
-    ),
-    env_config: str = typer.Option(
-        "arx_x5",
-        "--env-cfg",
-        help="Environment profile selecting the robot, cameras, simulator, and default scene.",
-    ),
-    scene_config: str | None = typer.Option(
-        None,
-        "--scene",
-        help="Scene configuration override; otherwise task and environment defaults apply.",
-    ),
-    action_type: str = typer.Option(
-        "ee",
-        "--action-type",
-        help="Policy action space passed to XPolicyLab, typically ee or joint.",
-    ),
+    recipe: str | None = typer.Option(None, "--recipe", help="Tracked evaluation recipe."),
+    policy_profile: str | None = typer.Option(None, "--policy-profile", help="Manual policy profile."),
+    environment: str | None = typer.Option(None, "--environment", help="Manual environment profile."),
+    scene: str | None = typer.Option(None, "--scene", help="Manual scene profile."),
+    protocol: str | None = typer.Option(None, "--protocol", help="Manual task protocol."),
     seed: int = typer.Option(0, "--seed", help="Nonnegative evaluation seed used for task layout and policy setup."),
     policy_gpu: str = typer.Option(
         "auto",
@@ -278,7 +274,7 @@ def evaluate(
         help="Simulator GPU as a zero-based index or auto; ENV_GPU is used when the flag is omitted.",
     ),
     eval_num: str | None = typer.Option(
-        None,
+        "native",
         "--eval-num",
         help="Episode count as a positive integer, or native to keep the simulator config value.",
     ),
@@ -324,45 +320,41 @@ def evaluate(
     ),
 ) -> None:
     """Run a local policy server and simulator evaluation."""
-    request = _evaluation_request(**{key: value for key, value in locals().items() if key != "root"})
+    repository = _paths(root)
+    contract = _contract_values(
+        repository,
+        recipe=recipe,
+        policy_profile=policy_profile,
+        environment=environment,
+        scene=scene,
+        protocol=protocol,
+    )
+    request = _evaluation_request(
+        contract=contract,
+        seed=seed,
+        policy_gpu=policy_gpu,
+        env_gpu=env_gpu,
+        eval_num=eval_num,
+        checkpoint_label=checkpoint_label,
+        export_scene=export_scene,
+        export_scene_only=export_scene_only,
+        export_scene_dir=export_scene_dir,
+        layout_id=layout_id,
+        publish=publish,
+        dry_run=dry_run,
+    )
     from robodojo.orchestration.evaluation import run_evaluation
 
-    raise typer.Exit(run_evaluation(_paths(root), request))
+    raise typer.Exit(run_evaluation(repository, request))
 
 
 @app.command()
 def server(
-    policy_dir: Path = typer.Option(
-        ...,
-        "--policy-dir",
-        help="XPolicyLab policy directory containing setup_eval_policy_server.sh.",
-    ),
-    task: str = typer.Option(..., "--task", help="Task name passed to the policy adapter."),
-    checkpoint: str = typer.Option(
-        ...,
-        "--ckpt",
-        help="Checkpoint name or path passed unchanged to the policy adapter.",
-    ),
-    policy_env: str = typer.Option(
-        ...,
-        "--policy-env",
-        help="Policy runtime environment name, environment path, or uv project understood by the adapter.",
-    ),
-    dataset: str = typer.Option(
-        "RoboDojo",
-        "--dataset",
-        help="Benchmark or dataset family passed to XPolicyLab as bench_name.",
-    ),
-    env_config: str = typer.Option(
-        "arx_x5",
-        "--env-cfg",
-        help="Robot and observation profile passed to the policy adapter.",
-    ),
-    action_type: str = typer.Option(
-        "ee",
-        "--action-type",
-        help="Policy action space passed to XPolicyLab, typically ee or joint.",
-    ),
+    recipe: str | None = typer.Option(None, "--recipe", help="Tracked evaluation recipe."),
+    policy_profile: str | None = typer.Option(None, "--policy-profile", help="Manual policy profile."),
+    environment: str | None = typer.Option(None, "--environment", help="Manual environment profile."),
+    scene: str | None = typer.Option(None, "--scene", help="Manual scene profile."),
+    protocol: str | None = typer.Option(None, "--protocol", help="Manual task protocol."),
     seed: int = typer.Option(0, "--seed", help="Nonnegative seed passed to the policy adapter."),
     policy_gpu: str = typer.Option(
         "auto",
@@ -375,11 +367,6 @@ def server(
         "--env-gpu",
         envvar="ENV_GPU",
         help="Simulator GPU as a zero-based index or auto; ENV_GPU is used when the flag is omitted.",
-    ),
-    scene_config: str | None = typer.Option(
-        None,
-        "--scene",
-        help="Scene profile validated before the split policy server starts.",
     ),
     policy_port: int | None = typer.Option(
         None,
@@ -405,16 +392,18 @@ def server(
     """Start an XPolicyLab policy server adapter without simulator dependencies."""
     from robodojo.orchestration.split import run_server
 
+    repository = _paths(root)
+    contract = _contract_values(
+        repository,
+        recipe=recipe,
+        policy_profile=policy_profile,
+        environment=environment,
+        scene=scene,
+        protocol=protocol,
+    )
     request = _model(
         ServerRequest,
-        policy_dir=policy_dir,
-        task=task,
-        checkpoint=checkpoint,
-        policy_env=policy_env,
-        dataset=dataset,
-        env_config=env_config,
-        scene_config=scene_config,
-        action_type=action_type,
+        **contract,
         seed=seed,
         policy_gpu=policy_gpu,
         env_gpu=env_gpu,
@@ -422,36 +411,41 @@ def server(
         host=bind_host,
         dry_run=dry_run,
     )
-    raise typer.Exit(run_server(_paths(root), request))
+    raise typer.Exit(run_server(repository, request))
 
 
 def _client(
     *,
     root: Path | None,
-    task: str,
-    policy_name: str | None,
-    policy_dir: Path | None,
+    recipe: str | None,
+    policy_profile: str | None,
+    environment: str | None,
+    scene: str | None,
+    protocol: str | None,
     policy_host: str,
     policy_port: int,
-    env_config: str,
-    scene_config: str | None,
     env_gpu: str,
     seed: int,
     eval_num: str,
-    checkpoint: str,
     checkpoint_label: str | None,
-    action_type: str,
     dry_run: bool,
     connect_timeout: float | None = None,
 ) -> int:
     from robodojo.core.storage import checkpoint_label as safe_checkpoint_label
     from robodojo.orchestration.split import run_client
 
-    resolved_name = policy_name or (policy_dir.resolve().name if policy_dir else None)
-    if not resolved_name:
-        raise typer.BadParameter("provide --policy-name or --policy-dir")
+    repository = _paths(root)
+    contract = _contract_values(
+        repository,
+        recipe=recipe,
+        policy_profile=policy_profile,
+        environment=environment,
+        scene=scene,
+        protocol=protocol,
+    )
+    resolved_name = Path(contract["policy_dir"]).name
     parsed_eval_num: int | str = eval_num if eval_num == "native" else int(eval_num)
-    label = safe_checkpoint_label(checkpoint, checkpoint_label)
+    label = safe_checkpoint_label(contract["checkpoint"], checkpoint_label)
     from robodojo.core.gpu import GpuSelectionError, parse_gpu_selector, resolve_gpus
 
     try:
@@ -461,50 +455,40 @@ def _client(
         return 2
     request = _model(
         SimulatorLaunchRequest,
-        task=task,
+        task=contract["task"],
+        protocol_name=contract["protocol"],
+        layout=contract["layout"],
+        episode_horizon=contract["episode_horizon"],
+        native_eval_num=contract["native_eval_num"],
+        recipe=contract["recipe"],
+        contract_hash=contract["contract_hash"],
         policy_name=resolved_name,
         host=policy_host,
         port=policy_port,
-        env_config=env_config,
-        scene_config=scene_config,
+        env_config=contract["env_config"],
+        scene_config=contract["scene_config"],
         env_gpu=assignment.env_gpu,
         seed=seed,
         eval_num=parsed_eval_num,
-        additional_info=f"ckpt_name={label},action_type={action_type}",
+        additional_info=f"ckpt_name={label},action_type={contract['action_type']}",
         dry_run=dry_run,
     )
-    return run_client(_paths(root), request, connect_timeout=connect_timeout if connect_timeout is not None else 5)
+    return run_client(repository, request, connect_timeout=connect_timeout if connect_timeout is not None else 5)
 
 
 @app.command()
 def client(
-    task: str = typer.Option(..., "--task", help="Canonical task module and configuration name to evaluate."),
-    policy_name: str | None = typer.Option(
-        None,
-        "--policy-name",
-        help="XPolicyLab policy directory name; required unless --policy-dir supplies it.",
-    ),
-    policy_dir: Path | None = typer.Option(
-        None,
-        "--policy-dir",
-        help="Policy directory used only to derive the policy name; alternatively pass --policy-name.",
-    ),
+    recipe: str | None = typer.Option(None, "--recipe", help="Tracked evaluation recipe."),
+    policy_profile: str | None = typer.Option(None, "--policy-profile", help="Manual policy profile."),
+    environment: str | None = typer.Option(None, "--environment", help="Manual environment profile."),
+    scene: str | None = typer.Option(None, "--scene", help="Manual scene profile."),
+    protocol: str | None = typer.Option(None, "--protocol", help="Manual task protocol."),
     policy_host: str = typer.Option(
         "127.0.0.1",
         "--policy-host",
         help="Hostname or IP address of the external policy server.",
     ),
     policy_port: int = typer.Option(..., "--policy-port", help="TCP port of the external policy WebSocket server."),
-    env_config: str = typer.Option(
-        "arx_x5",
-        "--env-cfg",
-        help="Environment profile selecting the robot, cameras, simulator, and default scene.",
-    ),
-    scene_config: str | None = typer.Option(
-        None,
-        "--scene",
-        help="Scene configuration override; otherwise task and environment defaults apply.",
-    ),
     env_gpu: str = typer.Option(
         "auto",
         "--env-gpu",
@@ -513,24 +497,14 @@ def client(
     ),
     seed: int = typer.Option(0, "--seed", help="Nonnegative evaluation seed used for task layout."),
     eval_num: str = typer.Option(
-        "1",
+        "native",
         "--eval-num",
         help="Episode count as a positive integer, or native to keep the simulator config value.",
-    ),
-    checkpoint: str = typer.Option(
-        "external",
-        "--ckpt",
-        help="Checkpoint identifier recorded in local result metadata.",
     ),
     checkpoint_label: str | None = typer.Option(
         None,
         "--ckpt-label",
         help="Filesystem-safe result label; defaults to the checkpoint name or path basename.",
-    ),
-    action_type: str = typer.Option(
-        "ee",
-        "--action-type",
-        help="Policy action space recorded for the evaluation, typically ee or joint.",
     ),
     connect_timeout: float = typer.Option(
         5,
@@ -555,18 +529,11 @@ def client(
 def _sweep_command(
     *,
     mode: str,
-    policy_dir: Path,
-    checkpoint: str,
-    policy_env: str,
-    env_config: str,
-    scene_config: str | None,
-    action_type: str,
+    recipe: list[str],
     seed: int,
     policy_gpu: str,
     env_gpu: str,
     eval_num: str,
-    only: str | None,
-    tasks_file: Path | None,
     limit: int | None,
     resume: bool,
     fail_fast: bool,
@@ -579,18 +546,11 @@ def _sweep_command(
     parsed_eval_num: int | str = eval_num if eval_num == "native" else int(eval_num)
     request = _model(
         SweepRequest,
-        policy_dir=policy_dir,
-        checkpoint=checkpoint,
-        policy_env=policy_env,
-        env_config=env_config,
-        scene_config=scene_config,
-        action_type=action_type,
+        recipes=tuple(recipe),
         seed=seed,
         policy_gpu=policy_gpu,
         env_gpu=env_gpu,
         eval_num=parsed_eval_num,
-        only=tuple(item.strip() for item in (only or "").split(",") if item.strip()),
-        tasks_file=tasks_file,
         limit=limit,
         resume=resume,
         fail_fast=fail_fast,
@@ -606,32 +566,7 @@ def _sweep_options(mode: str, **values: Any) -> None:
 
 @app.command()
 def smoke(
-    policy_dir: Path = typer.Option(
-        ...,
-        "--policy-dir",
-        help="XPolicyLab policy directory containing setup_eval_policy_server.sh.",
-    ),
-    checkpoint: str = typer.Option(..., "--ckpt", help="Checkpoint name or path passed to the policy adapter."),
-    policy_env: str = typer.Option(
-        ...,
-        "--policy-env",
-        help="Policy runtime environment name, environment path, or uv project understood by the adapter.",
-    ),
-    env_config: str = typer.Option(
-        "arx_x5",
-        "--env-cfg",
-        help="Environment profile used for every selected task.",
-    ),
-    scene_config: str | None = typer.Option(
-        None,
-        "--scene",
-        help="Scene override used for every selected task; normal task defaults apply when omitted.",
-    ),
-    action_type: str = typer.Option(
-        "ee",
-        "--action-type",
-        help="Policy action space passed to XPolicyLab, typically ee or joint.",
-    ),
+    recipe: list[str] = typer.Option(..., "--recipe", help="Recipe to sweep; repeat for multiple recipes."),
     seed: int = typer.Option(0, "--seed", help="Nonnegative seed used for each evaluation in the sweep."),
     policy_gpu: str = typer.Option(
         "auto",
@@ -649,16 +584,6 @@ def smoke(
         "1",
         "--eval-num",
         help="Episodes per task as a positive integer, or native for each simulator config.",
-    ),
-    only: str | None = typer.Option(
-        None,
-        "--only",
-        help="Comma-separated task names to run instead of the full runnable inventory.",
-    ),
-    tasks_file: Path | None = typer.Option(
-        None,
-        "--tasks-file",
-        help="Text file of task names to add to --only selections, one name per line.",
     ),
     limit: int | None = typer.Option(
         None,
@@ -691,42 +616,17 @@ def smoke(
         help="Repository checkout to use; auto-detected when omitted.",
     ),
 ) -> None:
-    """Run a one-episode sequential task sweep."""
+    """Run a one-episode sequential recipe sweep."""
     _sweep_options("smoke", **locals())
 
 
 @app.command()
 def benchmark(
-    policy_dir: Path = typer.Option(
-        ...,
-        "--policy-dir",
-        help="XPolicyLab policy directory containing setup_eval_policy_server.sh.",
-    ),
-    checkpoint: str = typer.Option(..., "--ckpt", help="Checkpoint name or path passed to the policy adapter."),
-    policy_env: str = typer.Option(
-        ...,
-        "--policy-env",
-        help="Policy runtime environment name, environment path, or uv project understood by the adapter.",
-    ),
+    recipe: list[str] = typer.Option(..., "--recipe", help="Recipe to sweep; repeat for multiple recipes."),
     eval_num: str = typer.Option(
         ...,
         "--eval-num",
         help="Episodes per task as a positive integer, or native for each simulator config.",
-    ),
-    env_config: str = typer.Option(
-        "arx_x5",
-        "--env-cfg",
-        help="Environment profile used for every selected task.",
-    ),
-    scene_config: str | None = typer.Option(
-        None,
-        "--scene",
-        help="Scene override used for every selected task; normal task defaults apply when omitted.",
-    ),
-    action_type: str = typer.Option(
-        "ee",
-        "--action-type",
-        help="Policy action space passed to XPolicyLab, typically ee or joint.",
     ),
     seed: int = typer.Option(0, "--seed", help="Nonnegative seed used for each evaluation in the sweep."),
     policy_gpu: str = typer.Option(
@@ -740,16 +640,6 @@ def benchmark(
         "--env-gpu",
         envvar="ENV_GPU",
         help="Simulator GPU as a zero-based index or auto; ENV_GPU is used when the flag is omitted.",
-    ),
-    only: str | None = typer.Option(
-        None,
-        "--only",
-        help="Comma-separated task names to run instead of the full runnable inventory.",
-    ),
-    tasks_file: Path | None = typer.Option(
-        None,
-        "--tasks-file",
-        help="Text file of task names to add to --only selections, one name per line.",
     ),
     limit: int | None = typer.Option(
         None,
@@ -794,6 +684,11 @@ def benchmark(
 def adapter_client(
     root_dir: Path = typer.Option(..., "--root-dir", "--root_dir"),
     task_name: str = typer.Option(..., "--task-name", "--task_name"),
+    task_protocol: str = typer.Option(..., "--task-protocol", "--task_protocol"),
+    layout_name: str = typer.Option(..., "--layout-name", "--layout_name"),
+    episode_horizon: int = typer.Option(..., "--episode-horizon", "--episode_horizon"),
+    native_eval_num: int = typer.Option(..., "--native-eval-num", "--native_eval_num"),
+    scene_config: str = typer.Option(..., "--scene-config", "--scene_config"),
     env_config: str = typer.Option(..., "--env-cfg-type", "--env_cfg_type"),
     device_id: int = typer.Option(..., "--device-id", "--device_id"),
     policy_name: str = typer.Option(..., "--policy-name", "--policy_name"),
@@ -810,10 +705,15 @@ def adapter_client(
     request = _model(
         SimulatorLaunchRequest,
         task=task_name,
+        protocol_name=task_protocol,
+        layout=layout_name,
+        episode_horizon=episode_horizon,
+        native_eval_num=native_eval_num,
         policy_name=policy_name,
         host=host,
         port=port,
         env_config=env_config,
+        scene_config=scene_config,
         env_gpu=device_id,
         seed=seed,
         eval_num=os.environ.get("EVAL_NUM", "native"),
