@@ -155,12 +155,7 @@ def test_moonlake_layout_bundle_is_fixed_reachable_and_fixture_scoped():
         assert all(-0.35 < instance["default_pos"][1] < 0.35 for instance in objects)
         if task == "general_pickup":
             assert "Articulation" not in layout
-            assert set(layout["Geometry"]) == {"moonlake_office_fixture", "basket"}
-            [scene_bin] = layout["Geometry"]["basket"]
-            assert scene_bin["category_idx"] == 2
-            assert scene_bin["label"] == "scene_bin"
-            assert scene_bin["default_pos"] == [0.0, 0.1, 0.7886]
-            assert scene_bin["visual"] == {}
+            assert set(layout["Geometry"]) == {"moonlake_office_fixture"}
             assert set(layout["Rigid"]) == {"ball"}
             [ball] = objects
             assert ball["default_pos"] == [0.22, -0.05, 0.7533537298662597]

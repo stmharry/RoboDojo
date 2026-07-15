@@ -56,7 +56,6 @@ def test_environment_profiles_resolve_policy_and_diagnostic_metadata():
     moonlake = load_scene_profile(paths, "moonlake_office")
     assert moonlake.document.asset_builds == ["moonlake_office"]
     assert moonlake.document.task_asset_builds == {
-        "general_pickup": ["moonlake_packing"],
         "pack_item_into_container": ["moonlake_packing"],
     }
 

@@ -82,7 +82,7 @@ def test_named_setups_own_distinct_robot_roots_and_visual_assets():
     assert {robot["usd_asset"] for robot in office_robots} == {"YAM_moonlake_office.usd"}
 
 
-def test_moonlake_pickup_applies_the_setup_translation_to_the_target():
+def test_moonlake_pickup_preserves_table_local_robot_and_target_offsets():
     classic_layout = json.loads((ROOT / "configs/layout/molmo_yam/0/general_pickup_0.json").read_text())
     office_layout = json.loads((ROOT / "configs/layout/moonlake_office/0/general_pickup_0.json").read_text())
     classic_profile = load_environment_profile(PATHS, "bimanual_yam_molmoact2")
@@ -95,17 +95,12 @@ def test_moonlake_pickup_applies_the_setup_translation_to_the_target():
     ]
     classic_target = classic_layout["Rigid"]["ball"][0]["default_pos"]
     office_target = office_layout["Rigid"]["ball"][0]["default_pos"]
-    classic_bin = classic_layout["Geometry"]["basket"][0]["default_pos"]
-    office_bin = office_layout["Geometry"]["basket"][0]["default_pos"]
     classic_table = classic_layout["Table"]["default_pos"]
     office_table = office_layout["Table"]["default_pos"]
 
     assert translation == pytest.approx([0.0, 0.05, -0.015])
     assert office_target == pytest.approx(
         [classic_target[axis] + translation[axis] for axis in range(3)]
-    )
-    assert office_bin == pytest.approx(
-        [classic_bin[axis] + translation[axis] for axis in range(3)]
     )
     assert office_table == pytest.approx(
         [classic_table[axis] + translation[axis] for axis in range(3)]

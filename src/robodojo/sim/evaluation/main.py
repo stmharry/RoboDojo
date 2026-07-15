@@ -16,6 +16,7 @@ from robodojo.core.paths import RepositoryPaths
 from robodojo.core.profiles import load_environment_profile, load_scene_profile
 from robodojo.core.scene_identity import require_matching_scene_identity
 from robodojo.core.storage import assets_root
+from robodojo.core.workspace import validate_resolved_layout_set
 
 logger = logging.getLogger(__name__)
 
@@ -147,6 +148,12 @@ RESOLVED_LAYOUT_SET = resolve_layout_set(
     layout_source=SCENE_PROFILE.document.layout_source,
     task=args_cli.task_name,
     seed=args_cli.seed,
+)
+validate_resolved_layout_set(
+    RESOLVED_LAYOUT_SET,
+    task_config_path=REPOSITORY_PATHS.task_configs / f"{args_cli.task_name}.yml",
+    workspace=ENVIRONMENT_PROFILE.document.workspace,
+    robot_config_path=ENVIRONMENT_PROFILE.component_paths["robot"],
 )
 
 

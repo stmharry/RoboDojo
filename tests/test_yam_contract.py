@@ -21,8 +21,7 @@ from robodojo.sim.environment.camera_manager.mount_registry import (
     robot_link_prim_path,
 )
 from robodojo.sim.environment.camera_manager.rig_spec import normalize_camera_rig
-from robodojo.sim.environment.description_manager.desc_manager import DescManager
-from robodojo.sim.general_pickup_contract import STEP_LIMIT, instruction_templates
+from robodojo.sim.environment.description_manager.desc_manager import DescManager, descriptions_from_metadata
 from robodojo.sim.utils.pipeline_utils import process_config
 from robodojo.workflows.assets_yam import (
     _appearance_contract,
@@ -86,21 +85,39 @@ def test_task_instruction_is_independent_of_environment_and_scene_profiles():
     assert yam_manager.templates == [["Fold the clothes neatly."]]
 
 
-def test_general_pickup_preserves_public_checkpoint_prompt_contract():
-    assert STEP_LIMIT == 400
-    assert instruction_templates("molmo_yam") == ["Put everything into the box."]
-    assert instruction_templates("moonlake_office") == ["Put everything into the box."]
-    assert instruction_templates() == ["Pick up the <target> by 10 cm."]
+def test_general_pickup_matches_the_upstream_task_contract():
+    source = (ROOT / "src/robodojo/sim/tasks/general_pickup.py").read_text(encoding="utf-8")
+    assert "self.step_lim = 200" in source
+    assert 'templates = ["Pick up the <target> by 10 cm."]' in source
+    assert 'is_lift(label="target", z_threshold=0.1)' in source
+    assert "scene_component" not in source
+    assert "general_pickup_contract" not in source
+    assert all(term not in source for term in ("basket", "box", "container"))
+    assert not (ROOT / "src/robodojo/sim/general_pickup_contract.py").exists()
 
     layout_manager = SimpleNamespace(get_label_descriptions=lambda **kwargs: [])
 
     fake_env = SimpleNamespace(
         scene_manager=SimpleNamespace(layout_manager=layout_manager),
-        gen_instruction=lambda env_idx: instruction_templates("molmo_yam"),
+        gen_instruction=lambda env_idx: ["Pick up the <target> by 10 cm."],
     )
     manager = DescManager(num_envs=1, description_cfg={"seen": 1}, desc_type="seen")
     manager.initialize(fake_env)
-    assert manager.get_one_description() == ["Put everything into the box."]
+    assert manager.get_one_description() == ["Pick up the <target> by 10 cm."]
+
+
+def test_missing_asset_description_falls_back_to_category_for_task_placeholders():
+    assert descriptions_from_metadata({"model_name": "green_ball"}) == ["green ball"]
+    assert descriptions_from_metadata({"model_name": "ball", "description": ["green sphere"]}) == ["green sphere"]
+
+    layout_manager = SimpleNamespace(get_label_descriptions=lambda **kwargs: ["ball"])
+    fake_env = SimpleNamespace(
+        scene_manager=SimpleNamespace(layout_manager=layout_manager),
+        gen_instruction=lambda env_idx: ["Pick up the <target> by 10 cm."],
+    )
+    desc = DescManager(num_envs=1, description_cfg={"seen": 1}, desc_type="seen")
+    desc.initialize(fake_env)
+    assert desc.get_one_description() == ["Pick up the ball by 10 cm."]
 
 
 def test_molmo_yam_scene_profile_uses_model_aligned_bundled_layouts():
@@ -119,10 +136,7 @@ def test_molmo_yam_scene_profile_uses_model_aligned_bundled_layouts():
     }
     pickup = json.loads((layout_root / "general_pickup_0.json").read_text())
     assert pickup["Rigid"]["ball"][0]["visual"]["color"] == [0.35, 0.65, 0.08]
-    basket = pickup["Geometry"]["basket"][0]
-    assert basket["category_idx"] == 2
-    assert basket["label"] == "box"
-    assert basket["default_pos"] == [0.0, 0.05, 0.8036]
+    assert set(pickup["Geometry"]) == {"camera_stand"}
     fold = json.loads((layout_root / "fold_clothes_0.json").read_text())
     garment = fold["Garment"]["Top_Long"][0]
     assert garment["category_idx"] == 12

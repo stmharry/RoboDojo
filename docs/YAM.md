@@ -57,16 +57,28 @@ the room appearance also remains unchanged.
 Replayed layouts retain their geometry and physics but replace the legacy white
 tabletop material with the packaged material-0122 Mahogany MDL. This is the
 only scene-level appearance override: keeping the referenced room materials is
-required for the classic MolmoAct2 wrist-camera domain. Scene selection never
-changes the robot setup, camera, task, or policy contract. Moonlake robot roots
-and camera mounts belong to its environment profile, not its scene profile.
+required for the classic MolmoAct2 wrist-camera domain. Scene profiles do not
+override the robot, camera, task, or policy contract. Camera resolution/aspect
+ratio, intrinsics, focal length, and mounts are owned by the camera component
+selected by the environment profile: Moonlake uses 640x480 streams, while the
+classic MolmoAct2 setup uses 640x360. Moonlake robot roots also belong to its
+environment profile, not its scene profile.
+The base YAM environment also declares robot-root offsets in the scene-owned
+`Table` frame. Preflight and simulator startup validate those offsets against
+the selected saved layout; they never rewrite robot or object poses.
 
-For `general_pickup`, `molmo_yam` selects the green ball and white basket layout
-recorded by the successful `2026-07-14_20-19-56` classic rollout, including its
-exact object positions. The policy receives the checkpoint-aligned instruction
-to put everything into the box and 400 policy steps. The benchmark reward
-remains the canonical 10 cm target lift, so a successful placement satisfies it
-before the ball reaches the basket.
+For `general_pickup`, every policy and scene receives RoboDojo's canonical
+`Pick up the <target> by 10 cm.` instruction, 200-step limit, `target` label,
+and 10 cm lift reward. The classic and Moonlake fixed layouts contain the same
+green ball pose in their respective `Table` frames. The task YAML owns the
+label and support plane, while the selected saved layout owns the exact replay
+position. No environment or scene profile overrides the instruction.
+
+Container placement is a separate behavior under `pack_item_into_container`.
+That task owns the `item` and `container` roles, box-and-lid instruction,
+containment/closure reward, 1300-step horizon, six packing layouts, and the
+`moonlake_packing` task asset build. None of those dependencies are inherited
+by `general_pickup`.
 
 The scene's typed `fold_clothes` recipe derives a topology-preserving
 short-sleeve shirt from the downloaded `Top_Long/00009` garment before scene

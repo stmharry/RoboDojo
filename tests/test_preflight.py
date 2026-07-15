@@ -13,6 +13,7 @@ from robodojo.cli import app
 from robodojo.core import gpu
 from robodojo.core.models import EvaluationRequest, PreflightCheck, PreflightRequest, SetupRequest, SetupStage
 from robodojo.core.paths import RepositoryPaths
+from robodojo.core.profiles import load_environment_profile, load_scene_profile
 from robodojo.orchestration import evaluation
 from robodojo.workflows import assets, preflight, sweeps
 
@@ -332,6 +333,31 @@ def test_layout_check_fails_when_selected_task_seed_is_missing(monkeypatch, tmp_
     assert "general_pickup_*.json" in result.detail
     assert result.remediation.startswith("make setup; or uv run --locked robodojo setup --only assets")
     assert "--task general_pickup" in result.remediation
+
+
+@pytest.mark.parametrize(
+    ("environment", "scene_name"),
+    [
+        ("bimanual_yam_molmoact2", "molmo_yam"),
+        ("bimanual_yam_moonlake_office", "moonlake_office"),
+    ],
+)
+def test_general_pickup_preflight_validates_the_same_role_and_workspace_contract(environment, scene_name):
+    paths = RepositoryPaths.resolve(ROOT)
+    profile = load_environment_profile(paths, environment)
+    scene = load_scene_profile(paths, scene_name)
+    request = _request(
+        ROOT,
+        task="general_pickup",
+        env_config=environment,
+        scene_config=scene_name,
+        seed=0,
+    )
+
+    result = preflight._layout_check(paths, request, scene, profile)
+
+    assert result.status == "PASS"
+    assert result.detail.startswith("1 layout(s)")
 
 
 def test_failed_launch_preflight_stops_before_port_process_and_simulator(monkeypatch, tmp_path):

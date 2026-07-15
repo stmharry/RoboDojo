@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from copy import deepcopy
 import re
 from typing import List
@@ -6,6 +6,20 @@ from typing import List
 import numpy as np
 
 from robodojo.sim.environment.seeding import seed_everywhere
+
+
+def descriptions_from_metadata(metadata: Mapping) -> list[str]:
+    """Return prose descriptions, falling back to the asset category name."""
+
+    descriptions = deepcopy(metadata.get("description"))
+    if isinstance(descriptions, str) and descriptions:
+        return [descriptions]
+    if descriptions:
+        return list(descriptions)
+    model_name = metadata.get("model_name")
+    if isinstance(model_name, str) and model_name:
+        return [model_name.replace("_", " ")]
+    return []
 
 
 class DescManager:

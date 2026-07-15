@@ -8,6 +8,7 @@ import yaml
 
 from robodojo.core.paths import RepositoryPaths
 from robodojo.core.profiles import load_scene_profile
+from robodojo.core.workspace import task_placement_rules
 from robodojo.workflows.assets import generated_fixture_error, required_fixture_builds
 from robodojo.workflows.assets_moonlake_packing import _publish_paths, build
 
@@ -39,18 +40,25 @@ def test_moonlake_packing_profile_declares_generated_scene_asset_build():
     scene = load_scene_profile(PATHS, "moonlake_office")
     assert scene.document.asset_builds == ["moonlake_office"]
     assert scene.document.task_asset_builds == {
-        "general_pickup": ["moonlake_packing"],
         "pack_item_into_container": ["moonlake_packing"],
     }
     assert "pack_item_into_container" not in scene.document.task_assets
-    assert required_fixture_builds(scene, "general_pickup") == (
-        "moonlake_office",
-        "moonlake_packing",
-    )
+    assert required_fixture_builds(scene, "general_pickup") == ("moonlake_office",)
     assert required_fixture_builds(scene, "pack_item_into_container") == (
         "moonlake_office",
         "moonlake_packing",
     )
+
+
+def test_container_behavior_remains_owned_by_pack_item_into_container():
+    source = (ROOT / "src/robodojo/sim/tasks/pack_item_into_container.py").read_text(encoding="utf-8")
+    task_config = yaml.safe_load((ROOT / "configs/task/pack_item_into_container.yml").read_text(encoding="utf-8"))
+
+    assert set(task_placement_rules(task_config)) == {"item", "container"}
+    assert 'Put the <item> into the black box, then close the lid.' in source
+    assert 'label_A="item"' in source
+    assert 'label_B="container"' in source
+    assert 'B_volume_tag="packing_cavity"' in source
 
 
 def test_asset_publication_restores_previous_directory_when_replace_fails(tmp_path, monkeypatch):

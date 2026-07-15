@@ -31,6 +31,7 @@ from robodojo.core.profiles import (
     validate_scene_environment_compatibility,
 )
 from robodojo.core.storage import assets_root, s3_uri
+from robodojo.core.workspace import validate_layout_contract
 from robodojo.policy.adapter import policy_hook_command, policy_launch_environment, policy_server_command
 from robodojo.sim.launcher import resolve_scene_profile
 from robodojo.sim.scene_assets import inspect_scene_assets
@@ -197,7 +198,12 @@ def _configuration_checks(
     return checks, profile, scene
 
 
-def _layout_check(paths: RepositoryPaths, request: PreflightRequest, scene: SceneProfile | None) -> PreflightCheck:
+def _layout_check(
+    paths: RepositoryPaths,
+    request: PreflightRequest,
+    scene: SceneProfile | None,
+    profile: EnvironmentProfile | None = None,
+) -> PreflightCheck:
     if scene is None:
         return _check(
             "layout",
@@ -214,11 +220,31 @@ def _layout_check(paths: RepositoryPaths, request: PreflightRequest, scene: Scen
         matches = sorted(directory.glob(f"{request.task}_*.json")) if directory.is_dir() else []
         if not matches:
             continue
+        failed_path = matches[0]
         try:
+            task_config = yaml.safe_load((paths.task_configs / f"{request.task}.yml").read_text(encoding="utf-8")) or {}
+            robot_config = (
+                yaml.safe_load(profile.component_paths["robot"].read_text(encoding="utf-8")) or {}
+                if profile is not None
+                else None
+            )
             for path in matches:
-                json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            return _check("layout", "FAIL", f"invalid layout {path}: {exc}", _setup_remediation(request, "assets"))
+                failed_path = path
+                layout = json.loads(path.read_text(encoding="utf-8"))
+                validate_layout_contract(
+                    layout,
+                    task_config,
+                    workspace=profile.document.workspace if profile is not None else None,
+                    robot_config=robot_config,
+                    context=str(path),
+                )
+        except (OSError, json.JSONDecodeError, ValueError) as exc:
+            return _check(
+                "layout",
+                "FAIL",
+                f"invalid layout {failed_path}: {exc}",
+                _setup_remediation(request, "assets"),
+            )
         return _check("layout", "PASS", f"{len(matches)} layout(s) in {directory}")
     searched = ", ".join(str(path) for path in candidates)
     return _check(
@@ -506,7 +532,7 @@ def _run_fast_preflight_resolved(
     checks: list[PreflightCheck] = [_root_runtime_check(paths)]
     config_checks, profile, scene = _configuration_checks(paths, request)
     checks.extend(config_checks)
-    checks.append(_layout_check(paths, request, scene))
+    checks.append(_layout_check(paths, request, scene, profile))
     checks.append(_robot_asset_check(profile, request))
     checks.append(_scene_asset_check(paths, request, scene))
     checks.append(gpu_check)
@@ -550,13 +576,13 @@ def run_sweep_preflight(
         if task == request.task:
             continue
         task_request = request.model_copy(update={"task": task})
-        config_checks, _, scene = _configuration_checks(paths, task_request)
+        config_checks, profile, scene = _configuration_checks(paths, task_request)
         checks.extend(
             item.model_copy(update={"name": f"{item.name}[{task}]"})
             for item in config_checks
             if item.name in {"task", "scene"}
         )
-        layout = _layout_check(paths, task_request, scene)
+        layout = _layout_check(paths, task_request, scene, profile)
         checks.append(layout.model_copy(update={"name": f"layout[{task}]"}))
         scene_assets = _scene_asset_check(paths, task_request, scene)
         checks.append(scene_assets.model_copy(update={"name": f"scene_assets[{task}]"}))

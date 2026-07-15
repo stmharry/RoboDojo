@@ -265,6 +265,36 @@ class EnvironmentDiagnostics(StrictModel):
     matched_replay_manifest: str | None = None
 
 
+class WorkspaceFrameContract(StrictModel):
+    """Embodiment roots expressed in one scene-owned support frame."""
+
+    anchor: str
+    robot_root_offsets: dict[str, tuple[float, float, float]]
+
+    @field_validator("anchor")
+    @classmethod
+    def safe_anchor(cls, value: str) -> str:
+        if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", value) is None:
+            raise ValueError("workspace anchor must be one safe scene fixture name")
+        return value
+
+    @field_validator("robot_root_offsets", mode="before")
+    @classmethod
+    def valid_robot_root_offsets(
+        cls,
+        value: Any,
+    ) -> dict[str, tuple[float, float, float]]:
+        if not isinstance(value, dict) or not value:
+            raise ValueError("workspace robot root offsets must not be empty")
+        invalid = sorted(slot for slot in value if re.fullmatch(r"robot\d+", slot) is None)
+        if invalid:
+            raise ValueError(f"workspace robot roots require robot<N> slot names: {invalid}")
+        return {
+            slot: _finite_vector(offset, length=3, field=f"workspace {slot} root offset")
+            for slot, offset in value.items()
+        }
+
+
 class EnvironmentConfigDocument(BaseModel):
     """Typed profile metadata with forward-compatible upstream payload fields."""
 
@@ -276,6 +306,7 @@ class EnvironmentConfigDocument(BaseModel):
     policy_contract: str | None = None
     hardware_calibration: str | None = None
     diagnostics: EnvironmentDiagnostics | None = None
+    workspace: WorkspaceFrameContract | None = None
     config: EnvironmentConfigReferences
     observation: dict[str, Any] = Field(default_factory=dict)
 

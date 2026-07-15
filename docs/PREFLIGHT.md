@@ -69,7 +69,9 @@ legacy README-driven setup.
 Fast preflight is read-only. It validates:
 
 - the root `.venv`, `uv.lock`, and installed simulator distributions;
-- task code/YAML, environment components, scene profile, and selected layout;
+- task code/YAML, environment components, scene profile, and every selected layout;
+- task label/support-plane contracts and environment robot roots in the resolved
+  scene workspace frame;
 - generated robot manifests and declared output checksums;
 - policy and simulator GPU indices;
 - S3 URI and AWS CLI presence when publication is requested;

@@ -16,6 +16,7 @@ from shapely.geometry import box
 import torch
 import transforms3d as t3d
 
+from robodojo.sim.environment.description_manager.desc_manager import descriptions_from_metadata
 from robodojo.sim.environment.global_configs import ASSETS_PATH, OBJECTS_PATH
 from robodojo.sim.environment.scene_manager.appearance import merge_fixture_appearance
 from robodojo.sim.environment.seeding import seed_everywhere
@@ -473,10 +474,7 @@ class LayoutManager:
                 env_idx,
             )
             return []
-        desc_data = deepcopy(metadata.get("description", None))
-        if desc_data is None:
-            return []
-        return desc_data
+        return descriptions_from_metadata(metadata)
 
     def get_instance_bbox_vertices(self, inst_name, env_idx):
         obj = self.get_scene_object(env_idx, inst_name)

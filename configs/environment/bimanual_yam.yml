@@ -2,6 +2,12 @@ config_name: bimanual_yam
 selectable: false
 policy_contract: bimanual_yam
 
+workspace:
+  anchor: Table
+  robot_root_offsets:
+    robot0: [-0.24, -0.40, 0.025]
+    robot1: [0.24, -0.40, 0.025]
+
 config:
   sim: real_time_30hz
   robot: dual_yam
