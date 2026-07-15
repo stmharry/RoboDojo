@@ -66,6 +66,30 @@
         "physics": {"type": "geometry", "collision": false},
         "visual": {}
       }
+    ],
+    "basket": [
+      {
+        "category": "basket",
+        "category_idx": 2,
+        "group": null,
+        "xlim": [0.0, 0.0],
+        "ylim": [0.1, 0.1],
+        "zlim": null,
+        "qpos": [1.0, 0.0, 0.0, 0.0],
+        "rotate_deg": 0,
+        "rotate_rand": false,
+        "relative_plane": "Table",
+        "place_tag": null,
+        "margin": 0.01,
+        "check_mode": "bbox",
+        "need_check_stable": true,
+        "label": "scene_bin",
+        "default_pos": [0.0, 0.1, 0.7886],
+        "default_ori": [1.0, 0.0, 0.0, 0.0],
+        "scale": [1.0, 1.0, 1.0],
+        "physics": {"type": "geometry", "mass": 1.8, "friction": 0.45},
+        "visual": {}
+      }
     ]
   },
   "Rigid": {
@@ -78,7 +102,7 @@
         "clutter_idx": 0,
         "yaml_path": "Clutter/clutter.yml",
         "relative_plane": "Table",
-        "default_pos": [0.22, -0.1, 0.7533537298662597],
+        "default_pos": [0.22, -0.05, 0.7533537298662597],
         "default_ori": [
           0.959055682083492,
           -0.08378034247114842,
