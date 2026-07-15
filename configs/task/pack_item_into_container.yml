@@ -1,0 +1,46 @@
+# The Moonlake office profile replays six canonical saved layouts. This
+# inventory documents the supported catalog entries for tooling and future
+# layout generation; evaluation does not sample from it.
+Rigid:
+  - common:
+      xlim: [0.18, 0.28]
+      ylim: [-0.14, -0.06]
+      rotate_deg: 0
+      rotate_rand: false
+      relative_plane: Table
+    category:
+      - {name: moonlake_measuring_spoon, index: [0]}
+      - {name: moonlake_phone15_dummy, index: [0]}
+      - {name: moonlake_fake_apple, index: [0]}
+      - {name: moonlake_phillips_screwdriver, index: [0]}
+      - {name: moonlake_abc_block, index: [0]}
+    select_mode:
+      nums: 1
+      mode: unique
+      label: [item]
+
+Articulation:
+  - common:
+      xlim: [-0.12, -0.12]
+      ylim: [0.08, 0.08]
+      rotate_deg: 0
+      rotate_rand: false
+      relative_plane: Table
+    category:
+      - {name: moonlake_magnetic_gift_box, index: [0]}
+    select_mode:
+      nums: 1
+      mode: unique
+      label: [container]
+  - common:
+      xlim: [0.18, 0.28]
+      ylim: [-0.14, -0.06]
+      rotate_deg: 0
+      rotate_rand: false
+      relative_plane: Table
+    category:
+      - {name: moonlake_anker_cable, index: [0]}
+    select_mode:
+      nums: 1
+      mode: unique
+      label: [item]

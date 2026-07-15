@@ -437,8 +437,12 @@ class CameraManager:
                     if args_info.get("vertical_aperture") is not None:
                         cur_camera.set_vertical_aperture(args_info["vertical_aperture"], False)
                     if args_info.get("clipping_range") is not None:
+                        near_clip_override = camera_config.camera.get("near_clip_m")
+                        near_clip = float(
+                            args_info["clipping_range"][0] if near_clip_override is None else near_clip_override
+                        )
                         cur_camera.set_clipping_range(
-                            near_distance=args_info["clipping_range"][0],
+                            near_distance=near_clip,
                             far_distance=args_info["clipping_range"][1],
                         )
                     # Author the lens-distortion schema last. Isaac's physical

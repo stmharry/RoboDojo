@@ -54,6 +54,16 @@ def assets_build_moonlake_office(
     raise typer.Exit(build_moonlake_office(paths(root)))
 
 
+@assets_app.command("build-moonlake-packing")
+def assets_build_moonlake_packing(
+    root: Path | None = typer.Option(None, "--root", help="Repository containing the Moonlake packing manifest."),
+) -> None:
+    """Build internal Moonlake packing assets into canonical local storage."""
+    from robodojo.workflows.assets import build_moonlake_packing
+
+    raise typer.Exit(build_moonlake_packing(paths(root)))
+
+
 @data_app.command("list")
 def data_list() -> None:
     """List available dataset formats, sizes, and destination names."""

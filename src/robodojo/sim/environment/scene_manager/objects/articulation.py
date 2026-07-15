@@ -18,6 +18,7 @@ from pxr import PhysxSchema, Usd, UsdGeom, UsdPhysics, UsdShade
 import torch
 
 from robodojo.sim.environment.scene_manager.appearance import normalize_rgb_color
+from robodojo.sim.utils.physics_pose import articulation_link_pose_wxyz
 
 logger = logging.getLogger(__name__)
 
@@ -238,8 +239,16 @@ class ArticulationObject(SingleArticulation):
     def initialize(self):
         self.physics_sim_view = SimulationManager.get_physics_sim_view()
         super().initialize(physics_sim_view=self.physics_sim_view)
-        self.upper_joint_positions = self.dof_properties["upper"].copy()
-        self.lower_joint_positions = self.dof_properties["lower"].copy()
+        # Isaac Sim 5.1's ``dof_properties`` builds a NumPy record array and
+        # assigns CUDA tensors into it, which fails before any articulation can
+        # reset. Read only the limits RoboDojo needs and move them explicitly.
+        limits = self._articulation_view.get_dof_limits()[0]
+        if isinstance(limits, torch.Tensor):
+            limits = limits.detach().cpu().numpy()
+        else:
+            limits = np.asarray(limits)
+        self.lower_joint_positions = limits[:, 0].copy()
+        self.upper_joint_positions = limits[:, 1].copy()
         self.initial_joint_positions = self.get_current_joint_positions()
         self.app = omni.kit.app.get_app()
         self.app.update()
@@ -351,7 +360,7 @@ class ArticulationObject(SingleArticulation):
 
     def get_link_pose(self, link_name: str):
         """
-        Get world pose of a specific link frame by recursively searching prim name.
+        Get the current world pose of a specific rigid-body link.
 
         Args:
             link_name (str): link name, e.g. "panda_hand"
@@ -360,6 +369,11 @@ class ArticulationObject(SingleArticulation):
             np.ndarray:
                 shape (7,), format [x, y, z, qw, qx, qy, qz]
         """
+        articulation_view = getattr(self, "_articulation_view", None)
+        if articulation_view is not None and articulation_view.is_physics_handle_valid():
+            return articulation_link_pose_wxyz(articulation_view, link_name, self._prim_path)
+
+        # Before physics initialization, fall back to the authored USD pose.
         link_prim = self._find_link_prim_by_name(link_name)
         if link_prim is None:
             raise ValueError(f"Cannot find link '{link_name}' under articulation root {self._prim_path}")

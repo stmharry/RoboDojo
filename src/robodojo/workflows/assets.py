@@ -81,9 +81,46 @@ def _fixture_paths(paths: RepositoryPaths, name: str) -> tuple[Path, Path, Path]
     return tooling, root, root / "manifest.json"
 
 
+def _packing_asset_error(paths: RepositoryPaths) -> str | None:
+    tooling = paths.moonlake_packing_manifest
+    specification = yaml.safe_load(tooling.read_text(encoding="utf-8")) or {}
+    root = assets_root()
+    manifest_path = root / "manifests" / "moonlake_packing.json"
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return f"generated moonlake_packing manifest is missing or invalid: {manifest_path}: {exc}"
+    if manifest.get("tooling_manifest_sha256") != _sha256(tooling):
+        return f"generated moonlake_packing manifest is stale: {manifest_path}"
+    records = manifest.get("assets")
+    expected = specification.get("assets")
+    if not isinstance(records, dict) or not isinstance(expected, dict) or set(records) != set(expected):
+        return f"generated moonlake_packing manifest has an invalid asset inventory: {manifest_path}"
+    filenames = {"object.usd", "metadata.json", "description.json", "provenance.json"}
+    for key, asset in expected.items():
+        relative = (
+            Path("Object/RoboDojo") / str(asset["object_type"]) / str(asset["category"]) / f"{int(asset['index']):05d}"
+        )
+        record = records[key]
+        if not isinstance(record, dict) or record.get("asset") != relative.as_posix():
+            return f"generated moonlake_packing asset path mismatch for {key}: {manifest_path}"
+        files = record.get("files")
+        if not isinstance(files, dict) or set(files) != filenames:
+            return f"generated moonlake_packing file inventory is invalid for {key}: {manifest_path}"
+        for filename in sorted(filenames):
+            output = root / relative / filename
+            if not output.is_file():
+                return f"generated moonlake_packing asset is missing: {output}"
+            if files[filename] != _sha256(output):
+                return f"generated moonlake_packing asset checksum mismatch: {output}"
+    return None
+
+
 def generated_fixture_error(paths: RepositoryPaths, name: str) -> str | None:
     """Return a read-only integrity error for a scene-declared fixture build."""
 
+    if name == "moonlake_packing":
+        return _packing_asset_error(paths)
     tooling, root, manifest_path = _fixture_paths(paths, name)
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -105,9 +142,13 @@ def ensure_generated_fixture(paths: RepositoryPaths, name: str) -> bool:
 
     if generated_fixture_error(paths, name) is None:
         return False
-    if name != "moonlake_office":
+    builders = {
+        "moonlake_office": build_moonlake_office,
+        "moonlake_packing": build_moonlake_packing,
+    }
+    if name not in builders:
         raise ValueError(f"unsupported generated scene asset: {name}")
-    code = build_moonlake_office(paths)
+    code = builders[name](paths)
     if code != 0:
         raise RuntimeError(f"{name} fixture builder exited {code}")
     if error := generated_fixture_error(paths, name):
@@ -115,8 +156,11 @@ def ensure_generated_fixture(paths: RepositoryPaths, name: str) -> bool:
     return True
 
 
-def required_fixture_builds(scene: SceneProfile) -> tuple[str, ...]:
-    return tuple(scene.document.asset_builds)
+def required_fixture_builds(scene: SceneProfile, task_name: str | None = None) -> tuple[str, ...]:
+    builds = list(scene.document.asset_builds)
+    if task_name is not None:
+        builds.extend(scene.document.task_asset_builds.get(task_name, ()))
+    return tuple(dict.fromkeys(builds))
 
 
 def build_openarm(paths: RepositoryPaths) -> int:
@@ -249,4 +293,29 @@ def build_moonlake_office(paths: RepositoryPaths) -> int:
     code = subprocess.run(command, cwd=paths.root, env=env).returncode
     if code == 0 and not (output / "manifest.json").is_file():
         raise RuntimeError("Moonlake office build completed without manifest.json")
+    return code
+
+
+def build_moonlake_packing(paths: RepositoryPaths) -> int:
+    """Build the internal procedural assets for the Moonlake packing task."""
+    output = assets_root()
+    shared_manifest = output / "manifests" / "moonlake_packing.json"
+    env = {
+        **os.environ,
+        "OMNI_KIT_ACCEPT_EULA": "YES",
+        "ACCEPT_EULA": "Y",
+        "PRIVACY_CONSENT": "Y",
+    }
+    command = [
+        sys.executable,
+        "-m",
+        "robodojo.workflows.assets_moonlake_packing",
+        "--output-root",
+        str(output),
+        "--manifest",
+        str(paths.moonlake_packing_manifest),
+    ]
+    code = subprocess.run(command, cwd=paths.root, env=env).returncode
+    if code == 0 and not shared_manifest.is_file():
+        raise RuntimeError("Moonlake packing build completed without its shared manifest")
     return code

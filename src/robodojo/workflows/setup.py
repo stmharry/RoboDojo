@@ -253,7 +253,7 @@ def _generated_assets_stages(paths: RepositoryPaths, request: SetupRequest) -> l
     for name in required_robot_builds(profile):
         changed = ensure_generated_robot(paths, name)
         stages.append(_stage(f"robot_asset[{name}]", "CHANGED" if changed else "READY", "manifest verified"))
-    for name in required_fixture_builds(scene):
+    for name in required_fixture_builds(scene, request.task):
         changed = ensure_generated_fixture(paths, name)
         stages.append(_stage(f"scene_asset[{name}]", "CHANGED" if changed else "READY", "manifest verified"))
     try:

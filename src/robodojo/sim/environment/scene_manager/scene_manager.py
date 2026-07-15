@@ -653,9 +653,12 @@ class SceneManager:
         exclude_types = exclude_types or []
 
         # Determine which object collections to clear based on exclude_types
+        # Relocate articulations before deleting rigid prims on CUDA. Deleting
+        # any prim invalidates the shared PhysX tensor view; articulations need
+        # that view to restore joint state while moving offscreen.
         all_collections = [
-            (self._rigid_and_dynamic_objects[env_id], "rigid"),
             (self._articulation_objects[env_id], "articulation"),
+            (self._rigid_and_dynamic_objects[env_id], "rigid"),
             (self._garment_objects[env_id], "garment"),
             (self._geometry_objects[env_id], "geometry"),
             (self._fluid_objects[env_id], "fluid"),

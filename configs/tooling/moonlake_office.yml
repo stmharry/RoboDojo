@@ -14,6 +14,19 @@ sources:
         sha256: 6a9ff67f7c3bdad092cdc88bab01ce1f83f8ff73cc4bcb6e7297b92519479eed
         usage: derived_static_mesh
 
+# The fixture retains Nick's pinned robot-mount transforms below for source
+# provenance. Runtime YAM bases use the familiar molmo_yam start, translated
+# with the tabletop frame (source center y=-0.05/top z=0.765 -> office
+# center y=0/top z=0.75).
+embodiment_start:
+  basis: molmo_yam_table_relative_v1
+  robot0:
+    position: [-0.24, -0.40, 0.75]
+    orientation: [0.0, 0.0, 0.0, 1.0]
+  robot1:
+    position: [0.24, -0.40, 0.75]
+    orientation: [0.0, 0.0, 0.0, 1.0]
+
 fixture:
   category: moonlake_office_fixture
   instance_index: 0
@@ -47,6 +60,7 @@ fixture:
     look_at_target_m: [0.0, 0.03, 0.75]
     up_axis: [0.0, 0.0, 1.0]
     optical_translation_m: [0.0, 0.0, -0.013]
+    near_clip_m: 0.1
     mount_frame: Mounts/D435OpticalFrame
   materials:
     motor_black: [0.012, 0.012, 0.015]

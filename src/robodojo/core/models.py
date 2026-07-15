@@ -337,6 +337,7 @@ class SceneCameraMount(StrictModel):
     orientation: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
     pose_convention: Literal["isaac_usd", "sapien_robotics"] = "isaac_usd"
     optical_roll_deg: Literal[-180.0, -90.0, 0.0, 90.0, 180.0] = 0.0
+    near_clip_m: float | None = None
     basis: str | None = None
 
     @field_validator("position")
@@ -351,6 +352,13 @@ class SceneCameraMount(StrictModel):
         norm = math.sqrt(sum(component * component for component in value))
         if not math.isclose(norm, 1.0, rel_tol=0.0, abs_tol=1e-6):
             raise ValueError("camera mount orientation must be a normalized scalar-first quaternion")
+        return value
+
+    @field_validator("near_clip_m")
+    @classmethod
+    def valid_near_clip(cls, value: float | None) -> float | None:
+        if value is not None and (not math.isfinite(value) or value <= 0.0):
+            raise ValueError("camera near clip must be finite and positive")
         return value
 
     @model_validator(mode="after")
@@ -392,6 +400,9 @@ class SceneMounts(StrictModel):
         return value
 
 
+SceneAssetBuildName = Literal["moonlake_office", "moonlake_packing"]
+
+
 class SceneConfigDocument(StrictModel):
     """Scene selection owns world composition, saved layouts, and their assets."""
 
@@ -399,7 +410,8 @@ class SceneConfigDocument(StrictModel):
     component: str
     layout_set: str
     layout_source: Literal["assets", "bundled"] = "assets"
-    asset_builds: list[Literal["moonlake_office"]] = Field(default_factory=list)
+    asset_builds: list[SceneAssetBuildName] = Field(default_factory=list)
+    task_asset_builds: dict[str, list[SceneAssetBuildName]] = Field(default_factory=dict)
     task_assets: dict[str, list[SceneGarmentVariantRecipe]] = Field(default_factory=dict)
     compatible_environments: list[str] = Field(default_factory=list)
     mounts: SceneMounts = Field(default_factory=SceneMounts)
@@ -432,6 +444,26 @@ class SceneConfigDocument(StrictModel):
             )
         if len(value) != len(set(value)):
             raise ValueError("compatible environment names must be unique")
+        return value
+
+    @field_validator("asset_builds")
+    @classmethod
+    def unique_asset_builds(cls, value: list[SceneAssetBuildName]) -> list[SceneAssetBuildName]:
+        if len(value) != len(set(value)):
+            raise ValueError("scene asset builds must be unique")
+        return value
+
+    @field_validator("task_asset_builds")
+    @classmethod
+    def valid_task_asset_builds(
+        cls,
+        value: dict[str, list[SceneAssetBuildName]],
+    ) -> dict[str, list[SceneAssetBuildName]]:
+        for task, builds in value.items():
+            if not task.strip() or not builds:
+                raise ValueError("task asset builds require non-empty task names and build lists")
+            if len(builds) != len(set(builds)):
+                raise ValueError(f"task asset builds for {task} must be unique")
         return value
 
     @field_validator("task_assets")

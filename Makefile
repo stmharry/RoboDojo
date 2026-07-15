@@ -74,6 +74,7 @@ SWEEP_ARGS = \
 	$(ONLY_FLAG)
 
 .PHONY: help setup preflight eval smoke benchmark tasks doctor results \
+	assets-moonlake-office assets-moonlake-packing \
 	lint lint-fix format format-check test pre-commit check _config-check
 
 ##@ Workflow
@@ -117,6 +118,13 @@ doctor: _config-check ## Inspect the configured simulator and policy adapter
 
 results: ## Summarize local evaluation results
 	$(ROBODOJO_BASE) results summarize $(ARGS)
+
+##@ Assets
+assets-moonlake-office: ## Build the pinned internal Moonlake office fixture
+	$(ROBODOJO_SIM) assets build-moonlake-office $(ARGS)
+
+assets-moonlake-packing: assets-moonlake-office ## Build internal Moonlake packing task assets
+	$(ROBODOJO_SIM) assets build-moonlake-packing $(ARGS)
 
 ##@ Development
 lint: ## Run Ruff lint checks

@@ -1,0 +1,303 @@
+{
+  "Table": {
+    "default": "material_0122",
+    "scale": [
+      1.2,
+      0.7,
+      0.05
+    ],
+    "default_pos": [
+      0,
+      0,
+      0.725
+    ],
+    "default_ori": [
+      1,
+      0,
+      0,
+      0
+    ],
+    "visual_color": [
+      0.090842,
+      0.046665,
+      0.024158
+    ]
+  },
+  "Ground": {
+    "geometry": "cube",
+    "thickness": 0.02,
+    "axis": "Z",
+    "default_pos": [
+      0,
+      0,
+      0
+    ],
+    "base_color": [
+      0.36,
+      0.2,
+      0.08
+    ],
+    "materials": {
+      "type": "color",
+      "color": [
+        0.36,
+        0.2,
+        0.08
+      ]
+    },
+    "physics_material": {
+      "static_friction": 1,
+      "dynamic_friction": 1,
+      "restitution": 0,
+      "friction_combine_mode": "multiply",
+      "restitution_combine_mode": "multiply",
+      "compliant_contact_stiffness": 0,
+      "compliant_contact_damping": 0
+    }
+  },
+  "Light": {
+    "dome": {
+      "types": "Dome",
+      "common": {
+        "initial_pos_range": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "initial_ori_range": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "color_range": [
+          [
+            1,
+            1,
+            1
+          ],
+          [
+            1,
+            1,
+            1
+          ]
+        ]
+      },
+      "Dome": {
+        "intensity_range": [
+          1000,
+          1000
+        ]
+      }
+    },
+    "key": {
+      "types": "Distant",
+      "common": {
+        "initial_pos_range": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "initial_ori_range": [
+          -35,
+          20,
+          0,
+          -35,
+          20,
+          0
+        ],
+        "color_range": [
+          [
+            1,
+            1,
+            1
+          ],
+          [
+            1,
+            1,
+            1
+          ]
+        ]
+      },
+      "Distant": {
+        "intensity_range": [
+          3000,
+          3000
+        ],
+        "angle_range": [
+          1,
+          1
+        ]
+      }
+    }
+  },
+  "Geometry": {
+    "moonlake_office_fixture": [
+      {
+        "category": "moonlake_office_fixture",
+        "category_idx": 0,
+        "xlim": [
+          0,
+          0
+        ],
+        "ylim": [
+          0,
+          0
+        ],
+        "zlim": [
+          0,
+          0
+        ],
+        "qpos": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "rotate_deg": 0,
+        "rotate_rand": false,
+        "relative_plane": "Ground",
+        "place_tag": null,
+        "margin": 0.01,
+        "check_mode": "bbox",
+        "need_check_stable": false,
+        "label": "moonlake_office_fixture",
+        "default_pos": [
+          0,
+          0,
+          0
+        ],
+        "default_ori": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "physics": {
+          "type": "geometry",
+          "collision": false
+        },
+        "visual": {}
+      }
+    ]
+  },
+  "Articulation": {
+    "moonlake_magnetic_gift_box": [
+      {
+        "category": "moonlake_magnetic_gift_box",
+        "category_idx": 0,
+        "group": null,
+        "xlim": [
+          -0.12,
+          -0.12
+        ],
+        "ylim": [
+          0.08,
+          0.08
+        ],
+        "zlim": null,
+        "qpos": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "rotate_deg": 0,
+        "rotate_rand": false,
+        "relative_plane": "Table",
+        "place_tag": null,
+        "margin": 0.01,
+        "check_mode": "bbox",
+        "need_check_stable": false,
+        "label": "container",
+        "default_pos": [
+          -0.12,
+          0.08,
+          0.75
+        ],
+        "default_ori": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "physics": {
+          "type": "articulation",
+          "mass": 0.32
+        },
+        "visual": {}
+      }
+    ]
+  },
+  "Rigid": {
+    "moonlake_fake_apple": [
+      {
+        "category": "moonlake_fake_apple",
+        "category_idx": 0,
+        "group": null,
+        "xlim": [
+          0.22,
+          0.22
+        ],
+        "ylim": [
+          -0.1,
+          -0.1
+        ],
+        "zlim": null,
+        "qpos": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "rotate_deg": 0,
+        "rotate_rand": false,
+        "relative_plane": "Table",
+        "place_tag": null,
+        "margin": 0.01,
+        "check_mode": "bbox",
+        "need_check_stable": false,
+        "label": "item",
+        "default_pos": [
+          0.22,
+          -0.1,
+          0.75
+        ],
+        "default_ori": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "physics": {
+          "type": "rigid",
+          "mass": 0.06
+        },
+        "visual": {}
+      }
+    ]
+  }
+}

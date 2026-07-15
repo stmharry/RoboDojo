@@ -1,0 +1,102 @@
+format_version: 1
+distribution:
+  classification: internal_reference_only
+  license: rights_not_confirmed
+  publish: prohibited
+  redistribution: prohibited_until_confirmed
+  embeds_third_party_media: false
+references:
+  gift_box:
+    product: RYDDOY Black Gift Box 12x6x4
+    url: https://www.amazon.com/dp/B09JZT24JS
+    usage: dimensional_and_appearance_reference_only
+    media_embedded: false
+  spoon:
+    product: Inmoren 10pc Measuring Cups and Spoons Set, Pink
+    source: user_provided_order_screenshot
+    usage: appearance_reference_only
+    media_embedded: false
+  phone:
+    product: Phone 15 dummy, Pink Rainbow Front
+    url: https://support.apple.com/en-us/111831
+    usage: one_to_one_dimensional_reference_only
+    media_embedded: false
+  apple:
+    product: Ikosora 20 Pcs Fake Fruit Pack, model IK064
+    url: https://www.cart2india.com/artificial-fruit/ikosora-20-pcs-fake-fruit-pack-artificial-fruit-for-decoration-party-realistic-fake-fruits-table-centrepieces-decoration-home-kitchen-lifelike-faux-fruits-apple-bananas/00000000004388262164
+    usage: size_and_appearance_reference_only
+    media_embedded: false
+  screwdriver:
+    product: Generic number 2 Phillips screwdriver with 6 inch shaft
+    url: https://www.campbellsci.com/35675
+    usage: dimensional_reference_only
+    media_embedded: false
+  cable:
+    product: Anker B8172 Nylon USB-C to USB-A Cable, 3ft, Black
+    url: https://www.anker.com/eu-en/products/b8172
+    usage: dimensional_and_appearance_reference_only
+    media_embedded: false
+  block:
+    product: SainSmart Jr Wooden ABC Stacking Blocks, 1.2 Inch
+    url: https://sainsmartjr.com/
+    usage: dimensional_and_appearance_reference_only
+    media_embedded: false
+
+assets:
+  container:
+    object_type: Articulation
+    category: moonlake_magnetic_gift_box
+    index: 0
+    description: black magnetic gift box
+    dimensions_m: [0.3048, 0.1524, 0.1016]
+    wall_thickness_m: 0.003
+    base_mass_kg: 0.25
+    lid_mass_kg: 0.07
+    lid_open_deg: 110.0
+  spoon:
+    object_type: Rigid
+    category: moonlake_measuring_spoon
+    index: 0
+    description: pink measuring spoon
+    dimensions_m: [0.120, 0.042, 0.014]
+    mass_kg: 0.008
+  phone:
+    object_type: Rigid
+    category: moonlake_phone15_dummy
+    index: 0
+    description: pink dummy smartphone
+    dimensions_m: [0.1476, 0.0716, 0.0078]
+    mass_kg: 0.180
+  apple:
+    object_type: Rigid
+    category: moonlake_fake_apple
+    index: 0
+    description: red artificial apple
+    dimensions_m: [0.075, 0.075, 0.070]
+    mass_kg: 0.060
+  screwdriver:
+    object_type: Rigid
+    category: moonlake_phillips_screwdriver
+    index: 0
+    description: Phillips screwdriver
+    dimensions_m: [0.244, 0.028, 0.028]
+    shaft_length_m: 0.1524
+    mass_kg: 0.100
+  cable:
+    object_type: Articulation
+    category: moonlake_anker_cable
+    index: 0
+    description: black USB-A to USB-C cable
+    length_m: 0.9144
+    diameter_m: 0.005
+    segment_count: 30
+    usb_a_length_m: 0.035
+    usb_c_length_m: 0.025
+    mass_kg: 0.045
+  block:
+    object_type: Rigid
+    category: moonlake_abc_block
+    index: 0
+    description: wooden alphabet block
+    dimensions_m: [0.03048, 0.03048, 0.03048]
+    mass_kg: 0.018

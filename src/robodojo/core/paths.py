@@ -83,3 +83,7 @@ class RepositoryPaths(BaseModel):
     @property
     def moonlake_office_manifest(self) -> Path:
         return self.root / "configs" / "tooling" / "moonlake_office.yml"
+
+    @property
+    def moonlake_packing_manifest(self) -> Path:
+        return self.root / "configs" / "tooling" / "moonlake_packing.yml"

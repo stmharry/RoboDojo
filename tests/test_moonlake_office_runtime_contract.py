@@ -29,8 +29,11 @@ def test_scene_camera_override_changes_only_the_head_mount():
     assert cameras["cam_head"]["mount_frame"] == "Mounts/D435OpticalFrame"
     assert cameras["cam_head"]["pos"] == [0.0, 0.0, 0.0]
     assert cameras["cam_head"]["ori"] == [1.0, 0.0, 0.0, 0.0]
+    assert cameras["cam_head"]["near_clip_m"] == pytest.approx(0.1)
     assert cameras["cam_left_wrist"]["mount_kind"] == "robot_link"
     assert cameras["cam_right_wrist"]["mount_kind"] == "robot_link"
+    assert cameras["cam_left_wrist"].get("near_clip_m") is None
+    assert cameras["cam_right_wrist"].get("near_clip_m") is None
     assert cameras["cam_head"]["stream_resolution"] == [640, 360]
     assert cameras["cam_head"]["fx"] == pytest.approx(462.1386898729645)
 
@@ -75,14 +78,13 @@ def test_robot_mount_override_updates_runtime_pose_without_mutating_config():
         default_root_rot=original[3:],
         entity_origin_pose=list(original),
     )
-    override = {
-        "position": [-0.2032, -0.32, 0.77],
-        "orientation": [0.7071067811865476, 0.0, 0.0, 0.7071067811865476],
-    }
+    scene = load_scene_profile(PATHS, "moonlake_office")
+    override = scene.document.mounts.robots["robot0"].model_dump(mode="python")
 
     pose = apply_robot_mount_override(robot, override)
 
-    assert pose == override["position"] + override["orientation"]
+    assert pose == list(override["position"] + override["orientation"])
+    assert pose == [-0.24, -0.4, 0.75, 0.0, 0.0, 0.0, 1.0]
     assert robot.entity_origin_pose == pose
     assert original == [-0.24, -0.45, 0.765, 0.0, 0.0, 0.0, 1.0]
 

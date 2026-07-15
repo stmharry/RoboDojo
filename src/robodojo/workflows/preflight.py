@@ -247,7 +247,8 @@ def _scene_asset_check(paths: RepositoryPaths, request: PreflightRequest, scene:
     remediation = _setup_remediation(request, "assets")
     if scene is None:
         return _check("scene_assets", "FAIL", "scene did not resolve", remediation)
-    for name in required_fixture_builds(scene):
+    required_builds = required_fixture_builds(scene, request.task)
+    for name in required_builds:
         if error := generated_fixture_error(paths, name):
             return _check("scene_assets", "FAIL", error, remediation)
     try:
@@ -257,7 +258,8 @@ def _scene_asset_check(paths: RepositoryPaths, request: PreflightRequest, scene:
     return _check(
         "scene_assets",
         "PASS",
-        f"verified {len(prepared.artifacts)} task-derived asset(s) and {len(scene.document.asset_builds)} fixture(s)",
+        f"verified {len(prepared.artifacts)} task-derived asset(s) and "
+        f"{len(required_builds)} generated scene asset build(s)",
     )
 
 

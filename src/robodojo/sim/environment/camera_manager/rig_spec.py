@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass
+import math
 import re
 from typing import Any, Mapping
 
@@ -71,6 +72,9 @@ class CameraSpec:
         roll = float(self.mount.get("optical_roll_deg", 0.0))
         if roll not in (-180.0, -90.0, 0.0, 90.0, 180.0):
             raise ValueError(f"{self.observation_key}: optical roll must be a right-angle rotation")
+        near_clip = self.mount.get("near_clip_m")
+        if near_clip is not None and (not math.isfinite(float(near_clip)) or float(near_clip) <= 0.0):
+            raise ValueError(f"{self.observation_key}: camera near clip must be finite and positive")
         model = self.projection.get("model", "pinhole")
         if model not in VALID_PROJECTION_MODELS:
             raise ValueError(f"{self.observation_key}: invalid projection model {model!r}")
@@ -121,6 +125,7 @@ class CameraSpec:
             "ori": list(self.mount.get("orientation", [1.0, 0.0, 0.0, 0.0])),
             "mount_pose_convention": self.mount.get("pose_convention", "isaac_usd"),
             "optical_roll_deg": float(self.mount.get("optical_roll_deg", 0.0)),
+            "near_clip_m": self.mount.get("near_clip_m"),
             "mount_basis": self.mount.get("basis"),
             "lens_distortion_model": self.projection.get("model", "pinhole"),
             "projection_backend": self.projection.get("backend", "native"),

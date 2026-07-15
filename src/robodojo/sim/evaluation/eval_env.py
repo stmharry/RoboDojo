@@ -872,12 +872,19 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
                 # parsed from filenames, so env_seeds[env_idx] is stable.
                 layout_id = int(self.env_seeds[env_idx])
                 layout_path = Path(self.seed_manager.seed_info[layout_id]["scene_layout"])
-                self.eval_result["details"][index] = {
+                detail = {
                     "layout_id": layout_id,
                     "layout_sha256": hashlib.sha256(layout_path.read_bytes()).hexdigest(),
                     "success": bool(self.success[env_idx]),
                     "score": episode_score,
                 }
+                metadata_hook = getattr(self, "get_episode_metadata", None)
+                if callable(metadata_hook):
+                    task_metadata = metadata_hook(env_idx)
+                    if task_metadata:
+                        json.dumps(task_metadata)
+                        detail["task_metadata"] = deepcopy(task_metadata)
+                self.eval_result["details"][index] = detail
                 video_path = os.path.join(self.save_dir, f"episode_{index:07d}.mp4")
                 self.save_video(env_idx, video_path, tag)
 

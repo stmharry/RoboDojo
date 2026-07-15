@@ -103,12 +103,15 @@ def _local_and_world(stage: Usd.Stage, prim_path: str) -> dict[str, Any]:
 def _camera_state(env, stage: Usd.Stage) -> list[dict[str, Any]]:
     cameras = []
     rig_by_key = {camera.observation_key: camera for camera in env.camera_rig.cameras}
+    holder_paths = env.camera_manager.mount_hardware_paths[0]
+    holder_id = 0
     for cam_id, camera_name in enumerate(env.camera_manager.camera_names[0]):
         spec = rig_by_key[camera_name]
         runtime = env.camera_manager.camera_config[camera_name].camera
         xform_path = env.camera_manager.cameras_xform_path[0][cam_id]
-        holder_paths = env.camera_manager.mount_hardware_paths[0]
-        holder_path = holder_paths[cam_id] if cam_id < len(holder_paths) else None
+        has_holder = runtime.get("mount_hardware_enabled", True) and runtime.get("mount_hardware_asset")
+        holder_path = holder_paths[holder_id] if has_holder and holder_id < len(holder_paths) else None
+        holder_id += int(bool(has_holder))
         sensor_path = str(env.camera_manager.cameras[0][cam_id].prim_path)
         sensor_prim = stage.GetPrimAtPath(sensor_path)
         usd_camera = UsdGeom.Camera(sensor_prim) if sensor_prim and sensor_prim.IsA(UsdGeom.Camera) else None
@@ -282,9 +285,27 @@ def _capture_state(env, stage: Usd.Stage) -> dict[str, Any]:
     }
 
 
+def _stage_layer_stack(stage: Usd.Stage) -> list[Sdf.Layer]:
+    """Return the live root/session sublayer stack without the ABI-fragile USD binding."""
+    layers = []
+    seen = set()
+
+    def visit(layer: Sdf.Layer | None) -> None:
+        if layer is None or layer.identifier in seen:
+            return
+        seen.add(layer.identifier)
+        layers.append(layer)
+        for sublayer_path in layer.subLayerPaths:
+            visit(Sdf.Layer.FindRelativeToLayer(layer, sublayer_path))
+
+    visit(stage.GetSessionLayer())
+    visit(stage.GetRootLayer())
+    return layers
+
+
 def _live_guard(env, stage: Usd.Stage) -> dict[str, Any]:
     layer_state = []
-    for layer in stage.GetLayerStack(includeSessionLayers=True):
+    for layer in _stage_layer_stack(stage):
         try:
             content = layer.ExportToString().encode("utf-8")
         except Exception:
@@ -650,7 +671,7 @@ def export_scene_snapshot(env, output_dir: str | os.PathLike[str], layout_id: in
                 "time_codes_per_second": stage.GetTimeCodesPerSecond(),
                 "source_root_layer": root_layer.identifier,
                 "source_session_layer": stage.GetSessionLayer().identifier,
-                "source_layer_stack": [layer.identifier for layer in stage.GetLayerStack(includeSessionLayers=True)],
+                "source_layer_stack": [layer.identifier for layer in _stage_layer_stack(stage)],
                 "exported_start_time_code": 0,
                 "exported_end_time_code": 0,
             },

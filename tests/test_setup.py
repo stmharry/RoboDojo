@@ -157,7 +157,7 @@ def test_generated_asset_stage_infers_robot_fixture_and_task_assets(monkeypatch,
     calls: list[str] = []
     monkeypatch.setattr(setup, "_asset_context", lambda paths, request: (profile, scene))
     monkeypatch.setattr(setup, "required_robot_builds", lambda profile: ("yam",))
-    monkeypatch.setattr(setup, "required_fixture_builds", lambda scene: ("moonlake_office",))
+    monkeypatch.setattr(setup, "required_fixture_builds", lambda scene, task: ("moonlake_office",))
     monkeypatch.setattr(
         setup,
         "ensure_generated_robot",
@@ -228,7 +228,7 @@ def test_missing_task_scene_asset_is_prepared_during_setup(monkeypatch, tmp_path
     prepared: list[str] = []
     monkeypatch.setattr(setup, "_asset_context", lambda paths, request: (profile, scene))
     monkeypatch.setattr(setup, "required_robot_builds", lambda profile: ())
-    monkeypatch.setattr(setup, "required_fixture_builds", lambda scene: ())
+    monkeypatch.setattr(setup, "required_fixture_builds", lambda scene, task: ())
     monkeypatch.setattr(
         setup,
         "inspect_scene_assets",

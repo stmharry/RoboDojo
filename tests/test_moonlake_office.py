@@ -13,6 +13,7 @@ from robodojo.sim.launcher import resolve_scene_config
 ROOT = Path(__file__).resolve().parents[1]
 PATHS = RepositoryPaths.resolve(ROOT)
 TASKS = ("general_pickup", "stack_blocks", "stack_bowls")
+PACKING_LAYOUTS = tuple(f"pack_item_into_container_{index}.json" for index in range(6))
 
 
 def _request(environment: str) -> SimulatorLaunchRequest:
@@ -26,7 +27,7 @@ def _request(environment: str) -> SimulatorLaunchRequest:
     )
 
 
-def test_moonlake_office_profile_pins_exact_source_mounts():
+def test_moonlake_office_profile_pins_fixture_and_adapts_molmo_yam_start():
     scene = load_scene_profile(PATHS, "moonlake_office")
     tooling = yaml.safe_load(PATHS.moonlake_office_manifest.read_text(encoding="utf-8"))
 
@@ -34,14 +35,17 @@ def test_moonlake_office_profile_pins_exact_source_mounts():
     assert scene.document.layout_set == "moonlake_office"
     assert scene.document.mounts.robots == {
         name: type(scene.document.mounts.robots[name]).model_validate(mount)
-        for name, mount in tooling["fixture"]["arm_mounts"].items()
+        for name, mount in tooling["embodiment_start"].items()
+        if name.startswith("robot")
     }
+    assert tooling["fixture"]["arm_mounts"]["robot0"]["position"] == [-0.2032, -0.32, 0.77]
     head = scene.document.mounts.cameras["cam_head"]
     assert head.kind == "scene_fixture"
     assert head.target == "moonlake_office_fixture"
     assert head.frame == tooling["fixture"]["top_camera"]["mount_frame"]
     assert head.position == (0.0, 0.0, 0.0)
     assert head.orientation == (1.0, 0.0, 0.0, 0.0)
+    assert head.near_clip_m == tooling["fixture"]["top_camera"]["near_clip_m"]
 
     component = scene.component
     assert component["Table"]["scale"] == [1.2, 0.7, 0.05]
@@ -89,6 +93,10 @@ def test_moonlake_office_is_rejected_for_other_embodiments_before_isaac():
             },
             "safe relative USD prim path",
         ),
+        (
+            {"mounts": {"cameras": {"cam_head": {"kind": "world", "near_clip_m": 0.0}}}},
+            "finite and positive",
+        ),
     ],
 )
 def test_scene_mount_schema_rejects_invalid_contracts(payload, message):
@@ -106,7 +114,9 @@ def test_molmo_yam_retains_its_existing_fallback_mounts():
 
 def test_moonlake_layout_bundle_is_fixed_reachable_and_fixture_scoped():
     layout_root = ROOT / "configs" / "layout" / "moonlake_office" / "0"
-    assert sorted(path.name for path in layout_root.glob("*.json")) == [f"{task}_0.json" for task in TASKS]
+    assert sorted(path.name for path in layout_root.glob("*.json")) == sorted(
+        [f"{task}_0.json" for task in TASKS] + list(PACKING_LAYOUTS)
+    )
 
     expected = {
         "general_pickup": {"indices": [1], "labels": ["target"], "xy": [(0.22, -0.10)]},

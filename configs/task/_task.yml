@@ -85,6 +85,11 @@ tasks:
     data_source: "teleop"
     eval_nums: 25
 
+  pack_item_into_container:
+    data_source: "teleop"
+    scene_config: "moonlake_office"
+    eval_nums: 6
+
   play_tic_tac_toe:
     robot_config: "dual_x5_and_franka_competition"
 
