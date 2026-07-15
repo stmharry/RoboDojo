@@ -63,6 +63,7 @@ $(eval $(call register_preset,molmoact2-bimanual_yam-default-push_T_random,XPoli
 $(eval $(call register_preset,molmoact2-bimanual_yam-default-swap_T,XPolicyLab/policy/MolmoACT2,molmoact2,molmoact2_bimanual_yam,bimanual_yam_molmoact2,default,swap_T))
 $(eval $(call register_preset,molmoact2-bimanual_yam-molmo_yam-fold_clothes,XPolicyLab/policy/MolmoACT2,molmoact2,molmoact2_bimanual_yam,bimanual_yam_molmoact2,molmo_yam,fold_clothes))
 $(eval $(call register_preset,molmoact2-bimanual_yam-molmo_yam-general_pickup,XPolicyLab/policy/MolmoACT2,molmoact2,molmoact2_bimanual_yam,bimanual_yam_molmoact2,molmo_yam,general_pickup))
+$(eval $(call register_preset,molmoact2-bimanual_yam-moonlake_office-general_pickup,XPolicyLab/policy/MolmoACT2,molmoact2,molmoact2_bimanual_yam,bimanual_yam_moonlake_office,moonlake_office,general_pickup))
 $(eval $(call register_preset,molmoact2-bimanual_yam-moonlake_office-pack_item_into_container,XPolicyLab/policy/MolmoACT2,molmoact2,molmoact2_bimanual_yam,bimanual_yam_moonlake_office,moonlake_office,pack_item_into_container))
 $(eval $(call register_preset,pi05-arx_x5-default-fold_clothes,XPolicyLab/policy/Pi_05,uv,pi05_arx5_multitask_v1,arx_x5,default,fold_clothes))
 $(eval $(call register_preset,pi05-bimanual_yam-molmo_yam-general_pickup,XPolicyLab/policy/Pi_05,uv,pi05_yam_molmoact2,bimanual_yam_molmoact2,molmo_yam,general_pickup))

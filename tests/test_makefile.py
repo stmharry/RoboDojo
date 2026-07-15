@@ -140,6 +140,15 @@ PRESETS = (
         "general_pickup",
     ),
     (
+        "molmoact2-bimanual_yam-moonlake_office-general_pickup",
+        "XPolicyLab/policy/MolmoACT2",
+        "molmoact2",
+        "molmoact2_bimanual_yam",
+        "bimanual_yam_moonlake_office",
+        "moonlake_office",
+        "general_pickup",
+    ),
+    (
         "molmoact2-bimanual_yam-moonlake_office-pack_item_into_container",
         "XPolicyLab/policy/MolmoACT2",
         "molmoact2",
