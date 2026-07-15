@@ -159,10 +159,23 @@ def test_docker_smoke_propagates_scene(monkeypatch, tmp_path):
 
 
 def test_sweep_resume_identity_includes_resolved_scene(monkeypatch, tmp_path):
+    from robodojo.workflows import preflight as preflight_workflow
+
     monkeypatch.setattr(sweeps, "run_work_root", lambda: tmp_path)
     monkeypatch.setattr(sweeps, "_selected_tasks", lambda request: ["stack_bowls"])
+    monkeypatch.setattr(
+        preflight_workflow,
+        "run_fast_preflight",
+        lambda paths, request: preflight_workflow.build_report(
+            [preflight_workflow.PreflightCheck(name="test", status="PASS", detail="ok")]
+        ),
+    )
     calls: list[EvaluationRequest] = []
-    monkeypatch.setattr(sweeps, "run_evaluation", lambda paths, request: calls.append(request) or 0)
+    monkeypatch.setattr(
+        sweeps,
+        "run_evaluation",
+        lambda paths, request, *, preflight: calls.append(request) or 0,
+    )
     base = SweepRequest(
         policy_dir=tmp_path / "TestPolicy",
         checkpoint="checkpoint",

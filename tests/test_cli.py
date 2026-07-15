@@ -15,6 +15,7 @@ from robodojo.core.settings import RuntimeSettings
 from robodojo.policy import adapter as policy_adapter
 from robodojo.policy.adapter import policy_server_command
 from robodojo.sim.launcher import load_simulator_config, simulator_command
+from robodojo.workflows import preflight as preflight_workflow
 from robodojo.workflows.task_inventory import build_inventory
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,7 +25,18 @@ runner = CliRunner()
 def test_cli_exposes_the_unified_command_surface():
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    for command in ("eval", "server", "client", "smoke", "storage", "assets", "data", "docker"):
+    for command in (
+        "policy-setup",
+        "preflight",
+        "eval",
+        "server",
+        "client",
+        "smoke",
+        "storage",
+        "assets",
+        "data",
+        "docker",
+    ):
         assert command in result.stdout
     assert "upstream" not in result.stdout
 
@@ -103,6 +115,42 @@ def test_make_eval_publishes_by_default_and_allows_local_override():
     assert "--publish" not in local_only.stdout
     assert invalid.returncode != 0
     assert "PUBLISH must be true or false" in invalid.stderr
+
+
+def test_make_policy_setup_and_preflight_forward_experiment_contract():
+    common = [
+        "POLICY_DIR=XPolicyLab/policy/Pi_05",
+        "POLICY_ENV=uv",
+        "CKPT=pi05_yam_molmoact2",
+        "TASK=general_pickup",
+        "ENV_CFG=bimanual_yam",
+        "SCENE=molmo_yam",
+        "ACTION_TYPE=joint",
+        "POLICY_GPU=0",
+        "ENV_GPU=1",
+        "PUBLISH=false",
+    ]
+    setup = subprocess.run(
+        ["make", "-n", "policy-setup", *common],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    deep = subprocess.run(
+        ["make", "-n", "preflight", "DEEP=true", *common],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "--no-sync robodojo policy-setup" in setup.stdout
+    assert '--dataset "RoboDojo"' in setup.stdout
+    assert "--no-sync robodojo preflight" in deep.stdout
+    assert '--scene "molmo_yam"' in deep.stdout
+    assert '--env-gpu "1"' in deep.stdout
+    assert "--deep" in deep.stdout
 
 
 def test_task_inventory_reads_the_simulator_task_package():
@@ -252,6 +300,13 @@ def test_cli_log_level_is_propagated_for_child_processes(monkeypatch, tmp_path):
         policy_adapter,
         "run_policy_server",
         lambda request: seen.append(os.environ.get("ROBODOJO_LOG_LEVEL")) or 0,
+    )
+    monkeypatch.setattr(
+        preflight_workflow,
+        "run_fast_preflight",
+        lambda paths, request: preflight_workflow.build_report(
+            [preflight_workflow.PreflightCheck(name="test", status="PASS", detail="ok")]
+        ),
     )
     result = runner.invoke(
         app,

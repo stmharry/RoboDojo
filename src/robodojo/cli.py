@@ -15,6 +15,7 @@ from robodojo.core.models import (
     DataFormat,
     EvaluationRequest,
     PolicyServerLaunchRequest,
+    PreflightRequest,
     SimulatorLaunchRequest,
     SweepRequest,
 )
@@ -69,6 +70,12 @@ def _model(model: type[Any], **values: Any) -> Any:
     except ValidationError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(2) from exc
+
+
+def _report_format(value: str) -> str:
+    if value not in {"human", "json"}:
+        raise typer.BadParameter("expected human or json", param_hint="--format")
+    return value
 
 
 @app.command()
@@ -164,6 +171,85 @@ def tasks(
         raise typer.BadParameter("expected plain, json, or markdown", param_hint="--format")
     if check and any(not record["runnable"] for record in inventory["tasks"]):
         raise typer.Exit(1)
+
+
+@app.command("policy-setup")
+def policy_setup(
+    policy_dir: Path = typer.Option(..., "--policy-dir", help="XPolicyLab policy adapter directory."),
+    task: str = typer.Option(..., "--task", help="Task passed to the policy setup hook."),
+    checkpoint: str = typer.Option(..., "--ckpt", help="Checkpoint alias or path to prepare."),
+    policy_env: str = typer.Option(..., "--policy-env", help="Policy runtime environment name or project path."),
+    dataset: str = typer.Option("RoboDojo", "--dataset", help="Benchmark or dataset family."),
+    env_config: str = typer.Option("arx_x5", "--env-cfg", help="Policy embodiment/environment contract."),
+    action_type: str = typer.Option("ee", "--action-type", help="Policy action representation."),
+    seed: int = typer.Option(0, "--seed", help="Nonnegative experiment seed."),
+    policy_gpu: int = typer.Option(0, "--policy-gpu", help="Zero-based policy GPU index."),
+    output_format: str = typer.Option("human", "--format", help="Report format: human or json."),
+    root: Path | None = typer.Option(None, "--root", help="Repository checkout to use."),
+) -> None:
+    """Run the optional policy-owned setup mutation hook."""
+    from robodojo.workflows.preflight import emit_report, run_policy_setup
+
+    request = _model(
+        PolicyServerLaunchRequest,
+        policy_dir=policy_dir,
+        task=task,
+        checkpoint=checkpoint,
+        policy_env=policy_env,
+        dataset=dataset,
+        env_config=env_config,
+        action_type=action_type,
+        seed=seed,
+        policy_gpu=policy_gpu,
+    )
+    selected_format = _report_format(output_format)
+    report, transcript = run_policy_setup(_paths(root), request)
+    if selected_format == "human" and transcript:
+        typer.echo(transcript)
+    emit_report(report, selected_format)
+    raise typer.Exit(1 if report.status == "FAIL" else 0)
+
+
+@app.command()
+def preflight(
+    policy_dir: Path = typer.Option(..., "--policy-dir", help="XPolicyLab policy adapter directory."),
+    task: str = typer.Option(..., "--task", help="Canonical evaluation task."),
+    checkpoint: str = typer.Option(..., "--ckpt", help="Checkpoint alias or path."),
+    policy_env: str = typer.Option(..., "--policy-env", help="Policy runtime environment name or project path."),
+    dataset: str = typer.Option("RoboDojo", "--dataset", help="Benchmark or dataset family."),
+    env_config: str = typer.Option("arx_x5", "--env-cfg", help="Environment profile."),
+    scene_config: str | None = typer.Option(None, "--scene", help="Optional scene profile override."),
+    action_type: str = typer.Option("ee", "--action-type", help="Policy action representation."),
+    seed: int = typer.Option(0, "--seed", help="Nonnegative experiment seed."),
+    policy_gpu: int = typer.Option(0, "--policy-gpu", help="Zero-based policy GPU index."),
+    env_gpu: int = typer.Option(0, "--env-gpu", help="Zero-based simulator GPU index."),
+    publish: bool = typer.Option(False, "--publish", help="Validate publication prerequisites."),
+    deep: bool = typer.Option(False, "--deep", help="Start the normal policy server on a temporary port."),
+    timeout: float = typer.Option(600, "--timeout", help="Deep policy-server readiness timeout in seconds."),
+    output_format: str = typer.Option("human", "--format", help="Report format: human or json."),
+    root: Path | None = typer.Option(None, "--root", help="Repository checkout to inspect."),
+) -> None:
+    """Validate an experiment without installing, downloading, simulating, or publishing."""
+    from robodojo.workflows.preflight import run_preflight
+
+    request = _model(
+        PreflightRequest,
+        policy_dir=policy_dir,
+        task=task,
+        checkpoint=checkpoint,
+        policy_env=policy_env,
+        dataset=dataset,
+        env_config=env_config,
+        scene_config=scene_config,
+        action_type=action_type,
+        seed=seed,
+        policy_gpu=policy_gpu,
+        env_gpu=env_gpu,
+        publish=publish,
+        deep=deep,
+        timeout=timeout,
+    )
+    raise typer.Exit(run_preflight(_paths(root), request, output_format=_report_format(output_format)))
 
 
 def _evaluation_request(
@@ -366,6 +452,16 @@ def server(
         "--policy-gpu",
         help="Zero-based GPU index exposed to the policy server.",
     ),
+    env_gpu: int = typer.Option(
+        0,
+        "--env-gpu",
+        help="Zero-based simulator GPU index validated as part of experiment preflight.",
+    ),
+    scene_config: str | None = typer.Option(
+        None,
+        "--scene",
+        help="Scene profile validated before the split policy server starts.",
+    ),
     policy_port: int | None = typer.Option(
         None,
         "--policy-port",
@@ -380,6 +476,11 @@ def server(
         False,
         "--dry-run",
         help="Print the resolved policy-server command without starting it.",
+    ),
+    root: Path | None = typer.Option(
+        None,
+        "--root",
+        help="Repository checkout whose simulator-side experiment contract should be validated.",
     ),
 ) -> None:
     """Start an XPolicyLab policy server adapter without simulator dependencies."""
@@ -400,6 +501,29 @@ def server(
         host=bind_host,
         dry_run=dry_run,
     )
+    if not dry_run:
+        from robodojo.workflows.preflight import emit_report, run_fast_preflight
+
+        report = run_fast_preflight(
+            _paths(root),
+            _model(
+                PreflightRequest,
+                policy_dir=policy_dir,
+                task=task,
+                checkpoint=checkpoint,
+                policy_env=policy_env,
+                dataset=dataset,
+                env_config=env_config,
+                scene_config=scene_config,
+                action_type=action_type,
+                seed=seed,
+                policy_gpu=policy_gpu,
+                env_gpu=env_gpu,
+            ),
+        )
+        emit_report(report)
+        if report.status == "FAIL":
+            raise typer.Exit(1)
     raise typer.Exit(run_policy_server(request))
 
 

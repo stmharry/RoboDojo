@@ -54,7 +54,7 @@ def test_evaluation_coordinates_policy_readiness_simulator_and_cleanup(monkeypat
         lambda child: calls.append(("terminate", child)),
     )
 
-    code = evaluation.run_evaluation(RepositoryPaths.resolve(ROOT), _request(policy_dir))
+    code = evaluation.run_evaluation(RepositoryPaths.resolve(ROOT), _request(policy_dir), preflight=False)
 
     assert code == 7
     assert [call[0] for call in calls] == ["start", "wait", "simulator", "terminate"]
@@ -78,7 +78,7 @@ def test_evaluation_cleans_up_when_policy_readiness_fails(monkeypatch, tmp_path)
     monkeypatch.setattr(evaluation, "terminate_process_group", terminated.append)
 
     with pytest.raises(TimeoutError, match="not ready"):
-        evaluation.run_evaluation(RepositoryPaths.resolve(ROOT), _request(policy_dir))
+        evaluation.run_evaluation(RepositoryPaths.resolve(ROOT), _request(policy_dir), preflight=False)
 
     assert terminated == [process]
 

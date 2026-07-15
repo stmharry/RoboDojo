@@ -11,6 +11,13 @@ from robodojo.core.storage import checkpoint_label
 
 logger = logging.getLogger(__name__)
 
+_NO_DOWNLOAD_ENV = {
+    "HF_DATASETS_OFFLINE": "1",
+    "HF_HUB_OFFLINE": "1",
+    "TRANSFORMERS_OFFLINE": "1",
+    "WANDB_MODE": "offline",
+}
+
 
 def require_policy_adapter(policy_dir: Path) -> Path:
     """Return the upstream policy adapter or fail with an actionable error."""
@@ -39,11 +46,41 @@ def policy_server_command(request: PolicyServerLaunchRequest, port: int) -> list
     ]
 
 
+def policy_hook_command(request: PolicyServerLaunchRequest, hook_name: str) -> list[str] | None:
+    """Build an optional policy-owned hook using the standardized eight arguments."""
+    allowed = {"prepare_eval_policy.sh", "check_eval_policy.sh"}
+    if hook_name not in allowed:
+        raise ValueError(f"unsupported policy hook: {hook_name}")
+    hook = request.policy_dir.expanduser().resolve() / hook_name
+    if not hook.is_file():
+        return None
+    return [
+        "bash",
+        str(hook),
+        request.dataset,
+        request.task,
+        request.checkpoint,
+        request.env_config,
+        request.action_type,
+        str(request.seed),
+        str(request.policy_gpu),
+        request.policy_env,
+    ]
+
+
+def policy_launch_environment(checkpoint: str) -> dict[str, str]:
+    """Return launch guards that prevent implicit downloads in real and deep runs."""
+    return {
+        **_NO_DOWNLOAD_ENV,
+        "ROBODOJO_CKPT_LABEL": checkpoint_label(checkpoint),
+    }
+
+
 def run_policy_server(request: PolicyServerLaunchRequest) -> int:
     """Launch one policy-owned adapter from its policy directory."""
     port = request.port or free_port()
     argv = policy_server_command(request, port)
-    env = {"ROBODOJO_CKPT_LABEL": checkpoint_label(request.checkpoint)}
+    env = policy_launch_environment(request.checkpoint)
     logger.info("policy server: %s:%s", request.host, port)
     if request.dry_run:
         print(format_command(argv, env))

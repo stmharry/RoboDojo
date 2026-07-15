@@ -13,7 +13,7 @@ from robodojo.core.models import EvaluationRequest, PolicyServerLaunchRequest, S
 from robodojo.core.paths import RepositoryPaths
 from robodojo.core.processes import format_command, free_port, start, terminate_process_group, wait_for_port
 from robodojo.core.storage import checkpoint_label, s3_uri
-from robodojo.policy.adapter import policy_server_command
+from robodojo.policy.adapter import policy_launch_environment, policy_server_command
 from robodojo.sim.launcher import run_simulator, simulator_command
 
 SCENE_VISUAL_AUDIT_ENV = "ROBODOJO_SCENE_VISUAL_AUDIT"
@@ -66,7 +66,7 @@ def run_simulator_session(
     return code
 
 
-def run_evaluation(paths: RepositoryPaths, request: EvaluationRequest) -> int:
+def run_evaluation(paths: RepositoryPaths, request: EvaluationRequest, *, preflight: bool = True) -> int:
     """Run the policy adapter and simulator as one deterministic lifecycle."""
     visual_audit = _env_flag(SCENE_VISUAL_AUDIT_ENV)
     if visual_audit and not request.export_scene_only:
@@ -78,6 +78,13 @@ def run_evaluation(paths: RepositoryPaths, request: EvaluationRequest) -> int:
             return 2
         if shutil.which("aws") is None:
             logger.error("--publish requires the AWS CLI to be installed and available on PATH")
+            return 2
+    if preflight and not request.dry_run:
+        from robodojo.workflows.preflight import emit_report, request_from_evaluation, run_fast_preflight
+
+        report = run_fast_preflight(paths, request_from_evaluation(request))
+        emit_report(report)
+        if report.status == "FAIL":
             return 2
     policy_dir = request.policy_dir.expanduser().resolve()
     policy_name = _policy_name(policy_dir)
@@ -135,7 +142,8 @@ def run_evaluation(paths: RepositoryPaths, request: EvaluationRequest) -> int:
         dry_run=request.dry_run,
     )
     policy_argv = policy_server_command(policy_request, port)
-    policy_env = {"ROBODOJO_CKPT_LABEL": label}
+    policy_env = policy_launch_environment(request.checkpoint)
+    policy_env["ROBODOJO_CKPT_LABEL"] = label
     if request.dry_run:
         print(format_command(policy_argv, policy_env))
         print(format_command(simulator_argv, simulator_env))

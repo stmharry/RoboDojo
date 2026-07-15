@@ -89,6 +89,64 @@ class PolicyServerLaunchRequest(StrictModel):
     dry_run: bool = False
 
 
+class PreflightRequest(StrictModel):
+    policy_dir: Path
+    task: str
+    checkpoint: str
+    policy_env: str
+    dataset: str = "RoboDojo"
+    env_config: str = "arx_x5"
+    scene_config: str | None = None
+    action_type: str = "ee"
+    seed: NonNegativeInt = 0
+    policy_gpu: NonNegativeInt = 0
+    env_gpu: NonNegativeInt = 0
+    publish: bool = False
+    deep: bool = False
+    timeout: Annotated[float, Field(gt=0)] = 600.0
+
+    @field_validator("task", "checkpoint", "policy_env", "dataset", "env_config", "action_type")
+    @classmethod
+    def required_value(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("must not be empty")
+        return value
+
+    @field_validator("scene_config")
+    @classmethod
+    def optional_scene(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("must not be empty")
+        return value
+
+    def policy_request(self, *, port: int | None = None) -> PolicyServerLaunchRequest:
+        return PolicyServerLaunchRequest(
+            policy_dir=self.policy_dir,
+            task=self.task,
+            checkpoint=self.checkpoint,
+            policy_env=self.policy_env,
+            dataset=self.dataset,
+            env_config=self.env_config,
+            action_type=self.action_type,
+            seed=self.seed,
+            policy_gpu=self.policy_gpu,
+            host="127.0.0.1",
+            port=port,
+        )
+
+
+class PreflightCheck(StrictModel):
+    name: str
+    status: Literal["PASS", "WARN", "FAIL"]
+    detail: str
+    remediation: str | None = None
+
+
+class PreflightReport(StrictModel):
+    status: Literal["PASS", "WARN", "FAIL"]
+    checks: list[PreflightCheck]
+
+
 class SimulatorLaunchRequest(StrictModel):
     task: str
     policy_name: str

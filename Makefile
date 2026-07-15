@@ -15,6 +15,8 @@ UV ?= uv
 UV_RUN_SIM ?= $(UV) run --extra sim --locked
 ROBODOJO_BASE ?= $(UV) run --locked robodojo
 ROBODOJO_SIM ?= $(UV_RUN_SIM) robodojo
+ROBODOJO_LAUNCH_BASE ?= $(UV) run --locked --no-sync robodojo
+ROBODOJO_LAUNCH_SIM ?= $(UV) run --extra sim --locked --no-sync robodojo
 OMNI_KIT_ACCEPT_EULA ?= yes
 
 # Task and evaluation settings.
@@ -29,6 +31,7 @@ EVAL_NUM ?= 1
 PUBLISH ?= true
 ENV_GPU ?= 0
 ONLY ?=
+DEEP ?= false
 
 # Policy adapter and connectivity.
 POLICY_DIR ?=
@@ -59,6 +62,15 @@ else ifeq ($(PUBLISH_VALUE),false)
 PUBLISH_FLAG :=
 else
 $(error PUBLISH must be true or false, got '$(PUBLISH)')
+endif
+
+DEEP_VALUE := $(strip $(DEEP))
+ifeq ($(DEEP_VALUE),true)
+DEEP_FLAG := --deep
+else ifeq ($(DEEP_VALUE),false)
+DEEP_FLAG :=
+else
+$(error DEEP must be true or false, got '$(DEEP)')
 endif
 
 SCENE_FLAG = $(if $(strip $(SCENE)),--scene "$(SCENE)")
@@ -94,8 +106,22 @@ EVAL_FLAGS = \
 
 SERVER_FLAGS = \
 	$(POLICY_FLAGS) \
+	--dataset "$(DATASET)" \
+	--env-gpu "$(ENV_GPU)" \
+	$(SCENE_FLAG) \
 	--bind-host "$(BIND_HOST)" \
 	$(if $(strip $(POLICY_PORT)),--policy-port "$(POLICY_PORT)")
+
+POLICY_SETUP_FLAGS = \
+	$(POLICY_FLAGS) \
+	--dataset "$(DATASET)"
+
+PREFLIGHT_FLAGS = \
+	$(POLICY_SETUP_FLAGS) \
+	--env-gpu "$(ENV_GPU)" \
+	$(SCENE_FLAG) \
+	$(PUBLISH_FLAG) \
+	$(DEEP_FLAG)
 
 CLIENT_FLAGS = \
 	--task "$(TASK)" \
@@ -153,13 +179,19 @@ tasks-check: ## Validate task code/config pairs
 	$(ROBODOJO_BASE) tasks --check $(ARGS)
 
 ##@ Setup & data
-.PHONY: install sync assets assets-yam data-list data
+.PHONY: install sync policy-setup assets assets-yam data-list data
 
 install: ## Install system dependencies, submodules, and simulator environment
 	$(ROBODOJO_BASE) install $(ARGS)
 
 sync: ## Synchronize the locked simulator environment
 	$(UV) sync --extra sim --locked $(ARGS)
+
+policy-setup: ## Prepare the selected policy runtime and public checkpoint
+	$(call require,POLICY_DIR)
+	$(call require,POLICY_ENV)
+	$(call require,CKPT)
+	$(ROBODOJO_LAUNCH_BASE) policy-setup $(POLICY_SETUP_FLAGS) $(ARGS)
 
 assets: ## Download benchmark assets
 	$(ROBODOJO_BASE) assets download $(ARGS)
@@ -198,7 +230,7 @@ pre-commit: ## Run all pre-commit hooks
 check: lint format-check test tasks-check ## Run all non-mutating checks
 
 ##@ Evaluation
-.PHONY: doctor eval eval-dry-run server server-dry-run client client-dry-run \
+.PHONY: doctor preflight eval eval-dry-run server server-dry-run client client-dry-run \
 	smoke smoke-dry-run benchmark benchmark-dry-run
 
 doctor: ## Validate installation and configuration
@@ -209,11 +241,17 @@ doctor: ## Validate installation and configuration
 		$(if $(strip $(POLICY_DIR)),--policy-dir "$(POLICY_DIR)",--skip-policy) \
 		$(ARGS)
 
+preflight: ## Validate the experiment; pass DEEP=true to start/stop the policy server
+	$(call require,POLICY_DIR)
+	$(call require,POLICY_ENV)
+	$(call require,CKPT)
+	$(ROBODOJO_LAUNCH_SIM) preflight $(PREFLIGHT_FLAGS) $(ARGS)
+
 eval: ## Run local evaluation and publish when PUBLISH=true
 	$(call require,POLICY_DIR)
 	$(call require,POLICY_ENV)
 	$(call require,CKPT)
-	$(ROBODOJO_SIM) eval $(EVAL_FLAGS) $(ARGS)
+	$(ROBODOJO_LAUNCH_SIM) eval $(EVAL_FLAGS) $(ARGS)
 
 eval-dry-run: ## Print evaluation commands without running or publishing
 	$(call require,POLICY_DIR)
@@ -225,7 +263,7 @@ server: ## Start only the policy server
 	$(call require,POLICY_DIR)
 	$(call require,POLICY_ENV)
 	$(call require,CKPT)
-	$(ROBODOJO_BASE) server $(SERVER_FLAGS) $(ARGS)
+	$(ROBODOJO_LAUNCH_BASE) server $(SERVER_FLAGS) $(ARGS)
 
 server-dry-run: ## Print the resolved server command
 	$(call require,POLICY_DIR)
@@ -236,7 +274,7 @@ server-dry-run: ## Print the resolved server command
 client: ## Run simulator client against an external server
 	$(call require,POLICY_PORT)
 	$(call require,CKPT)
-	$(ROBODOJO_SIM) client $(CLIENT_FLAGS) $(ARGS)
+	$(ROBODOJO_LAUNCH_SIM) client $(CLIENT_FLAGS) $(ARGS)
 
 client-dry-run: ## Print the resolved client command
 	$(call run_dry_run,client)
@@ -245,7 +283,7 @@ smoke: ## Run selected/all tasks with one episode
 	$(call require,POLICY_DIR)
 	$(call require,POLICY_ENV)
 	$(call require,CKPT)
-	$(ROBODOJO_SIM) smoke $(SMOKE_FLAGS) $(ARGS)
+	$(ROBODOJO_LAUNCH_SIM) smoke $(SMOKE_FLAGS) $(ARGS)
 
 smoke-dry-run: ## Dry-run a smoke sweep
 	$(call run_dry_run,smoke)
@@ -254,7 +292,7 @@ benchmark: ## Run a benchmark sweep
 	$(call require,POLICY_DIR)
 	$(call require,POLICY_ENV)
 	$(call require,CKPT)
-	$(ROBODOJO_SIM) benchmark $(BENCHMARK_FLAGS) $(ARGS)
+	$(ROBODOJO_LAUNCH_SIM) benchmark $(BENCHMARK_FLAGS) $(ARGS)
 
 benchmark-dry-run: ## Dry-run a benchmark sweep
 	$(call run_dry_run,benchmark)

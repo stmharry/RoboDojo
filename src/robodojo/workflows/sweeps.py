@@ -61,6 +61,14 @@ def _write_summary(summary: SmokeSummary, json_path: Path, markdown_path: Path) 
 
 
 def run_sweep(paths: RepositoryPaths, request: SweepRequest) -> int:
+    tasks = _selected_tasks(request)
+    if tasks and not request.dry_run:
+        from robodojo.workflows.preflight import emit_report, request_from_evaluation, run_sweep_preflight
+
+        report = run_sweep_preflight(paths, request_from_evaluation(request, task=tasks[0]), tasks)
+        emit_report(report)
+        if report.status == "FAIL":
+            return 2
     run_id = request.run_id or datetime.now().strftime("%Y-%m-%d_%H-%M-%S_sweep")
     run_dir = run_work_root() / "smoke" / run_id
     summary_path = run_dir / "summary.json"
@@ -71,7 +79,7 @@ def run_sweep(paths: RepositoryPaths, request: SweepRequest) -> int:
         results.extend(prior.results)
     passed = {(row.task, row.scene_config) for row in results if row.status == "PASS"}
 
-    for task in _selected_tasks(request):
+    for task in tasks:
         scene_config = resolve_scene_config(
             paths,
             SimulatorLaunchRequest(
@@ -93,7 +101,7 @@ def run_sweep(paths: RepositoryPaths, request: SweepRequest) -> int:
             task=task,
             scene_config=scene_config,
         )
-        code = run_evaluation(paths, evaluation)
+        code = run_evaluation(paths, evaluation, preflight=False)
         status = "DRY_RUN" if request.dry_run else ("PASS" if code == 0 else "FAIL")
         record = SmokeRecord(
             status=status,

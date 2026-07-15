@@ -92,6 +92,23 @@ uv run --extra sim --locked robodojo doctor --skip-policy
 uv run --locked robodojo tasks
 ```
 
+For a configured experiment, policy preparation and validation are explicit:
+
+```bash
+make policy-setup
+make preflight
+make preflight DEEP=true
+make eval PUBLISH=false
+```
+
+`policy-setup` is the policy-owned mutation boundary. Preflight and every real
+managed launch are read-only: they never install or download. Fast preflight
+checks the locked simulator and policy runtimes, task/scene/layout and generated
+robot assets, GPUs, checkpoints, policy contracts, and optional publication
+settings. Deep preflight additionally starts the normal policy server on a
+temporary port and always stops it, without starting Isaac Sim or publishing.
+See [Experiment setup and preflight](docs/PREFLIGHT.md).
+
 The simulator environment is always the repository's `.venv`. Policy servers
 remain independent and `--policy-env` may identify a uv project, environment
 path, or policy-specific Conda environment.
@@ -118,6 +135,13 @@ Policies live in [XPolicyLab](https://github.com/XPolicyLab/XPolicyLab/blob/main
 XPolicyLab/policy/<POLICY_NAME>/setup_eval_policy_server.sh
 XPolicyLab/policy/<POLICY_NAME>/deploy.yml
 ```
+
+Adapters may also provide standardized `prepare_eval_policy.sh` and
+`check_eval_policy.sh` hooks. Both receive the same eight-argument experiment
+prefix used by the server adapter. RoboDojo invokes preparation only through
+`policy-setup`; preflight invokes the check hook read-only. Legacy adapters
+remain launchable through generic runtime/import/checkpoint checks and report a
+warning when policy-specific validation is unavailable.
 
 `robodojo eval` starts the server adapter and simulator as managed process groups.
 The remaining `scripts/eval_policy.sh` only supports unchanged XPolicyLab legacy
