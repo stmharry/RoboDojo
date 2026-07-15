@@ -96,17 +96,11 @@ def test_make_eval_publishes_by_default_and_allows_local_override():
         "make",
         "-n",
         "eval",
-        "DATASET=RoboDojo",
         "TASK=general_pickup",
         "ENV_CFG=bimanual_yam",
-        "ACTION_TYPE=joint",
-        "SEED=0",
-        "ENV_GPU=1",
         "POLICY_DIR=XPolicyLab/policy/demo_policy",
         "POLICY_ENV=base",
         "CKPT=demo",
-        "POLICY_GPU=0",
-        "EVAL_NUM=1",
     ]
     default = subprocess.run(common, cwd=ROOT, check=True, capture_output=True, text=True)
     local_only = subprocess.run(
@@ -125,6 +119,12 @@ def test_make_eval_publishes_by_default_and_allows_local_override():
     )
 
     assert "--publish" in default.stdout
+    assert '--dataset "RoboDojo"' in default.stdout
+    assert '--action-type "joint"' in default.stdout
+    assert '--seed "0"' in default.stdout
+    assert '--policy-gpu "0"' in default.stdout
+    assert '--env-gpu "1"' in default.stdout
+    assert '--eval-num "1"' in default.stdout
     assert "--publish" not in local_only.stdout
     assert invalid.returncode != 0
     assert "PUBLISH must be true or false" in invalid.stderr
@@ -204,32 +204,27 @@ def test_make_dry_run_toggle_and_local_sweeps():
         assert "--publish" not in rendered[target]
 
 
-def test_make_init_creates_preserves_and_validates_dotenv(tmp_path):
+def test_make_ignores_dotenv_and_requires_experiment_selection(tmp_path):
     shutil.copy2(ROOT / "Makefile", tmp_path / "Makefile")
-    shutil.copy2(ROOT / ".env.example", tmp_path / ".env.example")
-
-    created = subprocess.run(["make", "init"], cwd=tmp_path, check=False, capture_output=True, text=True)
-    assert created.returncode == 0
     dotenv = tmp_path / ".env"
-    original = dotenv.read_text(encoding="utf-8")
-    assert "Created .env" in created.stdout
+    dotenv.write_text(
+        "TASK=general_pickup\nENV_CFG=bimanual_yam\n"
+        "POLICY_DIR=XPolicyLab/policy/Pi_05\nPOLICY_ENV=uv\nCKPT=pi05_yam_molmoact2\n",
+        encoding="utf-8",
+    )
 
-    preserved = subprocess.run(["make", "init"], cwd=tmp_path, check=False, capture_output=True, text=True)
-    assert preserved.returncode == 0
-    assert dotenv.read_text(encoding="utf-8") == original
-    assert "Preserved existing .env" in preserved.stdout
-
-    dotenv.write_text("TASK=stack_bowls\n", encoding="utf-8")
-    invalid = subprocess.run(["make", "init"], cwd=tmp_path, check=False, capture_output=True, text=True)
+    invalid = subprocess.run(["make", "-n", "eval"], cwd=tmp_path, check=False, capture_output=True, text=True)
     assert invalid.returncode != 0
-    assert "ENV_CFG is required" in invalid.stderr
+    assert "TASK is required" in invalid.stderr
+    assert "pass TASK=... to make or export it" in invalid.stderr
+    assert dotenv.is_file()
 
 
 def test_make_help_exposes_only_the_supported_target_surface():
     result = subprocess.run(["make", "help"], cwd=ROOT, check=True, capture_output=True, text=True)
-    for target in ("init", "setup", "preflight", "eval", "smoke", "benchmark", "results", "check"):
+    for target in ("setup", "preflight", "eval", "smoke", "benchmark", "results", "check"):
         assert target in result.stdout
-    for removed in ("policy-setup", "eval-dry-run", "storage-publish", "docker-build", "assets-yam"):
+    for removed in ("init", "policy-setup", "eval-dry-run", "storage-publish", "docker-build", "assets-yam"):
         assert removed not in result.stdout
 
 
@@ -417,13 +412,21 @@ def test_repository_root_precedence(monkeypatch, tmp_path):
     assert RepositoryPaths.resolve(ROOT).root == ROOT
 
 
-def test_runtime_settings_rejects_removed_dotenv_variable(tmp_path):
+def test_runtime_settings_ignore_repository_dotenv(monkeypatch, tmp_path):
     root = tmp_path / "repo"
     root.mkdir()
     (root / "pyproject.toml").write_text('[project]\nname = "robodojo"\n', encoding="utf-8")
-    (root / ".env").write_text("ROBODOJO_EVAL_ROOT=/from-file\n", encoding="utf-8")
-    with pytest.raises(RuntimeError, match="ROBODOJO_EVAL_ROOT"):
-        RuntimeSettings.load(RepositoryPaths.resolve(root))
+    (root / ".env").write_text(
+        "ROBODOJO_EVAL_ROOT=/from-file\nROBODOJO_STORAGE_ROOT=/also-from-file\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("ROBODOJO_STORAGE_ROOT", raising=False)
+    for name in RuntimeSettings.REMOVED_STORAGE_VARIABLES:
+        monkeypatch.delenv(name, raising=False)
+
+    settings = RuntimeSettings.load(RepositoryPaths.resolve(root))
+
+    assert settings.storage_root is None
 
 
 def test_policy_imports_work_without_simulator_extra():

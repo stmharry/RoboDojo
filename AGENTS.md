@@ -159,8 +159,9 @@ During review, verify the applicable items:
 `main` is the protected working trunk. Do not direct-push to `main`.
 
 `Makefile` is the tracked entry point for common development, evaluation, and
-storage workflows. Keep its help output and `.env.example` synchronized when
-adding or changing configurable targets.
+storage workflows. Keep its help output synchronized when adding or changing
+configurable targets. Experiment values come from Make arguments or the process
+environment; repository `.env` files are not loaded.
 
 Before starting implementation work, fetch `origin`, confirm local `main` has
 no tracked-file changes, and confirm it is current with `origin/main` when that

@@ -220,12 +220,17 @@ def _asset_selection_stage(paths: RepositoryPaths, request: SetupRequest) -> Set
             "experiment_selection",
             "FAIL",
             f"unknown or unrunnable task: {request.task}",
-            "run make tasks and update TASK in .env",
+            "run make tasks and select a valid TASK",
         )
     try:
         profile, scene = _asset_context(paths, request)
     except (OSError, RuntimeError, ValueError, yaml.YAMLError) as exc:
-        return _stage("experiment_selection", "FAIL", str(exc), "update TASK, ENV_CFG, or SCENE in .env")
+        return _stage(
+            "experiment_selection",
+            "FAIL",
+            str(exc),
+            "select valid TASK, ENV_CFG, and SCENE values",
+        )
     return _stage(
         "experiment_selection",
         "READY",

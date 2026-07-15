@@ -9,7 +9,10 @@ The normal setup workflow infers and builds the licensed I2RT-derived runtime
 asset from `ENV_CFG=bimanual_yam` before launching the profile:
 
 ```bash
-make setup
+make setup \
+  TASK=general_pickup ENV_CFG=bimanual_yam SCENE=molmo_yam \
+  POLICY_DIR=XPolicyLab/policy/MolmoACT2 POLICY_ENV=molmoact2 \
+  CKPT=molmoact2_bimanual_yam
 ```
 
 For a granular support operation, use

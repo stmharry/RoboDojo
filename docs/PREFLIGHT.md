@@ -1,16 +1,26 @@
 # Experiment setup and preflight
 
 RoboDojo separates repository-local setup from launch-time validation.
-Configure one experiment in `.env`, prepare it explicitly, validate it, and
-then launch it:
+Select one experiment with Make arguments or exported process variables,
+prepare it explicitly, validate it, and then launch it:
 
 ```bash
-make init
+export TASK=general_pickup
+export ENV_CFG=bimanual_yam
+export SCENE=molmo_yam
+export POLICY_DIR=XPolicyLab/policy/Pi_05
+export POLICY_ENV=uv
+export CKPT=pi05_yam_molmoact2
 make setup
 make preflight
 make preflight DEEP=true
 make eval PUBLISH=false
 ```
+
+The Makefile defaults to the RoboDojo dataset, joint actions, seed 0, policy
+GPU 0, simulator GPU 1, one episode, and publication. Override any default with
+a Make assignment such as `make eval EVAL_NUM=25`; repository `.env` files are
+not loaded.
 
 `make setup` is the consolidated mutation interface. It validates host tools,
 initializes pinned submodules without overwriting dirty work, synchronizes the

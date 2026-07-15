@@ -1,4 +1,4 @@
-"""Typed environment and .env settings."""
+"""Typed process-environment settings."""
 
 from __future__ import annotations
 
@@ -6,7 +6,6 @@ import os
 from pathlib import Path
 from typing import ClassVar
 
-from dotenv import dotenv_values
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -14,7 +13,7 @@ from robodojo.core.paths import RepositoryPaths
 
 
 class RuntimeSettings(BaseSettings):
-    """Runtime settings with process environment over checkout .env precedence."""
+    """Runtime settings sourced exclusively from the process environment."""
 
     model_config = SettingsConfigDict(extra="ignore", env_ignore_empty=True)
 
@@ -37,17 +36,12 @@ class RuntimeSettings(BaseSettings):
     }
 
     @classmethod
-    def load(cls, paths: RepositoryPaths) -> RuntimeSettings:
-        dotenv = dotenv_values(paths.root / ".env")
-        removed = sorted(
-            name
-            for name in cls.REMOVED_STORAGE_VARIABLES
-            if os.environ.get(name, "").strip() or str(dotenv.get(name) or "").strip()
-        )
+    def load(cls, _paths: RepositoryPaths) -> RuntimeSettings:
+        removed = sorted(name for name in cls.REMOVED_STORAGE_VARIABLES if os.environ.get(name, "").strip())
         if removed:
             names = ", ".join(removed)
             raise RuntimeError(f"removed storage variable(s) configured: {names}; use ROBODOJO_STORAGE_ROOT")
-        return cls(_env_file=paths.root / ".env", _env_file_encoding="utf-8")
+        return cls()
 
     def export_missing(self) -> None:
         aliases = {

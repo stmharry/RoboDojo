@@ -1,8 +1,8 @@
 # Opinionated local workflow shortcuts. Python owns workflow behavior; Make
-# loads the user's experiment contract from .env and translates it to CLI flags.
+# accepts experiment selection from arguments or the process environment and
+# translates it to CLI flags.
 
 SELF := $(firstword $(MAKEFILE_LIST))
--include .env
 
 SHELL := /bin/bash
 .SHELLFLAGS := -e -o pipefail -c
@@ -18,16 +18,21 @@ export ROBODOJO_STORAGE_ROOT ROBODOJO_S3_URI AWS_PROFILE ROBODOJO_LOG_LEVEL OMNI
 
 # Stable benchmark default and Make-only workflow controls.
 DATASET ?= RoboDojo
+ACTION_TYPE ?= joint
+SEED ?= 0
+ENV_GPU ?= 1
+POLICY_GPU ?= 0
+EVAL_NUM ?= 1
 PUBLISH ?= true
 DEEP ?= false
 DRY_RUN ?= false
 ONLY ?=
 ARGS ?=
 
-REQUIRED_EXPERIMENT_VARS := DATASET TASK ENV_CFG ACTION_TYPE SEED ENV_GPU POLICY_DIR POLICY_ENV CKPT POLICY_GPU EVAL_NUM
+REQUIRED_EXPERIMENT_VARS := TASK ENV_CFG POLICY_DIR POLICY_ENV CKPT
 
 define require_experiment
-$(foreach name,$(REQUIRED_EXPERIMENT_VARS),$(if $(strip $($(name))),,$(error $(name) is required; run `make init` and edit .env)))
+$(foreach name,$(REQUIRED_EXPERIMENT_VARS),$(if $(strip $($(name))),,$(error $(name) is required; pass $(name)=... to make or export it)))
 endef
 
 define boolean_flag
@@ -68,12 +73,12 @@ SWEEP_ARGS = \
 	$(SCENE_FLAG) \
 	$(ONLY_FLAG)
 
-.PHONY: help init setup preflight eval smoke benchmark tasks doctor results \
+.PHONY: help setup preflight eval smoke benchmark tasks doctor results \
 	lint lint-fix format format-check test pre-commit check _config-check
 
 ##@ Workflow
 help: ## Show the supported local workflow
-	@printf 'RoboDojo local workflow\n\n  make init -> make setup -> make preflight -> make eval\n'
+	@printf 'RoboDojo local workflow\n\n  select an experiment -> make setup -> make preflight -> make eval\n'
 	@awk \
 		'BEGIN {FS = ":.*## "} \
 		/^##@ / {printf "\n%s\n", substr($$0, 5); next} \
@@ -82,12 +87,6 @@ help: ## Show the supported local workflow
 	@printf \
 		'\nConfigured experiment\n  TASK=%s ENV_CFG=%s SCENE=%s SEED=%s EVAL_NUM=%s PUBLISH=%s\n' \
 		"$(TASK)" "$(ENV_CFG)" "$(SCENE)" "$(SEED)" "$(EVAL_NUM)" "$(PUBLISH)"
-
-init: ## Create .env when absent, preserve it otherwise, and validate required keys
-	@if [[ ! -e .env ]]; then cp .env.example .env; printf 'Created .env from .env.example.\n'; else printf 'Preserved existing .env.\n'; fi
-	@$(MAKE) --no-print-directory _config-check
-	@printf 'Configuration is ready. Next: make setup\n'
-
 _config-check:
 	$(call require_experiment)
 	@case "$(SEED):$(ENV_GPU):$(POLICY_GPU):$(EVAL_NUM)" in *[!0-9:]*|::*|:*:|*::*) printf 'SEED, ENV_GPU, POLICY_GPU, and EVAL_NUM must be nonnegative integers.\n' >&2; exit 2;; esac

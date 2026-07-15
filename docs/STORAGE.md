@@ -86,6 +86,7 @@ existing local destination is preserved unless `--replace` is supplied.
 Summarize local evaluation artifacts with `make results`, or explicitly with
 `robodojo results summarize`. There is no flat `robodojo summarize` command.
 
-AWS credentials must not be committed or stored in the project `.env`. The
-Docker smoke workflow mounts the same local storage root and passes the named
-AWS profile or protected `ROBODOJO_AWS_ENV_FILE` when configured.
+AWS credentials must not be committed to the repository. Configure them with
+the standard AWS files or process environment. The Docker smoke workflow
+mounts the same local storage root and passes the named AWS profile or protected
+`ROBODOJO_AWS_ENV_FILE` when configured.

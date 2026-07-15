@@ -71,28 +71,35 @@ prerequisites first: Git, Git LFS, uv, compiler/runtime tools, and NVIDIA
 drivers. Then use the documented local workflow:
 
 ```bash
-make init
-# Edit .env if needed.
+export TASK=general_pickup
+export ENV_CFG=bimanual_yam
+export SCENE=molmo_yam
+export POLICY_DIR=XPolicyLab/policy/Pi_05
+export POLICY_ENV=uv
+export CKPT=pi05_yam_molmoact2
 make setup
 make preflight
 make eval
 ```
 
-`make init` creates `.env` from `.env.example` only when it is absent and never
-overwrites an existing file. `make setup` initializes pinned submodules,
-synchronizes the locked simulator environment, prepares inferred assets, and
-invokes the optional policy preparation hook. It is idempotent and preserves
-valid assets, environments, and checkpoints. Inspect the deliberately small
-Make surface with:
+Experiment selection comes from Make arguments or exported process variables;
+repository `.env` files are not loaded. Make supplies stable defaults for the
+RoboDojo dataset, joint actions, seed 0, policy GPU 0, simulator GPU 1, one
+evaluation episode, and publication. `make setup` initializes pinned
+submodules, synchronizes the locked simulator environment, prepares inferred
+assets, and invokes the optional policy preparation hook. It is idempotent and
+preserves valid assets, environments, and checkpoints. Inspect the deliberately
+small Make surface with:
 
 ```bash
 make help
 ```
 
-Make is the opinionated `.env`-driven interface. The CLI is explicit and does
-not load experiment values from `.env`; support operations remain grouped under
-`assets`, `data`, `storage`, `results`, and `docker`. After setup, native
-commands run through the lockfile without synchronizing dependencies:
+Make is the opinionated argument- and environment-driven interface. The CLI is
+explicit and reads runtime settings from the process environment only; support
+operations remain grouped under `assets`, `data`, `storage`, `results`, and
+`docker`. After setup, native commands run through the lockfile without
+synchronizing dependencies:
 
 ```bash
 uv run --extra sim --locked --no-sync robodojo doctor --skip-policy

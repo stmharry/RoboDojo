@@ -5,7 +5,6 @@
 .venv/
 .worktrees/
 .env
-!.env.example
 
 # Canonical local storage
 .robodojo/

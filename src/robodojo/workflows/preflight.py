@@ -153,7 +153,7 @@ def _configuration_checks(
                 "task",
                 "FAIL",
                 f"unknown task: {request.task}",
-                "run make tasks and update TASK in .env",
+                "run make tasks and select a valid TASK",
             )
         )
     elif not record["runnable"]:
@@ -172,7 +172,7 @@ def _configuration_checks(
         profile = load_environment_profile(paths, request.env_config)
         checks.append(_check("environment", "PASS", str(profile.path)))
     except Exception as exc:
-        checks.append(_check("environment", "FAIL", str(exc), "update ENV_CFG in .env"))
+        checks.append(_check("environment", "FAIL", str(exc), "select a valid ENV_CFG"))
         return checks, None, None
 
     simulator_request = SimulatorLaunchRequest(
@@ -190,14 +190,19 @@ def _configuration_checks(
         validate_scene_environment_compatibility(scene, profile)
         checks.append(_check("scene", "PASS", f"{scene.name} -> {scene.component_path}"))
     except Exception as exc:
-        checks.append(_check("scene", "FAIL", str(exc), "update SCENE or ENV_CFG in .env"))
+        checks.append(_check("scene", "FAIL", str(exc), "select compatible SCENE and ENV_CFG values"))
         return checks, profile, None
     return checks, profile, scene
 
 
 def _layout_check(paths: RepositoryPaths, request: PreflightRequest, scene: SceneProfile | None) -> PreflightCheck:
     if scene is None:
-        return _check("layout", "FAIL", "scene did not resolve", "update SCENE or ENV_CFG in .env")
+        return _check(
+            "layout",
+            "FAIL",
+            "scene did not resolve",
+            "select compatible SCENE and ENV_CFG values",
+        )
     relative = Path(scene.document.layout_set) / str(request.seed)
     candidates = (
         assets_root() / "Eval_Layout" / request.dataset / relative,
@@ -293,7 +298,7 @@ def _publication_check(request: PreflightRequest) -> PreflightCheck:
             "publication",
             "FAIL",
             "ROBODOJO_S3_URI is not a dedicated s3:// prefix",
-            "configure ROBODOJO_S3_URI in .env",
+            "export ROBODOJO_S3_URI in the process environment",
         )
     aws = shutil.which("aws")
     if aws is None:

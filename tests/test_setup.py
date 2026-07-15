@@ -129,7 +129,7 @@ def test_invalid_task_selection_stops_before_submodule_or_asset_mutation(monkeyp
 
     assert report.status == "FAIL"
     assert [stage.name for stage in report.stages] == ["prerequisites", "experiment_selection"]
-    assert report.stages[-1].remediation == "run make tasks and update TASK in .env"
+    assert report.stages[-1].remediation == "run make tasks and select a valid TASK"
 
 
 def test_dirty_submodule_is_preserved_and_blocks_update(monkeypatch, tmp_path):

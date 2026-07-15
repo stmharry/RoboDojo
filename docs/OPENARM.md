@@ -32,7 +32,10 @@ wrist camera instead uses its own rigid camera-to-link-7 transform and native
 OpenCV fisheye parameters fitted from pinned training-video jaw landmarks.
 
 ```bash
-make setup
+make setup \
+  TASK=fold_clothes ENV_CFG=openarm_lerobot \
+  POLICY_DIR=XPolicyLab/policy/LeRobot_Pi05_OpenArm \
+  POLICY_ENV=lerobot-pi05 CKPT=folding_final
 ```
 
 The setup workflow infers this builder from `ENV_CFG=openarm_lerobot`. For a
