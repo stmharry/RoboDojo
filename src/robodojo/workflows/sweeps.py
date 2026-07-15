@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 from datetime import datetime
+import logging
 from pathlib import Path
 import time
 
+from robodojo.core.gpu import GpuSelectionError, resolve_gpus
 from robodojo.core.models import EvaluationRequest, SimulatorLaunchRequest, SmokeRecord, SmokeSummary, SweepRequest
 from robodojo.core.paths import RepositoryPaths
 from robodojo.core.storage import run_work_root
 from robodojo.orchestration.evaluation import run_evaluation
 from robodojo.sim.launcher import resolve_scene_config
 from robodojo.workflows.task_inventory import build_inventory
+
+logger = logging.getLogger(__name__)
 
 
 def _selected_tasks(request: SweepRequest) -> list[str]:
@@ -61,6 +65,12 @@ def _write_summary(summary: SmokeSummary, json_path: Path, markdown_path: Path) 
 
 
 def run_sweep(paths: RepositoryPaths, request: SweepRequest) -> int:
+    try:
+        assignment = resolve_gpus(policy_gpu=request.policy_gpu, env_gpu=request.env_gpu)
+    except GpuSelectionError as exc:
+        logger.error("GPU selection failed: %s", exc)
+        return 2
+    request = request.model_copy(update={"policy_gpu": assignment.policy_gpu, "env_gpu": assignment.env_gpu})
     tasks = _selected_tasks(request)
     if tasks and not request.dry_run:
         from robodojo.workflows.preflight import emit_report, request_from_evaluation, run_sweep_preflight

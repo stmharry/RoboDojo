@@ -13,6 +13,7 @@ from typing import Iterable
 
 import yaml
 
+from robodojo.core.gpu import GpuSelectionError, resolve_gpus, validate_gpu_assignment
 from robodojo.core.models import (
     ExperimentRequest,
     PreflightCheck,
@@ -181,7 +182,6 @@ def _configuration_checks(
         port=1,
         env_config=request.env_config,
         scene_config=request.scene_config,
-        env_gpu=request.env_gpu,
         seed=request.seed,
         additional_info="preflight",
     )
@@ -263,32 +263,43 @@ def _scene_asset_check(paths: RepositoryPaths, request: PreflightRequest, scene:
     )
 
 
-def _gpu_check(request: PreflightRequest) -> PreflightCheck:
-    tool = shutil.which("nvidia-smi")
-    if tool is None:
-        return _check("gpu_indices", "FAIL", "nvidia-smi is unavailable", "install the NVIDIA driver")
-    result = subprocess.run(
-        [tool, "--query-gpu=index", "--format=csv,noheader"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if result.returncode != 0:
-        return _check("gpu_indices", "FAIL", _command_detail(result), "verify the NVIDIA driver with nvidia-smi")
-    available = {int(line.strip()) for line in result.stdout.splitlines() if line.strip().isdigit()}
-    invalid = [value for value in (request.policy_gpu, request.env_gpu) if value not in available]
-    if invalid:
-        return _check(
+def _resolve_preflight_gpus(
+    request: PreflightRequest,
+    *,
+    simulator_only: bool = False,
+) -> tuple[PreflightRequest | None, PreflightCheck]:
+    policy_selector = None if simulator_only else request.policy_gpu
+    try:
+        assignment = resolve_gpus(policy_gpu=policy_selector, env_gpu=request.env_gpu)
+        if policy_selector != "auto" and request.env_gpu != "auto":
+            validate_gpu_assignment(policy_gpu=assignment.policy_gpu, env_gpu=assignment.env_gpu)
+    except GpuSelectionError as exc:
+        variables = "ENV_GPU" if simulator_only else "POLICY_GPU and ENV_GPU"
+        return None, _check(
             "gpu_indices",
             "FAIL",
-            f"invalid GPU index/indices {invalid}; available: {sorted(available)}",
-            "set POLICY_GPU and ENV_GPU to indices shown by nvidia-smi",
+            str(exc),
+            f"set {variables} to 'auto' or available nonnegative GPU indices",
         )
-    return _check(
-        "gpu_indices",
-        "PASS",
-        f"policy GPU {request.policy_gpu} and simulator GPU {request.env_gpu} are available",
-    )
+
+    assert assignment.env_gpu is not None
+    updates: dict[str, int] = {"env_gpu": assignment.env_gpu}
+    if not simulator_only:
+        assert assignment.policy_gpu is not None
+        updates["policy_gpu"] = assignment.policy_gpu
+        detail = (
+            f"policy GPU {assignment.policy_gpu} ({assignment.policy_source}) and "
+            f"simulator GPU {assignment.env_gpu} ({assignment.env_source}) are available"
+        )
+    else:
+        detail = f"simulator GPU {assignment.env_gpu} ({assignment.env_source}) is available"
+    return request.model_copy(update=updates), _check("gpu_indices", "PASS", detail)
+
+
+def _gpu_check(request: PreflightRequest) -> PreflightCheck:
+    """Resolve and validate the paired GPU contract for focused checks."""
+    _, check = _resolve_preflight_gpus(request)
+    return check
 
 
 def _publication_check(request: PreflightRequest) -> PreflightCheck:
@@ -483,21 +494,44 @@ def _policy_hook_check(paths: RepositoryPaths, request: PreflightRequest) -> Pre
     return _check("policy_specific", "FAIL", detail, _setup_remediation(request, "policy"))
 
 
-def run_fast_preflight(paths: RepositoryPaths, request: PreflightRequest) -> PreflightReport:
-    """Run every read-only check without allocating a port or starting a process."""
+def _run_fast_preflight_resolved(
+    paths: RepositoryPaths,
+    request: PreflightRequest,
+    gpu_check: PreflightCheck,
+    *,
+    simulator_only: bool = False,
+) -> PreflightReport:
     checks: list[PreflightCheck] = [_root_runtime_check(paths)]
     config_checks, profile, scene = _configuration_checks(paths, request)
     checks.extend(config_checks)
     checks.append(_layout_check(paths, request, scene))
     checks.append(_robot_asset_check(profile, request))
     checks.append(_scene_asset_check(paths, request, scene))
-    checks.append(_gpu_check(request))
+    checks.append(gpu_check)
+    if simulator_only:
+        return build_report(checks)
     checks.append(_publication_check(request))
     checks.append(_adapter_files_check(request))
     checks.extend(_policy_runtime_checks(paths, request))
     checks.append(_checkpoint_check(request))
     checks.append(_policy_hook_check(paths, request))
     return build_report(checks)
+
+
+def run_fast_preflight(paths: RepositoryPaths, request: PreflightRequest) -> PreflightReport:
+    """Run every read-only experiment check without starting a process."""
+    resolved, gpu_check = _resolve_preflight_gpus(request)
+    if resolved is None:
+        return build_report([_root_runtime_check(paths), gpu_check])
+    return _run_fast_preflight_resolved(paths, resolved, gpu_check)
+
+
+def run_simulator_preflight(paths: RepositoryPaths, request: PreflightRequest) -> PreflightReport:
+    """Validate only the simulator-side contract for scene-only export."""
+    resolved, gpu_check = _resolve_preflight_gpus(request, simulator_only=True)
+    if resolved is None:
+        return build_report([_root_runtime_check(paths), gpu_check])
+    return _run_fast_preflight_resolved(paths, resolved, gpu_check, simulator_only=True)
 
 
 def run_sweep_preflight(
@@ -527,23 +561,26 @@ def run_sweep_preflight(
 
 def run_deep_preflight(paths: RepositoryPaths, request: PreflightRequest) -> PreflightReport:
     """Run fast checks, then start and always stop the normal policy server."""
-    report = run_fast_preflight(paths, request)
+    resolved, gpu_check = _resolve_preflight_gpus(request)
+    if resolved is None:
+        return build_report([_root_runtime_check(paths), gpu_check])
+    report = run_fast_preflight(paths, resolved)
     if report.status == "FAIL":
         return report
     process = None
     port = free_port()
-    policy_request = request.policy_request(port=port)
+    policy_request = resolved.policy_request(port=port)
     command = policy_server_command(policy_request, port)
     try:
         process = start(
             command,
-            cwd=request.policy_dir.expanduser().resolve(),
-            env=policy_launch_environment(request.checkpoint),
+            cwd=resolved.policy_dir.expanduser().resolve(),
+            env=policy_launch_environment(resolved.checkpoint),
         )
         wait_for_port(process, "127.0.0.1", port, timeout=request.timeout)
         check = _check("deep_policy_server", "PASS", f"normal policy server became ready on temporary port {port}")
     except (OSError, RuntimeError, TimeoutError) as exc:
-        check = _check("deep_policy_server", "FAIL", str(exc), _setup_remediation(request, "policy"))
+        check = _check("deep_policy_server", "FAIL", str(exc), _setup_remediation(resolved, "policy"))
     finally:
         if process is not None:
             terminate_process_group(process)

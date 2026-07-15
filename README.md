@@ -84,8 +84,12 @@ make eval
 
 Experiment selection comes from Make arguments or exported process variables;
 repository `.env` files are not loaded. Make supplies stable defaults for the
-RoboDojo dataset, joint actions, seed 0, policy GPU 0, simulator GPU 1, one
-evaluation episode, scene export, and publication. `make setup` initializes pinned
+RoboDojo dataset, joint actions, seed 0, automatic policy and simulator GPU
+selection, one evaluation episode, scene export, and publication. For paired workflows,
+Python assigns the most-free GPU to the simulator and the next-most-free GPU
+to the policy, breaking ties by device index. Override either selector with a
+Make argument or exported `POLICY_GPU`/`ENV_GPU`; direct CLI flags take
+precedence over those variables. `make setup` initializes pinned
 submodules, synchronizes the locked simulator environment, prepares inferred
 assets, and invokes the optional policy preparation hook. It is idempotent and
 preserves valid assets, environments, and checkpoints. Inspect the deliberately

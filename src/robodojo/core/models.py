@@ -10,6 +10,8 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from robodojo.core.gpu import GpuSelector
+
 NonNegativeInt = Annotated[int, Field(ge=0)]
 Port = Annotated[int, Field(ge=1, le=65535)]
 
@@ -37,7 +39,7 @@ class PolicyExperimentBase(StrictModel):
     env_config: str | None = None
     action_type: str | None = None
     seed: NonNegativeInt = 0
-    policy_gpu: NonNegativeInt = 0
+    policy_gpu: GpuSelector = "auto"
 
     @field_validator("task", "checkpoint", "policy_env", "dataset", "env_config", "action_type")
     @classmethod
@@ -80,7 +82,7 @@ class PolicyExperimentRequest(PolicyExperimentBase):
 
 class ExperimentRequest(PolicyExperimentRequest):
     scene_config: str | None = None
-    env_gpu: NonNegativeInt = 0
+    env_gpu: GpuSelector = "auto"
 
     @field_validator("scene_config")
     @classmethod
@@ -115,6 +117,7 @@ class EvaluationRequest(ExperimentRequest):
 
 
 class PolicyServerLaunchRequest(PolicyExperimentRequest):
+    policy_gpu: NonNegativeInt = 0
     host: str = "0.0.0.0"
     port: Port | None = None
     dry_run: bool = False

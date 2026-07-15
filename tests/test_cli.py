@@ -79,6 +79,111 @@ def test_eval_help_explains_publication_and_evaluation_inputs():
     assert "positive integer" in result.stdout
 
 
+def test_gpu_cli_precedence_is_flag_then_environment_then_auto(monkeypatch):
+    from robodojo.orchestration import evaluation
+
+    monkeypatch.delenv("POLICY_GPU", raising=False)
+    monkeypatch.delenv("ENV_GPU", raising=False)
+    requests = []
+    monkeypatch.setattr(evaluation, "run_evaluation", lambda paths, request: requests.append(request) or 0)
+    arguments = [
+        "eval",
+        "--policy-dir",
+        "XPolicyLab/policy/demo_policy",
+        "--task",
+        "stack_bowls",
+        "--ckpt",
+        "demo",
+        "--policy-env",
+        "base",
+        "--root",
+        str(ROOT),
+    ]
+
+    default = runner.invoke(app, arguments)
+    environment = runner.invoke(app, arguments, env={"POLICY_GPU": "4", "ENV_GPU": "5"})
+    flags = runner.invoke(
+        app,
+        [*arguments, "--policy-gpu", "2", "--env-gpu", "3"],
+        env={"POLICY_GPU": "4", "ENV_GPU": "5"},
+    )
+
+    assert [default.exit_code, environment.exit_code, flags.exit_code] == [0, 0, 0]
+    assert [(request.policy_gpu, request.env_gpu) for request in requests] == [
+        ("auto", "auto"),
+        (4, 5),
+        (2, 3),
+    ]
+
+
+def test_gpu_cli_rejects_noncanonical_auto(monkeypatch):
+    from robodojo.orchestration import evaluation
+
+    monkeypatch.setattr(evaluation, "run_evaluation", lambda *args: pytest.fail("invalid selector reached workflow"))
+    result = runner.invoke(
+        app,
+        [
+            "eval",
+            "--policy-dir",
+            "XPolicyLab/policy/demo_policy",
+            "--task",
+            "stack_bowls",
+            "--ckpt",
+            "demo",
+            "--policy-env",
+            "base",
+            "--policy-gpu",
+            "AUTO",
+            "--env-gpu",
+            "0",
+            "--root",
+            str(ROOT),
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "auto" in result.output
+
+
+def test_client_resolves_only_the_simulator_gpu(monkeypatch):
+    from robodojo.core import gpu
+    from robodojo.core.gpu import GpuAssignment
+    from robodojo.orchestration import split
+
+    monkeypatch.delenv("ENV_GPU", raising=False)
+    selections = []
+    launched = []
+
+    def resolve(**selectors):
+        selections.append(selectors)
+        return GpuAssignment(env_gpu=7, env_source="auto")
+
+    monkeypatch.setattr(gpu, "resolve_gpus", resolve)
+    monkeypatch.setattr(
+        split,
+        "run_client",
+        lambda paths, request, *, connect_timeout: launched.append(request) or 0,
+    )
+    result = runner.invoke(
+        app,
+        [
+            "client",
+            "--task",
+            "stack_bowls",
+            "--policy-name",
+            "TestPolicy",
+            "--policy-port",
+            "19000",
+            "--root",
+            str(ROOT),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert selections == [{"env_gpu": "auto"}]
+    assert launched[0].env_gpu == 7
+
+
 def test_publish_is_incompatible_with_scene_only_export(tmp_path):
     with pytest.raises(ValidationError, match="--publish cannot be combined with --export-scene-only"):
         EvaluationRequest(
@@ -131,14 +236,21 @@ def test_make_eval_defaults_to_publish_and_scene_export_with_overrides():
         capture_output=True,
         text=True,
     )
+    invalid_gpu = subprocess.run(
+        ["make", "eval", *common[3:], "POLICY_GPU=AUTO"],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
 
     assert "--publish" in default.stdout
     assert "--export-scene" in default.stdout
     assert '--dataset "RoboDojo"' in default.stdout
     assert '--action-type "joint"' in default.stdout
     assert '--seed "0"' in default.stdout
-    assert '--policy-gpu "0"' in default.stdout
-    assert '--env-gpu "1"' in default.stdout
+    assert '--policy-gpu "auto"' in default.stdout
+    assert '--env-gpu "auto"' in default.stdout
     assert '--eval-num "1"' in default.stdout
     assert "--publish" not in local_only.stdout
     assert "--export-scene" not in without_scene_export.stdout
@@ -146,6 +258,8 @@ def test_make_eval_defaults_to_publish_and_scene_export_with_overrides():
     assert "PUBLISH must be true or false" in invalid_publish.stderr
     assert invalid_scene_export.returncode != 0
     assert "EXPORT_SCENE must be true or false" in invalid_scene_export.stderr
+    assert invalid_gpu.returncode != 0
+    assert "POLICY_GPU must be 'auto' or a nonnegative integer" in invalid_gpu.stderr
 
 
 def test_make_setup_and_preflight_forward_experiment_contract():

@@ -126,6 +126,10 @@ def test_eval_dry_run_keeps_scene_out_of_policy_argv(tmp_path):
             "checkpoint",
             "--policy-env",
             "policy-env",
+            "--policy-gpu",
+            "0",
+            "--env-gpu",
+            "1",
             "--scene",
             "molmo_yam",
             "--dry-run",
@@ -181,6 +185,8 @@ def test_sweep_resume_identity_includes_resolved_scene(monkeypatch, tmp_path):
         checkpoint="checkpoint",
         policy_env="policy-env",
         scene_config="molmo_yam",
+        policy_gpu=0,
+        env_gpu=1,
         run_id="scene-resume",
     )
 

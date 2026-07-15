@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 
+from robodojo.core.gpu import GpuSelectionError, resolve_gpus
 from robodojo.core.models import EvaluationRequest, PolicyServerLaunchRequest, SimulatorLaunchRequest
 from robodojo.core.paths import RepositoryPaths
 from robodojo.core.processes import format_command, free_port, start, terminate_process_group, wait_for_port
@@ -64,6 +65,16 @@ def run_evaluation(paths: RepositoryPaths, request: EvaluationRequest, *, prefli
     visual_audit = _env_flag(SCENE_VISUAL_AUDIT_ENV)
     if visual_audit and not request.export_scene_only:
         raise ValueError(f"{SCENE_VISUAL_AUDIT_ENV}=1 is valid only with --export-scene-only")
+    try:
+        if request.export_scene_only:
+            assignment = resolve_gpus(env_gpu=request.env_gpu)
+            request = request.model_copy(update={"env_gpu": assignment.env_gpu})
+        else:
+            assignment = resolve_gpus(policy_gpu=request.policy_gpu, env_gpu=request.env_gpu)
+            request = request.model_copy(update={"policy_gpu": assignment.policy_gpu, "env_gpu": assignment.env_gpu})
+    except GpuSelectionError as exc:
+        logger.error("GPU selection failed: %s", exc)
+        return 2
     if request.publish and not request.dry_run:
         remote = s3_uri()
         if remote is None or not remote.startswith("s3://"):
@@ -73,9 +84,19 @@ def run_evaluation(paths: RepositoryPaths, request: EvaluationRequest, *, prefli
             logger.error("--publish requires the AWS CLI to be installed and available on PATH")
             return 2
     if preflight and not request.dry_run:
-        from robodojo.workflows.preflight import emit_report, request_from_evaluation, run_fast_preflight
+        from robodojo.workflows.preflight import (
+            emit_report,
+            request_from_evaluation,
+            run_fast_preflight,
+            run_simulator_preflight,
+        )
 
-        report = run_fast_preflight(paths, request_from_evaluation(request))
+        preflight_request = request_from_evaluation(request)
+        report = (
+            run_simulator_preflight(paths, preflight_request)
+            if request.export_scene_only
+            else run_fast_preflight(paths, preflight_request)
+        )
         emit_report(report)
         if report.status == "FAIL":
             return 2

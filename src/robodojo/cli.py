@@ -133,8 +133,18 @@ def preflight(
     scene_config: str | None = typer.Option(None, "--scene", help="Optional scene profile override."),
     action_type: str = typer.Option("ee", "--action-type", help="Policy action representation."),
     seed: int = typer.Option(0, "--seed", help="Nonnegative experiment seed."),
-    policy_gpu: int = typer.Option(0, "--policy-gpu", help="Zero-based policy GPU index."),
-    env_gpu: int = typer.Option(0, "--env-gpu", help="Zero-based simulator GPU index."),
+    policy_gpu: str = typer.Option(
+        "auto",
+        "--policy-gpu",
+        envvar="POLICY_GPU",
+        help="Policy GPU as a zero-based index or auto; POLICY_GPU is used when the flag is omitted.",
+    ),
+    env_gpu: str = typer.Option(
+        "auto",
+        "--env-gpu",
+        envvar="ENV_GPU",
+        help="Simulator GPU as a zero-based index or auto; ENV_GPU is used when the flag is omitted.",
+    ),
     publish: bool = typer.Option(False, "--publish", help="Validate publication prerequisites."),
     deep: bool = typer.Option(False, "--deep", help="Start the normal policy server on a temporary port."),
     timeout: float = typer.Option(600, "--timeout", help="Deep policy-server readiness timeout in seconds."),
@@ -175,8 +185,8 @@ def _evaluation_request(
     scene_config: str | None,
     action_type: str,
     seed: int,
-    policy_gpu: int,
-    env_gpu: int,
+    policy_gpu: str,
+    env_gpu: str,
     eval_num: str | None,
     checkpoint_label: str | None,
     export_scene: bool,
@@ -255,15 +265,17 @@ def evaluate(
         help="Policy action space passed to XPolicyLab, typically ee or joint.",
     ),
     seed: int = typer.Option(0, "--seed", help="Nonnegative evaluation seed used for task layout and policy setup."),
-    policy_gpu: int = typer.Option(
-        0,
+    policy_gpu: str = typer.Option(
+        "auto",
         "--policy-gpu",
-        help="Zero-based GPU index exposed to the policy server.",
+        envvar="POLICY_GPU",
+        help="Policy GPU as a zero-based index or auto; POLICY_GPU is used when the flag is omitted.",
     ),
-    env_gpu: int = typer.Option(
-        0,
+    env_gpu: str = typer.Option(
+        "auto",
         "--env-gpu",
-        help="Zero-based GPU index exposed to the simulator.",
+        envvar="ENV_GPU",
+        help="Simulator GPU as a zero-based index or auto; ENV_GPU is used when the flag is omitted.",
     ),
     eval_num: str | None = typer.Option(
         None,
@@ -352,15 +364,17 @@ def server(
         help="Policy action space passed to XPolicyLab, typically ee or joint.",
     ),
     seed: int = typer.Option(0, "--seed", help="Nonnegative seed passed to the policy adapter."),
-    policy_gpu: int = typer.Option(
-        0,
+    policy_gpu: str = typer.Option(
+        "auto",
         "--policy-gpu",
-        help="Zero-based GPU index exposed to the policy server.",
+        envvar="POLICY_GPU",
+        help="Policy GPU as a zero-based index or auto; POLICY_GPU is used when the flag is omitted.",
     ),
-    env_gpu: int = typer.Option(
-        0,
+    env_gpu: str = typer.Option(
+        "auto",
         "--env-gpu",
-        help="Zero-based simulator GPU index validated as part of experiment preflight.",
+        envvar="ENV_GPU",
+        help="Simulator GPU as a zero-based index or auto; ENV_GPU is used when the flag is omitted.",
     ),
     scene_config: str | None = typer.Option(
         None,
@@ -421,7 +435,7 @@ def _client(
     policy_port: int,
     env_config: str,
     scene_config: str | None,
-    env_gpu: int,
+    env_gpu: str,
     seed: int,
     eval_num: str,
     checkpoint: str,
@@ -438,6 +452,13 @@ def _client(
         raise typer.BadParameter("provide --policy-name or --policy-dir")
     parsed_eval_num: int | str = eval_num if eval_num == "native" else int(eval_num)
     label = safe_checkpoint_label(checkpoint, checkpoint_label)
+    from robodojo.core.gpu import GpuSelectionError, parse_gpu_selector, resolve_gpus
+
+    try:
+        assignment = resolve_gpus(env_gpu=parse_gpu_selector(env_gpu))
+    except GpuSelectionError as exc:
+        typer.echo(f"GPU selection failed: {exc}", err=True)
+        return 2
     request = _model(
         SimulatorLaunchRequest,
         task=task,
@@ -446,7 +467,7 @@ def _client(
         port=policy_port,
         env_config=env_config,
         scene_config=scene_config,
-        env_gpu=env_gpu,
+        env_gpu=assignment.env_gpu,
         seed=seed,
         eval_num=parsed_eval_num,
         additional_info=f"ckpt_name={label},action_type={action_type}",
@@ -484,7 +505,12 @@ def client(
         "--scene",
         help="Scene configuration override; otherwise task and environment defaults apply.",
     ),
-    env_gpu: int = typer.Option(0, "--env-gpu", help="Zero-based GPU index exposed to the simulator."),
+    env_gpu: str = typer.Option(
+        "auto",
+        "--env-gpu",
+        envvar="ENV_GPU",
+        help="Simulator GPU as a zero-based index or auto; ENV_GPU is used when the flag is omitted.",
+    ),
     seed: int = typer.Option(0, "--seed", help="Nonnegative evaluation seed used for task layout."),
     eval_num: str = typer.Option(
         "1",
@@ -536,8 +562,8 @@ def _sweep_command(
     scene_config: str | None,
     action_type: str,
     seed: int,
-    policy_gpu: int,
-    env_gpu: int,
+    policy_gpu: str,
+    env_gpu: str,
     eval_num: str,
     only: str | None,
     tasks_file: Path | None,
@@ -607,8 +633,18 @@ def smoke(
         help="Policy action space passed to XPolicyLab, typically ee or joint.",
     ),
     seed: int = typer.Option(0, "--seed", help="Nonnegative seed used for each evaluation in the sweep."),
-    policy_gpu: int = typer.Option(0, "--policy-gpu", help="Zero-based GPU index exposed to each policy server."),
-    env_gpu: int = typer.Option(0, "--env-gpu", help="Zero-based GPU index exposed to each simulator."),
+    policy_gpu: str = typer.Option(
+        "auto",
+        "--policy-gpu",
+        envvar="POLICY_GPU",
+        help="Policy GPU as a zero-based index or auto; POLICY_GPU is used when the flag is omitted.",
+    ),
+    env_gpu: str = typer.Option(
+        "auto",
+        "--env-gpu",
+        envvar="ENV_GPU",
+        help="Simulator GPU as a zero-based index or auto; ENV_GPU is used when the flag is omitted.",
+    ),
     eval_num: str = typer.Option(
         "1",
         "--eval-num",
@@ -693,8 +729,18 @@ def benchmark(
         help="Policy action space passed to XPolicyLab, typically ee or joint.",
     ),
     seed: int = typer.Option(0, "--seed", help="Nonnegative seed used for each evaluation in the sweep."),
-    policy_gpu: int = typer.Option(0, "--policy-gpu", help="Zero-based GPU index exposed to each policy server."),
-    env_gpu: int = typer.Option(0, "--env-gpu", help="Zero-based GPU index exposed to each simulator."),
+    policy_gpu: str = typer.Option(
+        "auto",
+        "--policy-gpu",
+        envvar="POLICY_GPU",
+        help="Policy GPU as a zero-based index or auto; POLICY_GPU is used when the flag is omitted.",
+    ),
+    env_gpu: str = typer.Option(
+        "auto",
+        "--env-gpu",
+        envvar="ENV_GPU",
+        help="Simulator GPU as a zero-based index or auto; ENV_GPU is used when the flag is omitted.",
+    ),
     only: str | None = typer.Option(
         None,
         "--only",

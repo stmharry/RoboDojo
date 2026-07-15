@@ -17,11 +17,28 @@ make preflight DEEP=true
 make eval PUBLISH=false
 ```
 
-The Makefile defaults to the RoboDojo dataset, joint actions, seed 0, policy
-GPU 0, simulator GPU 1, one episode, scene export, and publication. Override
-any default with a Make assignment such as `make eval EVAL_NUM=25` or disable
-the export with `make eval EXPORT_SCENE=false`; repository `.env` files are not
-loaded.
+The Makefile defaults to the RoboDojo dataset, joint actions, seed 0, automatic
+policy and simulator GPU selection, one episode, scene export, and publication.
+Override any default with a Make assignment such as `make eval EVAL_NUM=25` or
+disable the export with `make eval EXPORT_SCENE=false`; repository `.env` files
+are not loaded.
+
+GPU selectors accept a nonnegative physical device index or lowercase `auto`.
+When both roles are automatic, Python ranks `nvidia-smi` devices by free memory,
+then by lowest index, assigns the simulator first, and assigns the policy a
+distinct second device. An explicit peer is validated and excluded when the
+other role is automatic. Single-role `setup`, `client`, and scene-only export
+use the most-free device and therefore support one-GPU hosts. CLI flags override
+exported `POLICY_GPU` and `ENV_GPU`, which override the `auto` default:
+
+```bash
+make eval POLICY_GPU=0 ENV_GPU=1
+export POLICY_GPU=0 ENV_GPU=1
+make eval
+```
+
+On a direct CLI call, `--policy-gpu 2 --env-gpu 3` takes precedence over those
+exported values.
 
 `make setup` is the consolidated mutation interface. It validates host tools,
 initializes pinned submodules without overwriting dirty work, synchronizes the
@@ -73,8 +90,8 @@ uv run --extra sim --locked --no-sync robodojo preflight \
   --env-cfg bimanual_yam \
   --scene molmo_yam \
   --action-type joint \
-  --policy-gpu 0 \
-  --env-gpu 1 \
+  --policy-gpu auto \
+  --env-gpu auto \
   --format json
 ```
 
@@ -97,6 +114,9 @@ records contain `name`, `status`, `detail`, and optional `remediation`.
 Real `eval`, `server`, `smoke`, and `benchmark` commands run fast preflight
 before selecting a free port or starting policy/simulator processes. A sweep
 runs the shared gate once, not once per child task. Dry runs intentionally skip
-preflight and remain command-rendering-only. Make launch targets use uv's
-`--no-sync` mode, so a missing or stale root environment fails with `make setup`
-instead of changing the environment during launch.
+preflight; automatic selectors still inspect `nvidia-smi` so the rendered
+commands contain concrete devices, while numeric dry runs remain GPU-query-free.
+Scene-only export runs simulator-side preflight and does not require a policy
+GPU, adapter, checkpoint, or publication configuration. Make launch targets use
+uv's `--no-sync` mode, so a missing or stale root environment fails with
+`make setup` instead of changing the environment during launch.

@@ -3,7 +3,8 @@ import subprocess
 
 import pytest
 
-from robodojo.core.models import EvaluationRequest, SimulatorLaunchRequest
+from robodojo.core.gpu import GpuAssignment
+from robodojo.core.models import EvaluationRequest, ServerRequest, SimulatorLaunchRequest
 from robodojo.core.paths import RepositoryPaths
 from robodojo.orchestration import evaluation, split
 from robodojo.workflows import storage as storage_workflow
@@ -17,6 +18,8 @@ def _request(policy_dir: Path) -> EvaluationRequest:
         task="stack_bowls",
         checkpoint="test-checkpoint",
         policy_env="test-policy-env",
+        policy_gpu=0,
+        env_gpu=1,
     )
 
 
@@ -80,6 +83,59 @@ def test_evaluation_cleans_up_when_policy_readiness_fails(monkeypatch, tmp_path)
         evaluation.run_evaluation(RepositoryPaths.resolve(ROOT), _request(policy_dir), preflight=False)
 
     assert terminated == [process]
+
+
+def test_evaluation_resolves_auto_once_before_building_launch_requests(monkeypatch, tmp_path):
+    policy_dir = _policy_dir(tmp_path)
+    selections = []
+    policy_requests = []
+    simulator_requests = []
+
+    def resolve(**selectors):
+        selections.append(selectors)
+        return GpuAssignment(policy_gpu=6, env_gpu=2, policy_source="auto", env_source="auto")
+
+    monkeypatch.setattr(evaluation, "resolve_gpus", resolve)
+    monkeypatch.setattr(evaluation, "free_port", lambda: 19000)
+    monkeypatch.setattr(
+        evaluation,
+        "policy_server_command",
+        lambda request, port: policy_requests.append(request) or ["policy-server"],
+    )
+    monkeypatch.setattr(
+        evaluation,
+        "simulator_command",
+        lambda paths, request: simulator_requests.append(request) or (["simulator"], {}),
+    )
+    request = _request(policy_dir).model_copy(update={"policy_gpu": "auto", "env_gpu": "auto", "dry_run": True})
+
+    assert evaluation.run_evaluation(RepositoryPaths.resolve(ROOT), request, preflight=False) == 0
+    assert selections == [{"policy_gpu": "auto", "env_gpu": "auto"}]
+    assert policy_requests[0].policy_gpu == 6
+    assert simulator_requests[0].env_gpu == 2
+
+
+def test_split_server_resolves_auto_before_policy_launch(monkeypatch, tmp_path):
+    from robodojo.policy import adapter
+
+    policy_dir = _policy_dir(tmp_path)
+    launched = []
+    monkeypatch.setattr(
+        split,
+        "resolve_gpus",
+        lambda **selectors: GpuAssignment(policy_gpu=5, env_gpu=3, policy_source="auto", env_source="auto"),
+    )
+    monkeypatch.setattr(adapter, "run_policy_server", lambda request: launched.append(request) or 0)
+    request = ServerRequest(
+        policy_dir=policy_dir,
+        task="stack_bowls",
+        checkpoint="test-checkpoint",
+        policy_env="test-policy-env",
+        dry_run=True,
+    )
+
+    assert split.run_server(RepositoryPaths.resolve(ROOT), request) == 0
+    assert launched[0].policy_gpu == 5
 
 
 @pytest.mark.parametrize(

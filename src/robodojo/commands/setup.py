@@ -25,7 +25,12 @@ def setup(
     scene_config: str | None = typer.Option(None, "--scene", help="Optional scene profile override."),
     action_type: str | None = typer.Option(None, "--action-type", help="Policy action representation."),
     seed: int = typer.Option(0, "--seed", help="Nonnegative experiment seed."),
-    policy_gpu: int = typer.Option(0, "--policy-gpu", help="Zero-based policy GPU index."),
+    policy_gpu: str = typer.Option(
+        "auto",
+        "--policy-gpu",
+        envvar="POLICY_GPU",
+        help="Policy GPU as a zero-based index or auto; POLICY_GPU is used when the flag is omitted.",
+    ),
     output_format: str = typer.Option("human", "--format", help="Report format: human or json."),
     root: Path | None = typer.Option(
         None,

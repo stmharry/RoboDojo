@@ -20,8 +20,8 @@ export ROBODOJO_STORAGE_ROOT ROBODOJO_S3_URI AWS_PROFILE ROBODOJO_LOG_LEVEL OMNI
 DATASET ?= RoboDojo
 ACTION_TYPE ?= joint
 SEED ?= 0
-ENV_GPU ?= 1
-POLICY_GPU ?= 0
+ENV_GPU ?= auto
+POLICY_GPU ?= auto
 EVAL_NUM ?= 1
 PUBLISH ?= true
 EXPORT_SCENE ?= true
@@ -88,11 +88,14 @@ help: ## Show the supported local workflow
 		/^[a-zA-Z0-9_.-]+:.*## / {printf "  %-16s %s\n", $$1, $$2}' \
 		"$(SELF)"
 	@printf \
-		'\nConfigured experiment\n  TASK=%s ENV_CFG=%s SCENE=%s SEED=%s EVAL_NUM=%s PUBLISH=%s EXPORT_SCENE=%s\n' \
-		"$(TASK)" "$(ENV_CFG)" "$(SCENE)" "$(SEED)" "$(EVAL_NUM)" "$(PUBLISH)" "$(EXPORT_SCENE)"
+		'\nConfigured experiment\n  TASK=%s ENV_CFG=%s SCENE=%s SEED=%s EVAL_NUM=%s PUBLISH=%s EXPORT_SCENE=%s\n  POLICY_GPU=%s ENV_GPU=%s\n' \
+		"$(TASK)" "$(ENV_CFG)" "$(SCENE)" "$(SEED)" "$(EVAL_NUM)" "$(PUBLISH)" "$(EXPORT_SCENE)" \
+		"$(POLICY_GPU)" "$(ENV_GPU)"
 _config-check:
 	$(call require_experiment)
-	@case "$(SEED):$(ENV_GPU):$(POLICY_GPU):$(EVAL_NUM)" in *[!0-9:]*|::*|:*:|*::*) printf 'SEED, ENV_GPU, POLICY_GPU, and EVAL_NUM must be nonnegative integers.\n' >&2; exit 2;; esac
+	@case "$(SEED):$(EVAL_NUM)" in *[!0-9:]*|::*|:*:|*::*) printf 'SEED and EVAL_NUM must be nonnegative integers.\n' >&2; exit 2;; esac
+	@case "$(POLICY_GPU)" in auto) ;; ''|*[!0-9]*) printf "POLICY_GPU must be 'auto' or a nonnegative integer.\n" >&2; exit 2;; esac
+	@case "$(ENV_GPU)" in auto) ;; ''|*[!0-9]*) printf "ENV_GPU must be 'auto' or a nonnegative integer.\n" >&2; exit 2;; esac
 	@$(call boolean_flag,DEEP,true)
 	@$(call boolean_flag,DRY_RUN,true)
 

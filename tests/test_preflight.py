@@ -10,7 +10,8 @@ from typer.testing import CliRunner
 import yaml
 
 from robodojo.cli import app
-from robodojo.core.models import EvaluationRequest, PreflightCheck, PreflightRequest
+from robodojo.core import gpu
+from robodojo.core.models import EvaluationRequest, PreflightCheck, PreflightRequest, SetupRequest, SetupStage
 from robodojo.core.paths import RepositoryPaths
 from robodojo.orchestration import evaluation
 from robodojo.workflows import assets, preflight, sweeps
@@ -25,6 +26,8 @@ def _request(tmp_path: Path, **updates) -> PreflightRequest:
         "task": "stack_bowls",
         "checkpoint": "alias",
         "policy_env": "uv",
+        "policy_gpu": 0,
+        "env_gpu": 1,
     }
     values.update(updates)
     return PreflightRequest(**values)
@@ -107,6 +110,40 @@ def test_setup_policy_stage_invokes_eight_argument_hook_and_reports(tmp_path, ou
         assert "CHANGED policy:" in result.stdout
 
 
+def test_setup_policy_stage_resolves_only_the_policy_gpu(monkeypatch, tmp_path):
+    from robodojo.core.gpu import GpuAssignment
+    from robodojo.workflows import setup as setup_workflow
+
+    policy = tmp_path / "Policy"
+    policy.mkdir()
+    (policy / "prepare_eval_policy.sh").write_text(
+        '#!/usr/bin/env bash\nprintf "%s\\n" "$*" > hook_args.txt\n',
+        encoding="utf-8",
+    )
+    selections = []
+
+    def resolve(**selectors):
+        selections.append(selectors)
+        return GpuAssignment(policy_gpu=6, policy_source="auto")
+
+    monkeypatch.setattr(setup_workflow, "resolve_gpus", resolve)
+    request = SetupRequest(
+        stages=(SetupStage.POLICY,),
+        policy_dir=policy,
+        task="stack_bowls",
+        checkpoint="release",
+        policy_env="runtime",
+        env_config="arx_x5",
+        action_type="joint",
+    )
+
+    result = setup_workflow._policy_stage(RepositoryPaths(root=ROOT), request)
+
+    assert result.status == "CHANGED"
+    assert selections == [{"policy_gpu": "auto"}]
+    assert (policy / "hook_args.txt").read_text(encoding="utf-8").split()[6] == "6"
+
+
 def test_missing_and_stale_uv_environments_are_actionable(monkeypatch, tmp_path):
     policy = tmp_path / "Policy"
     policy.mkdir()
@@ -181,11 +218,11 @@ def test_explicit_checkpoint_must_exist_and_opaque_alias_warns(tmp_path):
 
 
 def test_gpu_indices_are_validated(monkeypatch, tmp_path):
-    monkeypatch.setattr(preflight.shutil, "which", lambda name: "/usr/bin/nvidia-smi")
+    monkeypatch.setattr(gpu.shutil, "which", lambda name: "/usr/bin/nvidia-smi")
     monkeypatch.setattr(
-        preflight.subprocess,
+        gpu.subprocess,
         "run",
-        lambda *args, **kwargs: preflight.subprocess.CompletedProcess(args[0], 0, "0\n2\n", ""),
+        lambda *args, **kwargs: preflight.subprocess.CompletedProcess(args[0], 0, "0, 100\n2, 100\n", ""),
     )
 
     result = preflight._gpu_check(_request(tmp_path, policy_gpu=1, env_gpu=2))
@@ -193,6 +230,65 @@ def test_gpu_indices_are_validated(monkeypatch, tmp_path):
     assert result.status == "FAIL"
     assert "[1]" in result.detail
     assert "POLICY_GPU" in result.remediation
+
+
+def test_scene_only_preflight_skips_every_policy_side_check(monkeypatch, tmp_path):
+    from robodojo.core.gpu import GpuAssignment
+
+    selections = []
+
+    def resolve(**selectors):
+        selections.append(selectors)
+        return GpuAssignment(env_gpu=4, env_source="auto")
+
+    monkeypatch.setattr(preflight, "resolve_gpus", resolve)
+    monkeypatch.setattr(
+        preflight,
+        "_root_runtime_check",
+        lambda paths: PreflightCheck(name="root", status="PASS", detail="ok"),
+    )
+    monkeypatch.setattr(
+        preflight,
+        "_configuration_checks",
+        lambda paths, request: ([PreflightCheck(name="configuration", status="PASS", detail="ok")], None, None),
+    )
+    monkeypatch.setattr(
+        preflight,
+        "_layout_check",
+        lambda *args: PreflightCheck(name="layout", status="PASS", detail="ok"),
+    )
+    monkeypatch.setattr(
+        preflight,
+        "_robot_asset_check",
+        lambda *args: PreflightCheck(name="robot_assets", status="PASS", detail="ok"),
+    )
+    monkeypatch.setattr(
+        preflight,
+        "_scene_asset_check",
+        lambda *args: PreflightCheck(name="scene_assets", status="PASS", detail="ok"),
+    )
+    for name in (
+        "_publication_check",
+        "_adapter_files_check",
+        "_policy_runtime_checks",
+        "_checkpoint_check",
+        "_policy_hook_check",
+    ):
+        monkeypatch.setattr(preflight, name, lambda *args, name=name: pytest.fail(f"scene-only ran {name}"))
+
+    request = _request(tmp_path).model_copy(update={"policy_gpu": "auto", "env_gpu": "auto"})
+    report = preflight.run_simulator_preflight(RepositoryPaths(root=ROOT), request)
+
+    assert report.status == "PASS"
+    assert selections == [{"policy_gpu": None, "env_gpu": "auto"}]
+    assert [check.name for check in report.checks] == [
+        "root",
+        "configuration",
+        "layout",
+        "robot_assets",
+        "scene_assets",
+        "gpu_indices",
+    ]
 
 
 def test_yam_manifest_requires_asset_and_matching_checksums(monkeypatch, tmp_path):
@@ -252,6 +348,8 @@ def test_failed_launch_preflight_stops_before_port_process_and_simulator(monkeyp
         task="stack_bowls",
         checkpoint="alias",
         policy_env="uv",
+        policy_gpu=0,
+        env_gpu=1,
     )
 
     assert evaluation.run_evaluation(RepositoryPaths(root=ROOT), request) == 2
@@ -277,6 +375,10 @@ def test_failed_server_preflight_stops_before_policy_runner(monkeypatch, tmp_pat
             "release",
             "--policy-env",
             "runtime",
+            "--policy-gpu",
+            "0",
+            "--env-gpu",
+            "1",
             "--root",
             str(ROOT),
         ],
@@ -295,6 +397,8 @@ def test_eval_dry_run_does_not_preflight(monkeypatch, tmp_path, capsys):
         task="stack_bowls",
         checkpoint="alias",
         policy_env="uv",
+        policy_gpu=0,
+        env_gpu=1,
         dry_run=True,
     )
 
@@ -303,10 +407,12 @@ def test_eval_dry_run_does_not_preflight(monkeypatch, tmp_path, capsys):
 
 
 def test_sweep_preflights_once_and_children_skip_duplicate_gate(monkeypatch, tmp_path):
+    from robodojo.core.gpu import GpuAssignment
     from robodojo.core.models import SweepRequest
 
     calls = 0
     children = []
+    gpu_calls = 0
 
     def fast(paths, request):
         nonlocal calls
@@ -314,12 +420,21 @@ def test_sweep_preflights_once_and_children_skip_duplicate_gate(monkeypatch, tmp
         return _report()
 
     monkeypatch.setattr(preflight, "run_fast_preflight", fast)
+
+    def resolve(**selectors):
+        nonlocal gpu_calls
+        gpu_calls += 1
+        return GpuAssignment(policy_gpu=4, env_gpu=2, policy_source="auto", env_source="auto")
+
+    monkeypatch.setattr(sweeps, "resolve_gpus", resolve)
     monkeypatch.setattr(sweeps, "run_work_root", lambda: tmp_path)
     monkeypatch.setattr(sweeps, "_selected_tasks", lambda request: ["general_pickup", "fold_clothes"])
     monkeypatch.setattr(
         sweeps,
         "run_evaluation",
-        lambda paths, request, *, preflight: children.append((request.task, preflight)) or 0,
+        lambda paths, request, *, preflight: (
+            children.append((request.task, preflight, request.policy_gpu, request.env_gpu)) or 0
+        ),
     )
     request = SweepRequest(
         policy_dir=tmp_path / "Policy",
@@ -332,7 +447,8 @@ def test_sweep_preflights_once_and_children_skip_duplicate_gate(monkeypatch, tmp
 
     assert sweeps.run_sweep(RepositoryPaths(root=ROOT), request) == 0
     assert calls == 1
-    assert children == [("general_pickup", False), ("fold_clothes", False)]
+    assert gpu_calls == 1
+    assert children == [("general_pickup", False, 4, 2), ("fold_clothes", False, 4, 2)]
 
 
 @pytest.mark.parametrize(
