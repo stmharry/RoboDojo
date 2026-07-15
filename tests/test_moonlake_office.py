@@ -119,7 +119,7 @@ def test_moonlake_layout_bundle_is_fixed_reachable_and_fixture_scoped():
     )
 
     expected = {
-        "general_pickup": {"indices": [5], "labels": ["target"], "xy": [(0.18, -0.06)]},
+        "general_pickup": {"indices": [0], "labels": ["target"], "xy": [(0.22, -0.1)]},
         "stack_blocks": {
             "indices": [5, 8, 11],
             "labels": ["block_0", "block_1", "block_2"],
@@ -148,6 +148,10 @@ def test_moonlake_layout_bundle_is_fixed_reachable_and_fixture_scoped():
         assert all(instance["default_ori"] == [1.0, 0.0, 0.0, 0.0] for instance in objects)
         assert all(-0.6 < instance["default_pos"][0] < 0.6 for instance in objects)
         assert all(-0.35 < instance["default_pos"][1] < 0.35 for instance in objects)
+        if task == "general_pickup":
+            [container] = layout["Articulation"]["moonlake_magnetic_gift_box"]
+            assert container["label"] == "container"
+            assert container["default_pos"] == [-0.12, 0.08, 0.75]
         assert layout["Light"]["dome"]["Dome"]["intensity_range"] == [1000.0, 1000.0]
         assert layout["Light"]["key"]["Distant"] == {
             "intensity_range": [3000.0, 3000.0],

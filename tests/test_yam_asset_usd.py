@@ -138,6 +138,21 @@ def test_preview_appearance_is_deterministic_and_render_only(tmp_path: Path):
     assert reopened and _stage_physics_digest(reopened) == physics_before
 
 
+def test_moonlake_appearance_rebinds_only_render_materials(tmp_path: Path):
+    tooling = yaml.safe_load((ROOT / "configs/tooling/yam.yml").read_text())
+    appearance = _appearance_contract(tooling, list(YAM_VISUAL_LINKS), "moonlake_office")
+    stage, visual_paths = _appearance_stage(tmp_path / "moonlake_appearance.usda")
+    physics_before = _stage_physics_digest(stage)
+
+    generated = _author_preview_appearance(stage, appearance, visual_paths)
+
+    assert _stage_physics_digest(stage) == physics_before
+    assert generated["setup"] == "moonlake_office"
+    assert set(generated["link_materials"].values()) == {"charcoal"}
+    for binding in generated["bindings"]:
+        assert binding["material"] == "charcoal"
+
+
 def test_d405_proxy_is_deterministic_identity_optical_frame_without_physics(tmp_path: Path):
     tooling = yaml.safe_load((ROOT / "configs/tooling/yam.yml").read_text())
     appearance = _appearance_contract(tooling, list(YAM_VISUAL_LINKS))

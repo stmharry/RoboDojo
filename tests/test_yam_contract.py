@@ -89,7 +89,7 @@ def test_task_instruction_is_independent_of_environment_and_scene_profiles():
 def test_general_pickup_preserves_public_checkpoint_prompt_contract():
     assert STEP_LIMIT == 400
     assert instruction_templates("molmo_yam") == ["Put everything into the box."]
-    assert instruction_templates("moonlake_office") == ["Pick up the letter block by 10 cm."]
+    assert instruction_templates("moonlake_office") == ["Pack container"]
     assert instruction_templates() == ["Pick up the <target> by 10 cm."]
 
     layout_manager = SimpleNamespace(get_label_descriptions=lambda **kwargs: [])
@@ -283,6 +283,7 @@ def test_yam_tooling_and_embodiment_reference_are_revision_pinned():
     visual_links = ["base", "gripper", "link1", "link2", "link3", "link4", "link5", "tip_left", "tip_right"]
     appearance = _appearance_contract(tooling, visual_links)
     assert appearance == _appearance_contract(tooling, list(reversed(visual_links)))
+    assert appearance["setup"] == "molmoact2"
     assert appearance["derivation_source"] == "hardware_appearance_reference"
     assert appearance["shader"] == "UsdPreviewSurface"
     assert appearance["color_space"] == "linear_rgb"
@@ -297,6 +298,10 @@ def test_yam_tooling_and_embodiment_reference_are_revision_pinned():
         "tip_left": "charcoal",
         "tip_right": "charcoal",
     }
+    moonlake_appearance = _appearance_contract(tooling, visual_links, "moonlake_office")
+    assert moonlake_appearance["setup"] == "moonlake_office"
+    assert moonlake_appearance["derivation_source"] == "moonlake_hardware_appearance_reference"
+    assert set(moonlake_appearance["link_materials"].values()) == {"charcoal"}
     assert appearance["palette"]["charcoal"]["diffuse_color"] == [0.03, 0.035, 0.04]
     assert appearance["palette"]["off_white"]["diffuse_color"] == [0.78, 0.8, 0.82]
     assert appearance["palette"]["light_gray"]["diffuse_color"] == [0.52, 0.55, 0.58]
@@ -320,7 +325,7 @@ def test_yam_tooling_and_embodiment_reference_are_revision_pinned():
     assert visual_proxies["molmoact2"]["output"] == "D405_proxy_molmoact2.usd"
     assert visual_proxies["molmoact2"]["materials"] == {"housing": "light_gray", "detail": "charcoal"}
     assert visual_proxies["moonlake_office"]["output"] == "D405_proxy_moonlake_office.usd"
-    assert visual_proxies["moonlake_office"]["materials"] == {"housing": "charcoal", "detail": "charcoal"}
+    assert visual_proxies["moonlake_office"]["materials"] == {"housing": "light_gray", "detail": "charcoal"}
     assert all(proxy["physical"] is False for proxy in visual_proxies.values())
     assert "author_nonphysical_d405_visual_proxy" in tooling["asset"]["transformations"]
     assert _fixed_camera_frame_contract(tooling) == [

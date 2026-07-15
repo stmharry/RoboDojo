@@ -43,6 +43,16 @@ sources:
       - observation.images.top
       - observation.images.left
       - observation.images.right
+  moonlake_hardware_appearance_reference:
+    repository: https://huggingface.co/datasets/moonlakeai/rollout_molmo2_bimanual_20260711_155222
+    revision: 84833ab63c435c1b8e5a0787604875b43d697a92
+    license: Apache-2.0
+    usage: reference_only
+    derivation: visually match the black YAM links and light D405 housings in public Moonlake rollout frames
+    inspected_modalities:
+      - observation.images.top
+      - observation.images.left
+      - observation.images.right
   realsense_d405:
     product_page: https://www.realsenseai.com/products/stereo-depth-camera-d405/
     datasheet: https://realsenseai.com/wp-content/uploads/dlm_uploads/2025/08/Intel-RealSense-D400-Series-Datasheet-August-2025.pdf
@@ -95,7 +105,7 @@ asset:
       optical_frame: OpticalFrame
       provenance_source: realsense_d405
       dimensions_m: [0.042, 0.042, 0.023]
-      housing_material: charcoal
+      housing_material: light_gray
       detail_material: charcoal
       physical: false
   converter:
@@ -107,10 +117,10 @@ asset:
     self_collision: false
 
 appearance:
-  derivation_source: hardware_appearance_reference
   shader: UsdPreviewSurface
   color_space: linear_rgb
   material_scope: Looks
+  default_setup: molmoact2
   palette:
     charcoal:
       diffuse_color: [0.03, 0.035, 0.04]
@@ -127,16 +137,31 @@ appearance:
       roughness: 0.62
       metallic: 0.0
       opacity: 1.0
-  link_materials:
-    base: charcoal
-    link1: charcoal
-    link2: off_white
-    link3: light_gray
-    link4: charcoal
-    link5: charcoal
-    gripper: charcoal
-    tip_left: charcoal
-    tip_right: charcoal
+  setups:
+    molmoact2:
+      derivation_source: hardware_appearance_reference
+      link_materials:
+        base: charcoal
+        link1: charcoal
+        link2: off_white
+        link3: light_gray
+        link4: charcoal
+        link5: charcoal
+        gripper: charcoal
+        tip_left: charcoal
+        tip_right: charcoal
+    moonlake_office:
+      derivation_source: moonlake_hardware_appearance_reference
+      link_materials:
+        base: charcoal
+        link1: charcoal
+        link2: charcoal
+        link3: charcoal
+        link4: charcoal
+        link5: charcoal
+        gripper: charcoal
+        tip_left: charcoal
+        tip_right: charcoal
 
 robot_config:
   urdf_path: YAM.urdf

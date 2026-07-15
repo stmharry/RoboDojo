@@ -37,18 +37,16 @@ def _canonical_sha256(value: object) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def _appearance_contract(build_manifest: dict, visual_links: list[str]) -> dict:
+def _appearance_contract(
+    build_manifest: dict,
+    visual_links: list[str],
+    setup_name: str | None = None,
+) -> dict:
     """Validate and normalize the deterministic YAM render-material contract."""
 
     source = build_manifest.get("appearance")
     if not isinstance(source, dict):
         raise ValueError("YAM tooling must declare an appearance contract")
-    derivation_source = source.get("derivation_source")
-    provenance = build_manifest.get("sources", {}).get(derivation_source)
-    if not isinstance(provenance, dict) or provenance.get("usage") != "reference_only":
-        raise ValueError("YAM appearance must cite a reference-only provenance source")
-    if provenance.get("license") in {None, "", "undeclared"}:
-        raise ValueError("YAM appearance provenance must declare a public dataset license")
     if source.get("shader") != "UsdPreviewSurface":
         raise ValueError("YAM appearance supports only UsdPreviewSurface")
     if source.get("color_space") != "linear_rgb":
@@ -89,25 +87,59 @@ def _appearance_contract(build_manifest: dict, visual_links: list[str]) -> dict:
         )
         palette[name] = material
 
-    link_materials = source.get("link_materials")
-    if not isinstance(link_materials, dict) or set(link_materials) != set(visual_links):
-        missing = sorted(set(visual_links) - set(link_materials or {}))
-        extra = sorted(set(link_materials or {}) - set(visual_links))
-        raise ValueError(f"YAM appearance link mapping differs from visual links: missing={missing}, extra={extra}")
-    unknown = sorted(set(link_materials.values()) - set(palette))
-    if unknown:
-        raise ValueError(f"YAM appearance references unknown materials: {unknown}")
-    unused = sorted(set(palette) - set(link_materials.values()))
+    setups = source.get("setups")
+    expected_setups = set(_setup_asset_outputs(build_manifest))
+    if not isinstance(setups, dict) or set(setups) != expected_setups:
+        raise ValueError(f"YAM appearance must declare setup mappings for {sorted(expected_setups)}")
+    default_setup = source.get("default_setup")
+    if default_setup not in setups:
+        raise ValueError(f"YAM appearance default setup is invalid: {default_setup!r}")
+
+    normalized_setups = {}
+    used_materials = set()
+    for name in sorted(setups):
+        setup = setups[name]
+        if not isinstance(setup, dict) or set(setup) != {"derivation_source", "link_materials"}:
+            raise ValueError(f"YAM appearance setup {name!r} must declare derivation_source and link_materials")
+        derivation_source = setup["derivation_source"]
+        provenance = build_manifest.get("sources", {}).get(derivation_source)
+        if not isinstance(provenance, dict) or provenance.get("usage") != "reference_only":
+            raise ValueError(f"YAM appearance setup {name!r} must cite reference-only provenance")
+        if provenance.get("license") in {None, "", "undeclared"}:
+            raise ValueError(f"YAM appearance setup {name!r} provenance must declare a public dataset license")
+        link_materials = setup["link_materials"]
+        if not isinstance(link_materials, dict) or set(link_materials) != set(visual_links):
+            missing = sorted(set(visual_links) - set(link_materials or {}))
+            extra = sorted(set(link_materials or {}) - set(visual_links))
+            raise ValueError(
+                f"YAM appearance setup {name!r} link mapping differs from visual links: "
+                f"missing={missing}, extra={extra}"
+            )
+        unknown = sorted(set(link_materials.values()) - set(palette))
+        if unknown:
+            raise ValueError(f"YAM appearance setup {name!r} references unknown materials: {unknown}")
+        used_materials.update(link_materials.values())
+        normalized_setups[name] = {
+            "derivation_source": derivation_source,
+            "link_materials": {link: link_materials[link] for link in sorted(link_materials)},
+        }
+    unused = sorted(set(palette) - used_materials)
     if unused:
         raise ValueError(f"YAM appearance contains unused materials: {unused}")
 
+    selected_setup = default_setup if setup_name is None else setup_name
+    if selected_setup not in normalized_setups:
+        raise ValueError(f"unknown YAM appearance setup: {selected_setup!r}")
+    selected = normalized_setups[selected_setup]
+
     return {
-        "derivation_source": derivation_source,
+        "setup": selected_setup,
+        "derivation_source": selected["derivation_source"],
         "shader": source["shader"],
         "color_space": source["color_space"],
         "material_scope": material_scope,
         "palette": palette,
-        "link_materials": {link: link_materials[link] for link in sorted(link_materials)},
+        "link_materials": selected["link_materials"],
     }
 
 
@@ -945,6 +977,13 @@ def _convert_to_usd(
             destination = output_root / setup_output
             shutil.copy2(output, destination)
             setup_stage = Usd.Stage.Open(str(destination), load=Usd.Stage.LoadAll)
+            setup_appearance = _appearance_contract(build_manifest, visual_links, setup_name)
+            setup_generated_appearance = _author_preview_appearance(
+                setup_stage,
+                setup_appearance,
+                validated_visual_paths,
+            )
+            setup_stage.GetRootLayer().Save()
             setup_physics = _stage_physics_digest(setup_stage)
             if setup_physics != physics_digest_before_appearance:
                 raise RuntimeError(f"YAM setup asset {setup_name} changed the shared physics contract")
@@ -952,6 +991,7 @@ def _convert_to_usd(
                 "output": setup_output,
                 "sha256": sha256(destination),
                 "physics_contract_sha256": setup_physics,
+                "appearance": setup_generated_appearance,
             }
         for binding in generated_appearance["bindings"]:
             expected_material = f"{default_path}/{appearance['material_scope']}/{binding['material']}"

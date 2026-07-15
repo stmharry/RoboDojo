@@ -4,5 +4,6 @@ layout_set: moonlake_office
 layout_source: bundled
 asset_builds: [moonlake_office]
 task_asset_builds:
+  general_pickup: [moonlake_packing]
   pack_item_into_container: [moonlake_packing]
 compatible_environments: [bimanual_yam_moonlake_office]

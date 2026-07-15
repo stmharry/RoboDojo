@@ -38,9 +38,15 @@ def isaac_app():
 def test_moonlake_packing_profile_declares_generated_scene_asset_build():
     scene = load_scene_profile(PATHS, "moonlake_office")
     assert scene.document.asset_builds == ["moonlake_office"]
-    assert scene.document.task_asset_builds == {"pack_item_into_container": ["moonlake_packing"]}
+    assert scene.document.task_asset_builds == {
+        "general_pickup": ["moonlake_packing"],
+        "pack_item_into_container": ["moonlake_packing"],
+    }
     assert "pack_item_into_container" not in scene.document.task_assets
-    assert required_fixture_builds(scene, "general_pickup") == ("moonlake_office",)
+    assert required_fixture_builds(scene, "general_pickup") == (
+        "moonlake_office",
+        "moonlake_packing",
+    )
     assert required_fixture_builds(scene, "pack_item_into_container") == (
         "moonlake_office",
         "moonlake_packing",
