@@ -89,11 +89,22 @@ def test_molmoact2_yam_profile_uses_model_aligned_bundled_layouts():
         "robot": "dual_yam",
         "camera": "bimanual_yam",
     }
+    assert profile.document.task_instruction_overrides == {}
     layout_root = ROOT / "configs/layout/bimanual_yam_molmoact2/0"
-    assert {path.name for path in layout_root.glob("*.json")} == {"general_pickup_0.json"}
+    assert {path.name for path in layout_root.glob("*.json")} == {
+        "fold_clothes_0.json",
+        "general_pickup_0.json",
+    }
     pickup = json.loads((layout_root / "general_pickup_0.json").read_text())
     assert pickup["Rigid"]["ball"][0]["visual"]["color"] == [0.35, 0.65, 0.08]
     assert "basket" not in pickup["Geometry"]
+    fold = json.loads((layout_root / "fold_clothes_0.json").read_text())
+    garment = fold["Garment"]["Top_Long"][0]
+    assert garment["category_idx"] == 12
+    assert garment["default_pos"] == [0.0, -0.05, 0.95]
+    assert garment["physics"]["garment_config"]["total_mass"] == pytest.approx(0.2)
+    assert garment["physics"]["garment_config"]["stretch_stiffness"] == pytest.approx(1e4)
+    assert garment["visual"]["color"] == [0.95, 0.95, 0.95]
 
 
 def test_fold_clothes_does_not_replace_yam_profile_components():

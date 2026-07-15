@@ -15,6 +15,8 @@ import omni.kit.commands
 from pxr import Usd, UsdGeom, UsdShade, Vt
 import torch
 
+from robodojo.sim.environment.scene_manager.garment_contract import resolve_particle_mass
+
 logger = logging.getLogger(__name__)
 
 
@@ -93,6 +95,9 @@ class GarmentObject(SingleClothPrim):
                 )
         else:
             self.mesh_prim_path = self.usd_prim_path
+        mesh = UsdGeom.Mesh(get_prim_at_path(self.mesh_prim_path))
+        particle_count = len(mesh.GetPointsAttr().Get())
+        particle_mass = resolve_particle_mass(self.inst_garment_cfg, particle_count)
 
         # Setup particle system
         interaction_flag = self.instance_config.get("interaction_with_fluid", False)
@@ -154,7 +159,7 @@ class GarmentObject(SingleClothPrim):
             prim_path=self.mesh_prim_path,
             particle_system=self.particle_system,
             particle_material=self.particle_material,
-            particle_mass=float(self.inst_garment_cfg.get("particle_mass", 1e-2)),
+            particle_mass=particle_mass,
             self_collision=self.inst_garment_cfg.get("self_collision", True),
             self_collision_filter=self.inst_garment_cfg.get("self_collision_filter", True),
             stretch_stiffness=float(self.inst_garment_cfg.get("stretch_stiffness", 1e8)),

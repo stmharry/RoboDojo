@@ -178,6 +178,14 @@ if enable_monitor:
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
+# The public checkpoint was trained with a short-sleeve shirt, while the
+# upstream RoboDojo garment catalog contains only a topology-compatible long
+# sleeve source. Keep this policy-specific visual adapter out of task logic.
+if args_cli.env_cfg_type == "bimanual_yam_molmoact2" and args_cli.task_name == "fold_clothes":
+    from robodojo.workflows.assets_molmoact2_yam import prepare_molmoact2_yam_garment
+
+    prepare_molmoact2_yam_garment()
+
 from omegaconf import OmegaConf
 
 from robodojo.core.storage import eval_work_root

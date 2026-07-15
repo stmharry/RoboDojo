@@ -51,6 +51,15 @@ canonical YAM components while selecting a bundled, training-aligned
 single-ball layout. The task's upstream instruction, lift reward, labels, and
 episode limit remain unchanged.
 
+The `fold_clothes` profile derives a topology-preserving short-sleeve shirt
+from the downloaded `Top_Long/00009` garment before scene construction. It
+retains the source mesh and reward-point vertex indices, places the garment at
+the table center in its native frame, and uses the cloth spring parameters from
+Isaac Sim 5.1's particle-cloth example. The canonical task instruction, reward,
+labels, and episode limit remain unchanged. Newton VBD was also investigated,
+but is not part of this profile because the pinned Isaac Sim 5.1 runtime does
+not provide that backend.
+
 For example, a YAM evaluation may opt into that workspace explicitly:
 
 ```bash
