@@ -1,11 +1,8 @@
 import argparse
-from copy import deepcopy
 from datetime import datetime
-import json
 import logging
 import os
 from pathlib import Path
-import sys
 
 import warp as _project_warp
 
@@ -24,46 +21,50 @@ if _loaded_warp_version != EXPECTED_WARP_VERSION:
 from isaaclab.app import AppLauncher
 
 from robodojo.core.asset_identity import inspect_environment_assets
-from robodojo.core.contracts import resolve_contract, resolve_recipe
+from robodojo.core.experiments.selection import compose_experiment, resolve_recipe
 from robodojo.core.layouts import resolve_layout_set
 from robodojo.core.logging import configure_logging
 from robodojo.core.paths import RepositoryPaths
-from robodojo.core.profiles import (
-    load_environment_profile,
-    load_scene_profile,
-    validate_scene_environment_compatibility,
-)
+from robodojo.core.profiles.environment import load_environment_profile
+from robodojo.core.profiles.scene import load_scene_profile, validate_scene_environment_compatibility
 from robodojo.core.revisions import git_revision
-from robodojo.core.scene_identity import ARTIFACT_SCHEMA_VERSION, require_matching_scene_identity
 from robodojo.core.storage import assets_root
 from robodojo.core.workspace import validate_resolved_layout_set
+from robodojo.sim.evaluation.communication import close_model_client as _close_model_client
+from robodojo.sim.evaluation.configuration import build_deploy_config, build_evaluation_config
+from robodojo.sim.evaluation.restart import (
+    exit_for_shell_restart as _exit_for_shell_restart,
+    restart_or_exit as _restart_or_exit,
+)
+from robodojo.sim.evaluation.resume import (
+    delete_resume_manifest as _delete_resume_manifest,
+    load_resume_manifest as _load_resume_manifest,
+)
 
 logger = logging.getLogger(__name__)
 
 configure_logging()
 logger.info("Using project-pinned Warp %s from %s", _loaded_warp_version, _project_warp.__file__)
 
-MAX_INPROC_RESTARTS = 3
-
 # AppLauncher inspects known arguments before registering its own --device
 # option. Disable prefix matching so argparse does not mistake that option for
 # RoboDojo's upstream-compatible --device_id during the inspection pass.
 parser = argparse.ArgumentParser(allow_abbrev=False)
-parser.add_argument("--task_name", type=str, required=True)
-parser.add_argument("--protocol_name", type=str, required=True)
-parser.add_argument("--episode_horizon", type=int, required=True)
-parser.add_argument("--native_eval_num", type=int, required=True)
-parser.add_argument("--recipe_name", type=str, required=True)
-parser.add_argument("--contract_hash", type=str, required=True)
+parser.add_argument("--task", type=str, required=True)
+parser.add_argument("--task-protocol", type=str, required=True)
+parser.add_argument("--episode-horizon", type=int, required=True)
+parser.add_argument("--evaluation-episodes", type=int, required=True)
+parser.add_argument("--recipe", type=str, required=True)
+parser.add_argument("--experiment-hash", type=str, required=True)
 parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to spawn.")
 parser.add_argument(
-    "--env_cfg_type",
+    "--environment",
     type=str,
     required=True,
     help="config file name for evaluation",
 )
 parser.add_argument(
-    "--scene_config",
+    "--scene",
     type=str,
     required=True,
     help="resolved simulator scene config name",
@@ -90,11 +91,11 @@ parser.add_argument(
     help="IP address or hostname of the policy server. Defaults to localhost.",
 )
 parser.add_argument(
-    "--protocol",
+    "--transport",
     choices=("ws",),
     default="ws",
     help=(
-        "Env-to-policy transport. 'ws' is the default WebSocket protocol "
+        "Env-to-policy transport. 'ws' is the default WebSocket transport "
         "(msgpack frames over ws://host:port); also set as protocol: ws in deploy.yml."
     ),
 )
@@ -141,10 +142,10 @@ if FIRST_FRAME_CAPTURE_REQUESTED and not FIRST_FRAME_CAPTURE_DIR:
 
 # Safe to import before AppLauncher: env is a namespace package (no __init__)
 # and GLOBAL_CONFIGS only imports os, so this pulls in no app-dependent code.
-from robodojo.sim import tasks_registry
+from robodojo.sim import task_discovery
 from robodojo.sim.environment.global_configs import ROOT_DIR
 
-task_registry = tasks_registry
+task_registry = task_discovery
 
 
 class PhysXBrokenError(Exception):
@@ -170,24 +171,24 @@ def get_monitor():
 REPOSITORY_PATHS = RepositoryPaths.resolve(ROOT_DIR)
 RUNTIME_CONTRACT = None
 if args_cli.policy_profile == "manual":
-    ENVIRONMENT_PROFILE = load_environment_profile(REPOSITORY_PATHS, args_cli.env_cfg_type)
-    SCENE_PROFILE = load_scene_profile(REPOSITORY_PATHS, args_cli.scene_config)
+    ENVIRONMENT_PROFILE = load_environment_profile(REPOSITORY_PATHS, args_cli.environment)
+    SCENE_PROFILE = load_scene_profile(REPOSITORY_PATHS, args_cli.scene)
     validate_scene_environment_compatibility(SCENE_PROFILE, ENVIRONMENT_PROFILE)
 else:
     RUNTIME_CONTRACT = (
-        resolve_recipe(REPOSITORY_PATHS, args_cli.recipe_name)
-        if args_cli.recipe_name != "manual"
-        else resolve_contract(
+        resolve_recipe(REPOSITORY_PATHS, args_cli.recipe)
+        if args_cli.recipe != "manual"
+        else compose_experiment(
             REPOSITORY_PATHS,
             policy_name=args_cli.policy_profile,
-            environment_name=args_cli.env_cfg_type,
-            scene_name=args_cli.scene_config,
-            protocol_name=args_cli.protocol_name,
+            environment_name=args_cli.environment,
+            scene_name=args_cli.scene,
+            task_protocol=args_cli.task_protocol,
         )
     )
     expected = (
         RUNTIME_CONTRACT.protocol.task,
-        RUNTIME_CONTRACT.protocol_name,
+        RUNTIME_CONTRACT.task_protocol,
         RUNTIME_CONTRACT.protocol.episode_horizon,
         RUNTIME_CONTRACT.protocol.evaluation_episodes,
         RUNTIME_CONTRACT.environment.name,
@@ -198,19 +199,19 @@ else:
         (REPOSITORY_PATHS.root / RUNTIME_CONTRACT.policy.policy_dir).name,
     )
     actual = (
-        args_cli.task_name,
-        args_cli.protocol_name,
+        args_cli.task,
+        args_cli.task_protocol,
         args_cli.episode_horizon,
-        args_cli.native_eval_num,
-        args_cli.env_cfg_type,
-        args_cli.scene_config,
+        args_cli.evaluation_episodes,
+        args_cli.environment,
+        args_cli.scene,
         args_cli.policy_descriptor_hash,
         args_cli.policy_reference_match,
-        args_cli.contract_hash,
+        args_cli.experiment_hash,
         args_cli.policy_name,
     )
     if actual != expected:
-        raise ValueError(f"simulator contract arguments {actual} do not match resolved contract {expected}")
+        raise ValueError(f"simulator experiment arguments {actual} do not match resolved experiment {expected}")
     ENVIRONMENT_PROFILE = RUNTIME_CONTRACT.environment
     SCENE_PROFILE = RUNTIME_CONTRACT.scene
 RESOLVED_SCENE_CONFIG = SCENE_PROFILE.name
@@ -222,12 +223,12 @@ RESOLVED_LAYOUT_SET = resolve_layout_set(
     benchmark="RoboDojo",
     layout_set=SCENE_PROFILE.document.layout_set,
     layout_source=SCENE_PROFILE.document.layout_source,
-    task=args_cli.task_name,
+    task=args_cli.task,
     seed=args_cli.seed,
 )
 validate_resolved_layout_set(
     RESOLVED_LAYOUT_SET,
-    task_config_path=REPOSITORY_PATHS.task_configs / f"{args_cli.task_name}.yml",
+    task_config_path=REPOSITORY_PATHS.task_configs / f"{args_cli.task}.yml",
     workspace=ENVIRONMENT_PROFILE.document.workspace,
     robot_config_path=ENVIRONMENT_PROFILE.component_paths["robot"],
 )
@@ -240,7 +241,7 @@ def _physx_monitor_needed(task_name) -> bool:
     lightweight yaml load before AppLauncher; any failure falls back to
     enabled (fail-safe).
     """
-    cfg_path = task_registry.task_config_path(REPOSITORY_PATHS.task_configs, task_name)
+    cfg_path = REPOSITORY_PATHS.task_configs / f"{task_name}.yml"
     try:
         import yaml
 
@@ -259,8 +260,8 @@ def _physx_monitor_needed(task_name) -> bool:
 if not os.environ.get("ROBODOJO_RUN_ID"):
     os.environ["ROBODOJO_RUN_ID"] = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-enable_monitor = _physx_monitor_needed(args_cli.task_name)
-logger.info("[main] PhysX monitor enabled=%s (task=%s)", enable_monitor, args_cli.task_name)
+enable_monitor = _physx_monitor_needed(args_cli.task)
+logger.info("[main] PhysX monitor enabled=%s (task=%s)", enable_monitor, args_cli.task)
 if enable_monitor:
     # Start before AppLauncher so Kit inherits the redirected stdout/stderr fds.
     from robodojo.sim.evaluation.physx_warning_monitor import (
@@ -277,12 +278,11 @@ simulation_app = app_launcher.app
 
 from robodojo.sim.scene_assets import inspect_scene_assets
 
-PREPARED_SCENE_ASSETS = inspect_scene_assets(SCENE_PROFILE, args_cli.task_name)
+PREPARED_SCENE_ASSETS = inspect_scene_assets(SCENE_PROFILE, args_cli.task)
 PREPARED_ENVIRONMENT_ASSETS = inspect_environment_assets(ENVIRONMENT_PROFILE)
 
 from omegaconf import OmegaConf
 
-from robodojo.core.storage import eval_work_root
 from robodojo.sim.environment.global_configs import ENV_CONFIG_PATH
 from robodojo.sim.evaluation.eval_env import create_eval_env
 from robodojo.sim.utils.cluttered_generator import UnStableError
@@ -300,208 +300,47 @@ def _eval_batch_from_deploy(policy_name):
     return bool(deploy_yml.get("eval_batch", False))
 
 
-def _resume_manifest_path(eval_cfg, run_id):
-    """Mirror of EvalEnv.resume_manifest_path() so we can load BEFORE
-    constructing the env. Keeping the layout aligned avoids drift between
-    the writer and reader paths.
-    """
-    return os.path.join(
-        str(eval_work_root()),
-        eval_cfg["protocol_name"],
-        eval_cfg["policy_profile"],
-        eval_cfg["config_name"],
-        f"{eval_cfg.get('seed', 0)}_{eval_cfg.get('additional_info', '')}",
-        f"_resume_{run_id}.json",
-    )
-
-
-def _load_resume_manifest(eval_cfg, run_id):
-    """Return parsed manifest dict, or None if no resume is in progress."""
-    path = _resume_manifest_path(eval_cfg, run_id)
-    if not os.path.exists(path):
-        return None
-    try:
-        with open(path, encoding="utf-8") as fp:
-            data = json.load(fp)
-    except Exception as e:
-        raise ValueError(f"invalid resume manifest at {path}: {e}") from e
-    require_matching_scene_identity(eval_cfg, data, context=f"resume manifest at {path}")
-    logger.info(
-        "[main] resuming from manifest %s (success=%s fail=%s completed=%s abandoned=%s restart_count=%s)",
-        path,
-        data.get("success_nums"),
-        data.get("fail_nums"),
-        len(data.get("completed_layout_ids") or []),
-        len(data.get("abandoned_layout_ids") or []),
-        data.get("restart_count", 0),
-    )
-    return data
-
-
-def _delete_resume_manifest(env):
-    """Best-effort cleanup at normal completion. Failure is non-fatal."""
-    try:
-        path = env.resume_manifest_path()
-    except Exception:
-        return
-    try:
-        if os.path.exists(path):
-            os.unlink(path)
-            logger.info("[main] removed resume manifest %s (eval completed)", path)
-    except Exception as e:
-        logger.warning("[main] failed to unlink resume manifest %s: %s", path, e)
-
-
-def _close_model_client(env):
-    """Best-effort graceful close for policy communication."""
-    try:
-        model_client = getattr(env, "model_client", None)
-        close = getattr(model_client, "close", None)
-        if callable(close):
-            close()
-    except Exception as e:
-        logger.warning("[main] failed to close model client: %s", e)
-
-
-def _restart_or_exit(env, simulation_app, fatal_msg):
-    """Persist progress and either os.execv-restart or sys.exit(99).
-
-    Bounded by ROBODOJO_FATAL_RESTART_COUNT env var so a persistent hardware
-    failure cannot put us in an infinite loop. The bash retry loop in
-    eval_policy.sh provides a second layer of bounded restarts.
-    """
-    restart_count = int(os.environ.get("ROBODOJO_FATAL_RESTART_COUNT", "0")) + 1
-    try:
-        env.persist_resume_manifest(restart_count=restart_count)
-    except Exception as e:
-        logger.critical("persist_resume_manifest failed: %s", e)
-    logger.critical(
-        "PhysX kernel failure detected: %s; persisted manifest. In-process restart attempt %s/%s.",
-        fatal_msg,
-        restart_count,
-        MAX_INPROC_RESTARTS,
-    )
-    try:
-        simulation_app.close()
-    except Exception:
-        pass
-    if restart_count <= MAX_INPROC_RESTARTS:
-        os.environ["ROBODOJO_FATAL_RESTART_COUNT"] = str(restart_count)
-        logger.critical("os.execv self-restart with run_id=%s", os.environ.get("ROBODOJO_RUN_ID"))
-        sys.stdout.flush()
-        sys.stderr.flush()
-        os.execv(sys.executable, [sys.executable] + sys.argv)
-    logger.critical(
-        "in-process restart cap reached (%s); exiting with rc=99 for bash-level retry.", MAX_INPROC_RESTARTS
-    )
-    sys.exit(99)
-
-
-def _exit_for_shell_restart(env, fatal_msg):
-    """Persist progress, then let eval_policy.sh restart a fresh process."""
-    restart_count = int(os.environ.get("ROBODOJO_FATAL_RESTART_COUNT", "0"))
-    try:
-        env.persist_resume_manifest(restart_count=restart_count)
-    except Exception as e:
-        logger.critical("persist_resume_manifest failed: %s", e)
-    logger.critical("PhysX requested shell-level restart: %s; exiting with rc=99 for bash-level retry.", fatal_msg)
-    sys.stdout.flush()
-    sys.stderr.flush()
-    os._exit(99)
-
-
 def main():
     """Assemble the env config, build the eval env, and run the eval loop with
     PhysX crash/resume recovery until the requested episode count is reached.
     """
-    task_name = args_cli.task_name
+    task_name = args_cli.task
     num_envs = 1 if SIMULATOR_ONLY else args_cli.num_envs
-    eval_cfg = deepcopy(ENVIRONMENT_PROFILE.payload)
-    eval_cfg["environment_profile"] = ENVIRONMENT_PROFILE.name
-    eval_cfg["environment_profile_hash"] = ENVIRONMENT_PROFILE.identity_hash
-    eval_cfg["environment_variant"] = (
-        ENVIRONMENT_PROFILE.document.variant.model_dump(mode="json", exclude_none=True)
-        if ENVIRONMENT_PROFILE.document.variant is not None
-        else None
+    eval_cfg = build_evaluation_config(
+        environment=ENVIRONMENT_PROFILE,
+        scene=SCENE_PROFILE,
+        layout_set=RESOLVED_LAYOUT_SET,
+        environment_assets=PREPARED_ENVIRONMENT_ASSETS,
+        scene_assets=PREPARED_SCENE_ASSETS,
+        runtime_experiment=RUNTIME_CONTRACT,
+        task=task_name,
+        task_protocol=args_cli.task_protocol,
+        episode_horizon=args_cli.episode_horizon,
+        evaluation_episodes=args_cli.evaluation_episodes,
+        recipe=args_cli.recipe,
+        experiment_hash=args_cli.experiment_hash,
+        policy_name=args_cli.policy_name,
+        policy_profile=args_cli.policy_profile,
+        seed=args_cli.seed,
+        additional_info=args_cli.additional_info,
+        device_id=args_cli.device_id,
+        num_envs=num_envs,
+        physx_monitor_enabled=enable_monitor,
+        robodojo_revision=ROBODOJO_REVISION,
+        xpolicylab_revision=XPOLICYLAB_REVISION,
+        assets_root=assets_root(),
     )
-    eval_cfg["environment_asset_hash"] = PREPARED_ENVIRONMENT_ASSETS.identity_hash
-    eval_cfg["environment_asset_builds"] = list(ENVIRONMENT_PROFILE.document.asset_builds)
-    eval_cfg["environment_asset_identities"] = list(PREPARED_ENVIRONMENT_ASSETS.artifacts)
-    eval_cfg["policy_contract"] = ENVIRONMENT_PROFILE.policy_contract
-    eval_cfg["scene_config"] = RESOLVED_SCENE_CONFIG
-    eval_cfg["scene_component"] = SCENE_PROFILE.document.component
-    eval_cfg["scene_profile_hash"] = SCENE_PROFILE.identity_hash
-    eval_cfg["layout_config_name"] = SCENE_PROFILE.document.layout_set
-    eval_cfg["layout_source"] = SCENE_PROFILE.document.layout_source
-    eval_cfg["layout_set_hash"] = RESOLVED_LAYOUT_SET.identity_hash
-    eval_cfg["scene_asset_hash"] = PREPARED_SCENE_ASSETS.identity_hash
-    eval_cfg["scene_asset_builds"] = list(
-        dict.fromkeys(
-            (
-                *SCENE_PROFILE.document.asset_builds,
-                *SCENE_PROFILE.document.task_asset_builds.get(task_name, ()),
-            )
-        )
-    )
-    eval_cfg["scene_asset_identities"] = [
-        {
-            "destination": artifact.destination_root.relative_to(assets_root()).as_posix(),
-            "derivation_hash": artifact.derivation_hash,
-            "manifest_hash": artifact.manifest_hash,
-        }
-        for artifact in PREPARED_SCENE_ASSETS.artifacts
-    ]
-    eval_cfg["task_name"] = task_name
-    eval_cfg["protocol_name"] = args_cli.protocol_name
-    eval_cfg["artifact_schema_version"] = ARTIFACT_SCHEMA_VERSION
-    eval_cfg["episode_horizon"] = args_cli.episode_horizon
-    eval_cfg["native_eval_num"] = args_cli.native_eval_num
-    eval_cfg["recipe_name"] = args_cli.recipe_name
-    eval_cfg["contract_hash"] = args_cli.contract_hash
-    eval_cfg["policy_profile"] = args_cli.policy_profile
-    eval_cfg["policy_descriptor_hash"] = (
-        RUNTIME_CONTRACT.policy_descriptor_hash if RUNTIME_CONTRACT is not None else None
-    )
-    eval_cfg["policy_reference_match"] = (
-        RUNTIME_CONTRACT.policy_reference_match if RUNTIME_CONTRACT is not None else "unspecified"
-    )
-    eval_cfg["policy_checkpoint"] = RUNTIME_CONTRACT.policy.checkpoint if RUNTIME_CONTRACT is not None else None
-    eval_cfg["policy_execution"] = (
-        RUNTIME_CONTRACT.policy_descriptor.execution.model_dump(mode="json")
-        if RUNTIME_CONTRACT is not None
-        else None
-    )
-    eval_cfg["policy_training"] = (
-        RUNTIME_CONTRACT.policy_descriptor.training.model_dump(mode="json")
-        if RUNTIME_CONTRACT is not None
-        else None
-    )
-    eval_cfg["policy_adapter"] = (
-        RUNTIME_CONTRACT.policy_descriptor.adapter.model_dump(mode="json")
-        if RUNTIME_CONTRACT is not None
-        else None
-    )
-    eval_cfg["robodojo_revision"] = ROBODOJO_REVISION
-    eval_cfg["xpolicylab_revision"] = XPOLICYLAB_REVISION
-    eval_cfg["num_envs"] = num_envs
-    eval_cfg["device_id"] = args_cli.device_id
     eval_batch = False if SIMULATOR_ONLY else _eval_batch_from_deploy(args_cli.policy_name)
     eval_cfg["eval_batch"] = eval_batch
-    eval_cfg["policy_name"] = args_cli.policy_name
-    eval_cfg["additional_info"] = args_cli.additional_info
-    eval_cfg["seed"] = args_cli.seed
-    eval_cfg["physx_monitor_enabled"] = enable_monitor
-
-    deploy_cfg = {}
-    deploy_cfg["policy_name"] = args_cli.policy_name
-    deploy_cfg["port"] = args_cli.port
-    deploy_cfg["host"] = args_cli.host
-    deploy_cfg["protocol"] = args_cli.protocol
-    deploy_cfg["policy_server_url"] = args_cli.policy_server_url or f"ws://{args_cli.host}:{args_cli.port}"
-    deploy_cfg["evaluation_id"] = os.environ["ROBODOJO_RUN_ID"]
-    deploy_cfg["trial_id"] = f"{args_cli.protocol_name}-{os.environ['ROBODOJO_RUN_ID']}"
-    deploy_cfg["action_case_id"] = f"{args_cli.protocol_name}_case"
-    deploy_cfg["repeat_index"] = None
+    deploy_cfg = build_deploy_config(
+        policy_name=args_cli.policy_name,
+        host=args_cli.host,
+        port=args_cli.port,
+        transport=args_cli.transport,
+        server_url=args_cli.policy_server_url,
+        run_id=os.environ["ROBODOJO_RUN_ID"],
+        task_protocol=args_cli.task_protocol,
+    )
     env_cfg = OmegaConf.create(
         {
             "sim": load_yaml(os.path.join(ENV_CONFIG_PATH, "sim", eval_cfg["config"]["sim"] + ".yml")),
@@ -521,7 +360,7 @@ def main():
                 )
             ),
             "scene_mounts": SCENE_PROFILE.document.mounts.model_dump(mode="python", exclude_none=True),
-            "task_env": load_yaml(task_registry.task_config_path(REPOSITORY_PATHS.task_configs, task_name)),
+            "task_env": load_yaml(REPOSITORY_PATHS.task_configs / f"{task_name}.yml"),
             "eval_cfg": eval_cfg,
             "deploy_cfg": deploy_cfg,
         }
@@ -547,7 +386,7 @@ def main():
     env_cfg, eval_num = process_config(
         env_cfg,
         task_name=task_name,
-        native_eval_num=args_cli.native_eval_num,
+        evaluation_episodes=args_cli.evaluation_episodes,
     )
 
     if os.environ.get("EVAL_NUM"):

@@ -20,7 +20,8 @@ from PIL import Image, ImageDraw
 
 logger = logging.getLogger(__name__)
 
-FIRST_FRAME_FORMAT_VERSION = 1
+FIRST_FRAME_FORMAT_VERSION = 2
+LEGACY_FIRST_FRAME_FORMAT_VERSION = 1
 METADATA_NAME = "metadata.json"
 CONTACT_SHEET_NAME = "contact_sheet.png"
 
@@ -28,11 +29,11 @@ CONTACT_SHEET_NAME = "contact_sheet.png"
 @dataclass(frozen=True)
 class FirstFrameIdentity:
     recipe: str
-    contract_hash: str
+    experiment_hash: str
     task: str
-    protocol: str
-    profile: str
-    scene_config: str
+    task_protocol: str
+    environment: str
+    scene: str
     seed: int
     layout_id: int
 
@@ -93,6 +94,10 @@ def completed_first_frame_matches(output_dir: str | Path, identity: FirstFrameId
         metadata = json.loads((output / METADATA_NAME).read_text(encoding="utf-8"))
     except (OSError, TypeError, ValueError):
         return False
+    try:
+        metadata = normalize_first_frame_metadata(metadata)
+    except ValueError:
+        return False
     artifacts = metadata.get("artifacts")
     cameras = artifacts.get("cameras") if isinstance(artifacts, dict) else None
     return bool(
@@ -104,6 +109,32 @@ def completed_first_frame_matches(output_dir: str | Path, identity: FirstFrameId
         and _artifact_matches(output, artifacts.get("contact_sheet"))
         and all(_artifact_matches(output, artifact) for artifact in cameras.values())
     )
+
+
+def normalize_first_frame_metadata(metadata: Mapping[str, Any]) -> dict[str, Any]:
+    """Return a format-v2 in-memory view of v1 or v2 snapshot metadata."""
+
+    version = metadata.get("format_version")
+    normalized = dict(metadata)
+    if version == FIRST_FRAME_FORMAT_VERSION:
+        return normalized
+    if version != LEGACY_FIRST_FRAME_FORMAT_VERSION:
+        raise ValueError(
+            f"unsupported first-frame format {version!r}; expected "
+            f"{LEGACY_FIRST_FRAME_FORMAT_VERSION} or {FIRST_FRAME_FORMAT_VERSION}"
+        )
+    identity = dict(normalized.get("identity") or {})
+    for old, new in {
+        "contract_hash": "experiment_hash",
+        "protocol": "task_protocol",
+        "profile": "environment",
+        "scene_config": "scene",
+    }.items():
+        if old in identity:
+            identity[new] = identity.pop(old)
+    normalized["identity"] = identity
+    normalized["format_version"] = FIRST_FRAME_FORMAT_VERSION
+    return normalized
 
 
 def _save_contact_sheet(output: Path, frames: Mapping[str, np.ndarray]) -> Path:
@@ -129,12 +160,12 @@ def _save_contact_sheet(output: Path, frames: Mapping[str, np.ndarray]) -> Path:
 
 def _identity(env, layout_id: int) -> FirstFrameIdentity:
     return FirstFrameIdentity(
-        recipe=str(env.recipe_name),
-        contract_hash=str(env.contract_hash),
+        recipe=str(env.recipe),
+        experiment_hash=str(env.experiment_hash),
         task=str(env.task_name),
-        protocol=str(env.protocol_name),
-        profile=str(env.config_name),
-        scene_config=str(env.scene_config),
+        task_protocol=str(env.task_protocol),
+        environment=str(env.environment),
+        scene=str(env.scene),
         seed=int(env.eval_seed),
         layout_id=int(layout_id),
     )

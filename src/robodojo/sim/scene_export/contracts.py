@@ -13,9 +13,11 @@ import zipfile
 import numpy as np
 
 from robodojo.core.paths import RepositoryPaths
-from robodojo.core.profiles import load_environment_profile, load_scene_profile
+from robodojo.core.profiles.environment import load_environment_profile
+from robodojo.core.profiles.scene import load_scene_profile
 
-SCENE_EXPORT_FORMAT_VERSION = 7
+SCENE_EXPORT_FORMAT_VERSION = 8
+LEGACY_SCENE_EXPORT_FORMAT_VERSION = 7
 REQUIRED_EXPORT_ARTIFACTS = (
     "scene_referenced.usda",
     "scene_flattened.usdc",
@@ -40,18 +42,18 @@ REQUIRED_PREVIEW_DIAGNOSTICS = (
 @dataclass(frozen=True)
 class ExportIdentity:
     task: str
-    protocol: str
+    task_protocol: str
     episode_horizon: int
-    native_eval_num: int
+    evaluation_episodes: int
     recipe: str | None
-    contract_hash: str | None
-    profile: str
-    scene_config: str
+    experiment_hash: str | None
+    environment: str
+    scene: str
     seed: int
     layout_id: int
     repository_revision: str
     environment_profile_hash: str
-    policy_contract: str
+    embodiment: str
     scene_profile_hash: str
     layout_set_hash: str
     scene_asset_hash: str
@@ -60,18 +62,18 @@ class ExportIdentity:
         return asdict(self)
 
 
-def scene_config_paths(
+def scene_input_paths(
     repo_root: Path,
-    profile: str,
-    scene_config: str,
+    environment: str,
+    scene: str,
     task: str,
     components: Mapping[str, str],
 ) -> list[Path]:
     """Return the canonical configuration inputs for a scene export."""
     repository_paths = RepositoryPaths.resolve(repo_root)
     config_root = repository_paths.environment_configs
-    scene_profile = load_scene_profile(repository_paths, scene_config)
-    environment_profile = load_environment_profile(repository_paths, profile)
+    scene_profile = load_scene_profile(repository_paths, scene)
+    environment_profile = load_environment_profile(repository_paths, environment)
     return [
         *environment_profile.source_paths,
         config_root / "camera" / f"{components['camera']}.yml",
@@ -140,6 +142,10 @@ def completed_export_matches(output_dir: str | Path, identity: ExportIdentity) -
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, ValueError, TypeError):
         return False
+    try:
+        manifest = normalize_export_manifest(manifest)
+    except ValueError:
+        return False
     artifacts = manifest.get("artifacts")
     preview = manifest.get("preview")
     complete_artifacts = isinstance(artifacts, dict) and all(
@@ -158,6 +164,34 @@ def completed_export_matches(output_dir: str | Path, identity: ExportIdentity) -
         and complete_artifacts
         and complete_preview
     )
+
+
+def normalize_export_manifest(manifest: Mapping[str, Any]) -> dict[str, Any]:
+    """Return a format-v8 in-memory view of a v7 or v8 scene manifest."""
+
+    version = manifest.get("format_version")
+    normalized = dict(manifest)
+    if version == SCENE_EXPORT_FORMAT_VERSION:
+        return normalized
+    if version != LEGACY_SCENE_EXPORT_FORMAT_VERSION:
+        raise ValueError(
+            f"unsupported scene export format {version!r}; expected "
+            f"{LEGACY_SCENE_EXPORT_FORMAT_VERSION} or {SCENE_EXPORT_FORMAT_VERSION}"
+        )
+    identity = dict(normalized.get("identity") or {})
+    for old, new in {
+        "protocol": "task_protocol",
+        "native_eval_num": "evaluation_episodes",
+        "contract_hash": "experiment_hash",
+        "profile": "environment",
+        "scene_config": "scene",
+        "policy_contract": "embodiment",
+    }.items():
+        if old in identity:
+            identity[new] = identity.pop(old)
+    normalized["identity"] = identity
+    normalized["format_version"] = SCENE_EXPORT_FORMAT_VERSION
+    return normalized
 
 
 def split_package_asset_path(path: str) -> tuple[str, str]:

@@ -12,8 +12,11 @@ import shutil
 import tempfile
 from typing import TYPE_CHECKING, Any
 
-from robodojo.core.models import SceneCatalogAsset, SceneGarmentVariantRecipe
-from robodojo.core.profiles import SceneProfile
+from robodojo.core.models.scene import (
+    SceneCatalogAsset,
+    SceneGarmentVariantRecipe,
+)
+from robodojo.core.profiles.scene import SceneProfile
 from robodojo.core.storage import assets_root as runtime_assets_root
 
 if TYPE_CHECKING:
