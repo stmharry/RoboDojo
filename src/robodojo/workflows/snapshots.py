@@ -13,17 +13,29 @@ import subprocess
 import time
 from typing import Any
 
-from robodojo.core.contracts import load_recipe_catalog, resolve_recipe
-from robodojo.core.models import (
-    SnapshotBatchRequest,
-    SnapshotCaptureRequest,
+from robodojo.core.artifacts.snapshots import (
+    SNAPSHOT_SCHEMA_VERSION,
+    normalize_recipe_metadata,
+    normalize_snapshot_summary,
+)
+from robodojo.core.experiments.catalogs import load_recipe_catalog
+from robodojo.core.experiments.selection import resolve_recipe
+from robodojo.core.models.reports import (
     SnapshotRecord,
     SnapshotSummary,
+)
+from robodojo.core.models.requests import (
+    SnapshotBatchRequest,
+    SnapshotCaptureRequest,
 )
 from robodojo.core.paths import RepositoryPaths
 from robodojo.core.storage import run_work_root, s3_uri
 from robodojo.orchestration.snapshots import run_snapshot_capture
-from robodojo.sim.scene_export.contracts import ExportIdentity, completed_export_matches
+from robodojo.sim.scene_export.contracts import (
+    ExportIdentity,
+    completed_export_matches,
+    normalize_export_manifest,
+)
 from robodojo.sim.scene_export.first_frame import FirstFrameIdentity, completed_first_frame_matches
 from robodojo.workflows.snapshot_gallery import render_snapshot_gallery
 from robodojo.workflows.storage import publish_snapshot_run
@@ -100,9 +112,9 @@ def _record(paths: RepositoryPaths, recipe_name: str, output: Path) -> SnapshotR
         policy=contract.policy_name,
         environment=contract.environment.name,
         scene=contract.scene.name,
-        protocol=contract.protocol_name,
+        task_protocol=contract.task_protocol,
         task=contract.protocol.task,
-        contract_hash=contract.identity_hash,
+        experiment_hash=contract.identity_hash,
         output_dir=str((output / recipe_name).resolve()),
     )
 
@@ -110,11 +122,11 @@ def _record(paths: RepositoryPaths, recipe_name: str, output: Path) -> SnapshotR
 def _first_frame_identity(record: SnapshotRecord, summary: SnapshotSummary) -> FirstFrameIdentity:
     return FirstFrameIdentity(
         recipe=record.recipe,
-        contract_hash=record.contract_hash,
+        experiment_hash=record.experiment_hash,
         task=record.task,
-        protocol=record.protocol,
-        profile=record.environment,
-        scene_config=record.scene,
+        task_protocol=record.task_protocol,
+        environment=record.environment,
+        scene=record.scene,
         seed=summary.seed,
         layout_id=summary.layout_id,
     )
@@ -123,11 +135,11 @@ def _first_frame_identity(record: SnapshotRecord, summary: SnapshotSummary) -> F
 def _expected_recipe_identity(record: SnapshotRecord, summary: SnapshotSummary) -> dict[str, Any]:
     return {
         "recipe": record.recipe,
-        "contract_hash": record.contract_hash,
+        "experiment_hash": record.experiment_hash,
         "policy": record.policy,
         "environment": record.environment,
         "scene": record.scene,
-        "protocol": record.protocol,
+        "task_protocol": record.task_protocol,
         "task": record.task,
         "seed": summary.seed,
         "layout_id": summary.layout_id,
@@ -138,17 +150,17 @@ def _expected_recipe_identity(record: SnapshotRecord, summary: SnapshotSummary) 
 def _validate_scene_snapshot(path: Path, record: SnapshotRecord, summary: SnapshotSummary) -> dict[str, Any]:
     manifest_path = path / "scene_manifest.json"
     try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest = normalize_export_manifest(json.loads(manifest_path.read_text(encoding="utf-8")))
         identity = ExportIdentity(**manifest["identity"])
     except (KeyError, OSError, TypeError, ValueError) as exc:
         raise RuntimeError(f"scene snapshot manifest is missing or invalid: {exc}") from exc
     expected = {
         "recipe": record.recipe,
-        "contract_hash": record.contract_hash,
+        "experiment_hash": record.experiment_hash,
         "task": record.task,
-        "protocol": record.protocol,
-        "profile": record.environment,
-        "scene_config": record.scene,
+        "task_protocol": record.task_protocol,
+        "environment": record.environment,
+        "scene": record.scene,
         "seed": summary.seed,
         "layout_id": summary.layout_id,
     }
@@ -183,7 +195,7 @@ def _inspect_recipe_bundle(record: SnapshotRecord, summary: SnapshotSummary) -> 
 def _write_recipe_metadata(record: SnapshotRecord, summary: SnapshotSummary) -> None:
     recipe_dir = Path(record.output_dir)
     payload = {
-        "format_version": 1,
+        "format_version": SNAPSHOT_SCHEMA_VERSION,
         "complete": True,
         "created_at": datetime.now(UTC).isoformat(),
         "identity": _expected_recipe_identity(record, summary),
@@ -195,9 +207,10 @@ def _write_recipe_metadata(record: SnapshotRecord, summary: SnapshotSummary) -> 
 def _completed_recipe_matches(record: SnapshotRecord, summary: SnapshotSummary) -> bool:
     try:
         metadata = json.loads((Path(record.output_dir) / "metadata.json").read_text(encoding="utf-8"))
+        metadata = normalize_recipe_metadata(metadata)
         return bool(
             metadata.get("complete")
-            and metadata.get("format_version") == 1
+            and metadata.get("format_version") == SNAPSHOT_SCHEMA_VERSION
             and metadata.get("identity") == _expected_recipe_identity(record, summary)
             and metadata.get("artifacts") == _inspect_recipe_bundle(record, summary)
         )
@@ -235,7 +248,8 @@ def _write_reports(summary: SnapshotSummary, output: Path) -> None:
 
 def _load_resume(output: Path, expected: SnapshotSummary) -> SnapshotSummary:
     try:
-        previous = SnapshotSummary.model_validate_json((output / "summary.json").read_text(encoding="utf-8"))
+        payload = json.loads((output / "summary.json").read_text(encoding="utf-8"))
+        previous = SnapshotSummary.model_validate(normalize_snapshot_summary(payload))
     except (OSError, TypeError, ValueError) as exc:
         raise ValueError(f"--resume requires a valid snapshot summary in {output}: {exc}") from exc
     fields = ("output_dir", "seed", "layout_id", "export_scene", "recipes")
@@ -284,10 +298,10 @@ def run_snapshot_batch(paths: RepositoryPaths, request: SnapshotBatchRequest) ->
     if request.dry_run:
         result = 0
         for record in summary.results:
-            contract = resolve_recipe(paths, record.recipe)
+            experiment = resolve_recipe(paths, record.recipe)
             capture = SnapshotCaptureRequest(
-                **contract.request_values(paths),
-                env_gpu=request.env_gpu,
+                experiment=experiment.spec(paths),
+                environment_gpu=request.environment_gpu,
                 output_dir=Path(record.output_dir),
                 layout_id=request.layout_id,
                 export_scene=request.export_scene,
@@ -329,10 +343,10 @@ def run_snapshot_batch(paths: RepositoryPaths, request: SnapshotBatchRequest) ->
                 break
             continue
 
-        contract = resolve_recipe(paths, record.recipe)
+        experiment = resolve_recipe(paths, record.recipe)
         capture = SnapshotCaptureRequest(
-            **contract.request_values(paths),
-            env_gpu=request.env_gpu,
+            experiment=experiment.spec(paths),
+            environment_gpu=request.environment_gpu,
             output_dir=Path(record.output_dir),
             layout_id=request.layout_id,
             export_scene=request.export_scene,

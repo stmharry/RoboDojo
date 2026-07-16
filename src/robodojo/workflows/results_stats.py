@@ -28,7 +28,7 @@ from pathlib import Path
 import re
 import sys
 
-from robodojo.core.scene_identity import ArtifactSchemaError, require_current_result_artifact
+from robodojo.core.artifacts.results import ArtifactSchemaError, normalize_artifact, require_current_result_artifact
 from robodojo.core.storage import eval_root
 from robodojo.workflows.errors import ResultsError
 
@@ -57,15 +57,15 @@ def load_completed_result(path: str) -> dict | None:
         with open(path) as stream:
             data = json.load(stream)
         require_current_result_artifact(data, context=f"evaluation result {path}")
-        return data
+        return normalize_artifact(data, context=f"evaluation result {path}")
     except ArtifactSchemaError:
         raise
     except (json.JSONDecodeError, OSError, TypeError, ValueError):
         return None
 
 
-def result_scene_config(data: dict) -> str:
-    return str(data["scene_config"])
+def result_scene(data: dict) -> str:
+    return str(data["scene"])
 
 
 def load_scores(data: dict) -> list[float]:
@@ -85,8 +85,8 @@ def load_scores(data: dict) -> list[float]:
 def scan_task(
     root: str,
     task: str,
-    env_config: str | None = None,
-    scene_config: str | None = None,
+    environment: str | None = None,
+    scene: str | None = None,
 ) -> dict[tuple[str, str, str, int], list[float]]:
     """Return latest scores keyed by policy, embodiment, scene, and seed."""
     task_path = os.path.join(root, task)
@@ -96,7 +96,7 @@ def scan_task(
     for policy in list_subdirs(task_path):
         policy_path = os.path.join(task_path, policy)
         for embodiment in list_subdirs(policy_path):
-            if env_config is not None and embodiment != env_config:
+            if environment is not None and embodiment != environment:
                 continue
             emb_path = os.path.join(policy_path, embodiment)
             for run in list_subdirs(emb_path):
@@ -110,8 +110,8 @@ def scan_task(
                     data = load_completed_result(result_file)
                     if data is None:
                         continue
-                    selected_scene = result_scene_config(data)
-                    if scene_config is not None and selected_scene != scene_config:
+                    selected_scene = result_scene(data)
+                    if scene is not None and selected_scene != scene:
                         continue
                     key = (policy, embodiment, selected_scene, seed)
                     if key not in out or ts_name > latest_ts[key]:
@@ -128,10 +128,10 @@ def ensure_unambiguous(
     """Fail before distinct embodiment/scene results collapse into one report."""
     combinations: dict[tuple[str, int], set[tuple[str, str]]] = {}
     for scan in scans:
-        for policy, embodiment, scene_config, seed in scan:
+        for policy, embodiment, scene, seed in scan:
             if policies is not None and policy not in policies:
                 continue
-            combinations.setdefault((policy, seed), set()).add((embodiment, scene_config))
+            combinations.setdefault((policy, seed), set()).add((embodiment, scene))
     for (policy, seed), values in sorted(combinations.items()):
         if len(values) <= 1:
             continue
@@ -205,8 +205,8 @@ def collect_distributions(
     policies: list[str],
     tasks: list[str] | None = None,
     per_seed: bool = False,
-    env_config: str | None = None,
-    scene_config: str | None = None,
+    environment: str | None = None,
+    scene: str | None = None,
 ) -> dict:
     all_tasks = discover_tasks(root)
     if tasks:
@@ -228,8 +228,8 @@ def collect_distributions(
     )
 
     for task in selected_tasks:
-        base_scan = scan_task(root, task, env_config, scene_config)
-        rand_scan = scan_task(root, random_of[task], env_config, scene_config) if task in random_of else None
+        base_scan = scan_task(root, task, environment, scene)
+        rand_scan = scan_task(root, random_of[task], environment, scene) if task in random_of else None
         paired = task in random_of
         scans = (base_scan,) if rand_scan is None else (base_scan, rand_scan)
         ensure_unambiguous(task, *scans, policies=policy_set)
@@ -322,8 +322,8 @@ def generate_score_report(
         policies=selected_policies,
         tasks=list(tasks) if tasks is not None else None,
         per_seed=per_seed,
-        env_config=environment,
-        scene_config=scene,
+        environment=environment,
+        scene=scene,
     )
     print_report(result, per_seed=per_seed)
     if json_out is not None:

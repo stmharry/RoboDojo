@@ -8,7 +8,10 @@ import json
 from pathlib import Path
 from urllib.parse import quote
 
-from robodojo.core.models import SnapshotRecord, SnapshotSummary
+from robodojo.core.models.reports import (
+    SnapshotRecord,
+    SnapshotSummary,
+)
 
 
 def _escape(value: object) -> str:
@@ -50,7 +53,15 @@ def _card(root: Path, record: SnapshotRecord, index: int, total: int, export_sce
     complete = record.status in {"PASS", "SKIP"}
     sheet_url, cameras = _first_frame_artifacts(root, record) if complete else (None, [])
     search = " ".join(
-        (record.recipe, record.policy, record.environment, record.scene, record.protocol, record.task, record.status)
+        (
+            record.recipe,
+            record.policy,
+            record.environment,
+            record.scene,
+            record.task_protocol,
+            record.task,
+            record.status,
+        )
     ).lower()
     status_label = "Reused" if record.status == "SKIP" else record.status.title()
     if sheet_url:
@@ -110,7 +121,7 @@ def _card(root: Path, record: SnapshotRecord, index: int, total: int, export_sce
         <dl class="identity-grid">
           <div><dt>Policy</dt><dd>{_escape(record.policy)}</dd></div>
           <div><dt>Environment</dt><dd>{_escape(record.environment)}</dd></div>
-          <div><dt>Protocol</dt><dd>{_escape(record.protocol)}</dd></div>
+          <div><dt>Task protocol</dt><dd>{_escape(record.task_protocol)}</dd></div>
           <div><dt>Elapsed</dt><dd>{record.elapsed_sec:.1f}s</dd></div>
         </dl>
         <nav class="artifact-links" aria-label="Artifacts for {_escape(record.recipe)}">

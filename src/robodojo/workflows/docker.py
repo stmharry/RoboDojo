@@ -39,11 +39,11 @@ def install(paths: RepositoryPaths) -> int:
 def smoke(
     paths: RepositoryPaths,
     image: str,
-    task: str,
+    task_protocol: str,
     policy: str,
     port: int,
     environment: str,
-    scene_config: str | None = None,
+    scene: str | None = None,
 ) -> int:
     local_storage = storage_root()
     local_storage.mkdir(parents=True, exist_ok=True)
@@ -84,9 +84,9 @@ def smoke(
         "--environment",
         environment,
         "--scene",
-        scene_config or "default",
-        "--protocol",
-        task,
+        scene or "default",
+        "--task-protocol",
+        task_protocol,
         "--policy-host",
         "127.0.0.1",
         "--policy-port",

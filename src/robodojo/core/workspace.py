@@ -12,7 +12,7 @@ from typing import Any
 import yaml
 
 from robodojo.core.layouts import ResolvedLayoutSet
-from robodojo.core.models import WorkspaceFrameContract
+from robodojo.core.models.environment import WorkspaceFrameContract
 
 OBJECT_CONFIG_TYPES = ("Rigid", "Dynamic", "Geometry", "Articulation", "Garment", "Fluid")
 POSITION_TOLERANCE = 1e-6

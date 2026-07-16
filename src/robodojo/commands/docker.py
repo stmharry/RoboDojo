@@ -35,16 +35,16 @@ def build_command(
 def smoke_command(
     port: int = typer.Option(..., "--policy-port", help="Host TCP port of the external policy server."),
     image: DockerImageOption = "robodojo:cuda12.8",
-    task: str = typer.Option("stack_bowls", "--task", help="Task protocol to evaluate."),
+    task_protocol: str = typer.Option("stack_bowls", "--task-protocol", help="Task protocol to evaluate."),
     policy: str = typer.Option("pi05_arx_x5", "--policy", help="Tracked policy profile expected by the client."),
     environment: str = typer.Option("arx_x5", "--environment", help="Environment profile to evaluate."),
-    scene_config: str | None = typer.Option(None, "--scene", help="Optional scene profile override."),
+    scene: str | None = typer.Option(None, "--scene", help="Optional scene profile override."),
     root: RepositoryRootOption = None,
 ) -> None:
     """Run a one-episode GPU and policy-connectivity check in Docker."""
     from robodojo.workflows.docker import smoke
 
-    raise typer.Exit(smoke(paths(root), image, task, policy, port, environment, scene_config))
+    raise typer.Exit(smoke(paths(root), image, task_protocol, policy, port, environment, scene))
 
 
 @docker_app.command("monitor")

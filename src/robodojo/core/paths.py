@@ -73,10 +73,6 @@ class RepositoryPaths(BaseModel):
         return self.environment_configs / "recipes.yml"
 
     @property
-    def upstream_task_contracts(self) -> Path:
-        return self.environment_configs / "reference" / "upstream_task_contracts.yml"
-
-    @property
     def scene_profiles(self) -> Path:
         return self.environment_configs / "scene" / "profiles"
 

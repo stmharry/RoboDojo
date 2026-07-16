@@ -7,9 +7,17 @@ import logging
 from pathlib import Path
 import time
 
-from robodojo.core.contracts import load_recipe_catalog, resolve_recipe
+from robodojo.core.experiments.catalogs import load_recipe_catalog
+from robodojo.core.experiments.selection import resolve_recipe
 from robodojo.core.gpu import GpuSelectionError, resolve_gpus
-from robodojo.core.models import EvaluationRequest, SmokeRecord, SmokeSummary, SweepRequest
+from robodojo.core.models.reports import (
+    SmokeRecord,
+    SmokeSummary,
+)
+from robodojo.core.models.requests import (
+    EvaluationRequest,
+    SweepRequest,
+)
 from robodojo.core.paths import RepositoryPaths
 from robodojo.core.storage import run_work_root
 from robodojo.orchestration.evaluation import run_evaluation
@@ -54,11 +62,11 @@ def _write_summary(summary: SmokeSummary, json_path: Path, markdown_path: Path) 
 
 def run_sweep(paths: RepositoryPaths, request: SweepRequest) -> int:
     try:
-        assignment = resolve_gpus(policy_gpu=request.policy_gpu, env_gpu=request.env_gpu)
+        assignment = resolve_gpus(policy_gpu=request.policy_gpu, env_gpu=request.environment_gpu)
     except GpuSelectionError as exc:
         logger.error("GPU selection failed: %s", exc)
         return 2
-    request = request.model_copy(update={"policy_gpu": assignment.policy_gpu, "env_gpu": assignment.env_gpu})
+    request = request.model_copy(update={"policy_gpu": assignment.policy_gpu, "environment_gpu": assignment.env_gpu})
     recipes = _selected_recipes(paths, request)
     run_id = request.run_id or datetime.now().strftime("%Y-%m-%d_%H-%M-%S_sweep")
     run_dir = run_work_root() / "smoke" / run_id
@@ -73,14 +81,13 @@ def run_sweep(paths: RepositoryPaths, request: SweepRequest) -> int:
     for recipe_name in recipes:
         if recipe_name in passed:
             continue
-        contract = resolve_recipe(paths, recipe_name)
-        values = contract.request_values(paths)
+        experiment = resolve_recipe(paths, recipe_name)
         started = time.monotonic()
         evaluation = EvaluationRequest(
-            **values,
+            experiment=experiment.spec(paths),
             seed=request.seed,
             policy_gpu=request.policy_gpu,
-            env_gpu=request.env_gpu,
+            environment_gpu=request.environment_gpu,
             eval_num=request.eval_num,
             dry_run=request.dry_run,
         )
@@ -89,7 +96,7 @@ def run_sweep(paths: RepositoryPaths, request: SweepRequest) -> int:
         record = SmokeRecord(
             status=status,
             recipe=recipe_name,
-            scene_config=contract.scene.name,
+            scene=experiment.scene.name,
             exit_code=code,
             elapsed_sec=time.monotonic() - started,
             message="" if code == 0 else f"evaluation exited {code}",

@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from robodojo.core.profiles import EnvironmentProfile
+from robodojo.core.profiles.environment import EnvironmentProfile
 from robodojo.core.storage import assets_root
 
 

@@ -8,7 +8,6 @@ import sys
 from typing import Any
 
 from robodojo.core.paths import RepositoryPaths, discover_repository_root
-from robodojo.sim import tasks_registry
 
 ROOT_DIR = discover_repository_root()
 BENCHMARK = "RoboDojo"
@@ -21,20 +20,24 @@ def _module_classes(path: Path) -> set[str]:
     return {node.name for node in tree.body if isinstance(node, ast.ClassDef)}
 
 
-def _task_records() -> list[dict[str, Any]]:
+def _task_records(paths: RepositoryPaths | None = None) -> list[dict[str, Any]]:
+    repository = paths or RepositoryPaths.resolve(ROOT_DIR)
+    root = repository.root
+    task_dir = root / "src" / "robodojo" / "sim" / "tasks"
+    config_dir = repository.task_configs
     records = []
-    for path in sorted(TASK_DIR.glob("*.py")):
+    for path in sorted(task_dir.glob("*.py")):
         if path.name == "__init__.py":
             continue
         name = path.stem
         classes = _module_classes(path)
-        config_path = tasks_registry.task_config_path(CONFIG_DIR, name)
+        config_path = config_dir / f"{name}.yml"
         record = {
             "name": name,
             "module": f"robodojo.sim.tasks.{name}",
             "class_name": name,
             "class_exists": name in classes,
-            "config": str(config_path.relative_to(ROOT_DIR)) if config_path.exists() else None,
+            "config": str(config_path.relative_to(root)) if config_path.exists() else None,
             "config_exists": config_path.exists(),
         }
         record["runnable"] = bool(record["class_exists"] and record["config_exists"])
@@ -42,15 +45,18 @@ def _task_records() -> list[dict[str, Any]]:
     return records
 
 
-def build_inventory() -> dict[str, Any]:
-    tasks = _task_records()
+def build_inventory(paths: RepositoryPaths | None = None) -> dict[str, Any]:
+    repository = paths or RepositoryPaths.resolve(ROOT_DIR)
+    root = repository.root
+    config_dir = repository.task_configs
+    tasks = _task_records(repository)
     task_names = {task["name"] for task in tasks}
-    config_names = {path.stem for path in CONFIG_DIR.glob("*.yml") if not path.name.startswith("_")}
+    config_names = {path.stem for path in config_dir.glob("*.yml") if not path.name.startswith("_")}
     inventory = {
         "benchmark": BENCHMARK,
-        "root": str(ROOT_DIR),
+        "root": str(root),
         "task_dir": "robodojo.sim.tasks",
-        "config_dir": str(CONFIG_DIR.relative_to(ROOT_DIR)),
+        "config_dir": str(config_dir.relative_to(root)),
         "counts": {
             "tasks": len(tasks),
             "runnable": sum(1 for task in tasks if task["runnable"]),

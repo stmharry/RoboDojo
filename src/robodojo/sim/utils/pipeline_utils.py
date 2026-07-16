@@ -84,11 +84,11 @@ def _enable_teleop_physx_stabilization(sim_cfg):
     sim_cfg["physx"]["enable_stabilization"] = True
 
 
-def process_config(env_cfg, task_name, native_eval_num):
+def process_config(env_cfg, task_name, evaluation_episodes):
     env_cfg = configure_task_physics_device(env_cfg)
     task_index_path = os.path.join(TASK_CONFIG_PATH, "_task.yml")
     info = load_yaml(task_index_path)
-    task_info = info["tasks"].get(task_name, {})
+    task_info = info["tasks"].get(task_name) or {}
     common_info = info.get("common", {})
 
     if _task_setting(task_info, common_info, "data_source", "datagen") == "teleop":
@@ -103,4 +103,4 @@ def process_config(env_cfg, task_name, native_eval_num):
         for cfg in env_cfg.robot.robots:
             cfg["enabled_self_collisions"] = False
 
-    return env_cfg, int(native_eval_num)
+    return env_cfg, int(evaluation_episodes)

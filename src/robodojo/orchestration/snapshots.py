@@ -5,7 +5,10 @@ from __future__ import annotations
 import logging
 
 from robodojo.core.gpu import GpuSelectionError, resolve_gpus
-from robodojo.core.models import SimulatorLaunchRequest, SnapshotCaptureRequest
+from robodojo.core.models.requests import (
+    SimulatorLaunchRequest,
+    SnapshotCaptureRequest,
+)
 from robodojo.core.paths import RepositoryPaths
 from robodojo.orchestration.evaluation import run_simulator_session
 
@@ -15,11 +18,11 @@ logger = logging.getLogger(__name__)
 def run_snapshot_capture(paths: RepositoryPaths, request: SnapshotCaptureRequest) -> int:
     """Capture one recipe without resolving or starting its policy runtime."""
     try:
-        assignment = resolve_gpus(env_gpu=request.env_gpu)
+        assignment = resolve_gpus(env_gpu=request.environment_gpu)
     except GpuSelectionError as exc:
         logger.error("GPU selection failed: %s", exc)
         return 2
-    request = request.model_copy(update={"env_gpu": assignment.env_gpu})
+    request = request.model_copy(update={"environment_gpu": assignment.env_gpu})
 
     if not request.dry_run:
         from robodojo.workflows.preflight import emit_report, request_from_evaluation, run_simulator_preflight
@@ -30,21 +33,14 @@ def run_snapshot_capture(paths: RepositoryPaths, request: SnapshotCaptureRequest
             return 2
 
     simulator_request = SimulatorLaunchRequest(
-        task=request.task,
-        protocol_name=request.protocol,
-        episode_horizon=request.episode_horizon,
-        native_eval_num=request.native_eval_num,
-        recipe=request.recipe,
-        contract_hash=request.contract_hash,
-        policy_name=request.policy_dir.expanduser().resolve().name,
+        experiment=request.experiment,
+        policy_name=request.experiment.policy_dir.expanduser().resolve().name,
         host="127.0.0.1",
         port=1,
-        env_config=request.env_config,
-        scene_config=request.scene_config,
-        env_gpu=request.env_gpu,
+        environment_gpu=request.environment_gpu,
         seed=request.seed,
         eval_num=1,
-        additional_info=f"ckpt_name=snapshot,action_type={request.action_type}",
+        additional_info=f"ckpt_name=snapshot,action_type={request.experiment.action_type}",
         dry_run=request.dry_run,
     )
     simulator_env = {

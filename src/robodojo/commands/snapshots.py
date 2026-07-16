@@ -9,7 +9,7 @@ import typer
 
 from robodojo.commands.common import model, paths
 from robodojo.commands.options import DryRunOption, EnvironmentGpuOption, RepositoryRootOption, SeedOption
-from robodojo.core.models import SnapshotBatchRequest
+from robodojo.core.models.requests import SnapshotBatchRequest
 
 
 def snapshots(
@@ -62,7 +62,7 @@ def snapshots(
         recipes=tuple(recipe or ()),
         seed=seed,
         layout_id=layout_id,
-        env_gpu=env_gpu,
+        environment_gpu=env_gpu,
         output_dir=output_dir,
         export_scene=export_scene,
         publish=publish,

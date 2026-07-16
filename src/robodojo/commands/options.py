@@ -49,9 +49,9 @@ SceneOption: TypeAlias = Annotated[
     str | None,
     typer.Option("--scene", help="Manual scene profile."),
 ]
-ProtocolOption: TypeAlias = Annotated[
+TaskProtocolOption: TypeAlias = Annotated[
     str | None,
-    typer.Option("--protocol", help="Manual task protocol."),
+    typer.Option("--task-protocol", help="Manual task protocol."),
 ]
 SeedOption: TypeAlias = Annotated[
     int,

@@ -8,7 +8,7 @@ from typing import Annotated
 
 import typer
 
-from robodojo.commands.common import contract_values, model, paths
+from robodojo.commands.common import experiment_spec, model, paths
 from robodojo.commands.options import (
     CheckpointLabelOption,
     DryRunOption,
@@ -17,16 +17,16 @@ from robodojo.commands.options import (
     EvaluationCountOption,
     PolicyGpuOption,
     PolicyProfileOption,
-    ProtocolOption,
     RecipeOption,
     ReportFormat,
     ReportFormatOption,
     RepositoryRootOption,
     SceneOption,
     SeedOption,
+    TaskProtocolOption,
     parse_evaluation_count,
 )
-from robodojo.core.models import (
+from robodojo.core.models.requests import (
     EvaluationRequest,
     PreflightRequest,
     ServerRequest,
@@ -39,7 +39,7 @@ def doctor(
     policy_profile: PolicyProfileOption = None,
     environment: EnvironmentOption = None,
     scene: SceneOption = None,
-    protocol: ProtocolOption = None,
+    task_protocol: TaskProtocolOption = None,
     skip_policy: bool = typer.Option(
         False,
         "--skip-policy",
@@ -51,23 +51,18 @@ def doctor(
     from robodojo.workflows.doctor import run_doctor
 
     repository = paths(root)
-    contract = contract_values(
+    experiment = experiment_spec(
         repository,
         recipe=recipe,
         policy_profile=policy_profile,
         environment=environment,
         scene=scene,
-        protocol=protocol,
+        task_protocol=task_protocol,
     )
     code = run_doctor(
         repository,
-        contract["task"],
-        contract["protocol"],
-        contract["episode_horizon"],
-        contract["native_eval_num"],
-        contract["env_config"],
-        None if skip_policy else contract["policy_dir"],
-        contract["scene_config"],
+        experiment,
+        None if skip_policy else experiment.policy_dir,
     )
     raise typer.Exit(code)
 
@@ -77,7 +72,7 @@ def preflight(
     policy_profile: PolicyProfileOption = None,
     environment: EnvironmentOption = None,
     scene: SceneOption = None,
-    protocol: ProtocolOption = None,
+    task_protocol: TaskProtocolOption = None,
     seed: SeedOption = 0,
     policy_gpu: PolicyGpuOption = "auto",
     env_gpu: EnvironmentGpuOption = "auto",
@@ -94,20 +89,20 @@ def preflight(
     from robodojo.workflows.preflight import run_preflight
 
     repository = paths(root)
-    contract = contract_values(
+    experiment = experiment_spec(
         repository,
         recipe=recipe,
         policy_profile=policy_profile,
         environment=environment,
         scene=scene,
-        protocol=protocol,
+        task_protocol=task_protocol,
     )
     request = model(
         PreflightRequest,
-        **contract,
+        experiment=experiment,
         seed=seed,
         policy_gpu=policy_gpu,
-        env_gpu=env_gpu,
+        environment_gpu=env_gpu,
         publish=publish,
         deep=deep,
         timeout=timeout,
@@ -120,7 +115,7 @@ def evaluate(
     policy_profile: PolicyProfileOption = None,
     environment: EnvironmentOption = None,
     scene: SceneOption = None,
-    protocol: ProtocolOption = None,
+    task_protocol: TaskProtocolOption = None,
     seed: SeedOption = 0,
     policy_gpu: PolicyGpuOption = "auto",
     env_gpu: EnvironmentGpuOption = "auto",
@@ -157,20 +152,20 @@ def evaluate(
     from robodojo.orchestration.evaluation import run_evaluation
 
     repository = paths(root)
-    contract = contract_values(
+    experiment = experiment_spec(
         repository,
         recipe=recipe,
         policy_profile=policy_profile,
         environment=environment,
         scene=scene,
-        protocol=protocol,
+        task_protocol=task_protocol,
     )
     request = model(
         EvaluationRequest,
-        **contract,
+        experiment=experiment,
         seed=seed,
         policy_gpu=policy_gpu,
-        env_gpu=env_gpu,
+        environment_gpu=env_gpu,
         eval_num=parse_evaluation_count(eval_num),
         checkpoint_label=checkpoint_label,
         export_scene=export_scene,
@@ -188,7 +183,7 @@ def server(
     policy_profile: PolicyProfileOption = None,
     environment: EnvironmentOption = None,
     scene: SceneOption = None,
-    protocol: ProtocolOption = None,
+    task_protocol: TaskProtocolOption = None,
     seed: SeedOption = 0,
     policy_gpu: PolicyGpuOption = "auto",
     env_gpu: EnvironmentGpuOption = "auto",
@@ -213,20 +208,20 @@ def server(
     from robodojo.orchestration.split import run_server
 
     repository = paths(root)
-    contract = contract_values(
+    experiment = experiment_spec(
         repository,
         recipe=recipe,
         policy_profile=policy_profile,
         environment=environment,
         scene=scene,
-        protocol=protocol,
+        task_protocol=task_protocol,
     )
     request = model(
         ServerRequest,
-        **contract,
+        experiment=experiment,
         seed=seed,
         policy_gpu=policy_gpu,
-        env_gpu=env_gpu,
+        environment_gpu=env_gpu,
         port=policy_port,
         host=bind_host,
         dry_run=dry_run,
@@ -241,7 +236,7 @@ def _run_client(
     policy_profile: str | None,
     environment: str | None,
     scene: str | None,
-    protocol: str | None,
+    task_protocol: str | None,
     policy_host: str,
     policy_port: int,
     env_gpu: str,
@@ -256,16 +251,16 @@ def _run_client(
     from robodojo.orchestration.split import run_client
 
     repository = paths(root)
-    contract = contract_values(
+    experiment = experiment_spec(
         repository,
         recipe=recipe,
         policy_profile=policy_profile,
         environment=environment,
         scene=scene,
-        protocol=protocol,
+        task_protocol=task_protocol,
     )
-    resolved_name = Path(contract["policy_dir"]).name
-    label = safe_checkpoint_label(contract["checkpoint"], checkpoint_label)
+    resolved_name = experiment.policy_dir.name
+    label = safe_checkpoint_label(experiment.checkpoint, checkpoint_label)
     try:
         assignment = resolve_gpus(env_gpu=parse_gpu_selector(env_gpu))
     except GpuSelectionError as exc:
@@ -273,24 +268,14 @@ def _run_client(
         return 2
     request = model(
         SimulatorLaunchRequest,
-        task=contract["task"],
-        protocol_name=contract["protocol"],
-        episode_horizon=contract["episode_horizon"],
-        native_eval_num=contract["native_eval_num"],
-        recipe=contract["recipe"],
-        contract_hash=contract["contract_hash"],
+        experiment=experiment,
         policy_name=resolved_name,
-        policy_profile=contract["policy_profile"],
-        policy_descriptor_hash=contract["policy_descriptor_hash"],
-        policy_reference_match=contract["policy_reference_match"],
         host=policy_host,
         port=policy_port,
-        env_config=contract["env_config"],
-        scene_config=contract["scene_config"],
-        env_gpu=assignment.env_gpu,
+        environment_gpu=assignment.env_gpu,
         seed=seed,
         eval_num=parse_evaluation_count(eval_num),
-        additional_info=f"ckpt_name={label},action_type={contract['action_type']}",
+        additional_info=f"ckpt_name={label},action_type={experiment.action_type}",
         dry_run=dry_run,
     )
     return run_client(repository, request, connect_timeout=connect_timeout)
@@ -305,7 +290,7 @@ def client(
     policy_profile: PolicyProfileOption = None,
     environment: EnvironmentOption = None,
     scene: SceneOption = None,
-    protocol: ProtocolOption = None,
+    task_protocol: TaskProtocolOption = None,
     policy_host: str = typer.Option(
         "127.0.0.1",
         "--policy-host",
@@ -348,24 +333,44 @@ def adapter_client(
     policy_server_url: str = typer.Option("", "--policy-server-url", "--policy_server_url"),
 ) -> None:
     """Private adapter used by unchanged XPolicyLab shell launchers."""
+    from robodojo.core.models.experiment import ExperimentSpec
+    from robodojo.core.profiles.environment import load_environment_profile
     from robodojo.orchestration.evaluation import run_simulator_session
 
+    repository = paths(root_dir)
+    environment_profile = load_environment_profile(
+        repository,
+        env_config,
+        validate_calibration=False,
+        require_selectable=False,
+    )
+    action_type = "ee" if "action_type=ee" in additional_info else "joint"
+    experiment = ExperimentSpec(
+        policy_dir=repository.xpolicy_root / "policy" / policy_name,
+        task=task_name,
+        checkpoint=policy_name,
+        policy_profile=policy_name,
+        policy_runtime="external",
+        dataset="RoboDojo",
+        environment=env_config,
+        embodiment=environment_profile.embodiment,
+        scene=scene_config,
+        action_type=action_type,
+        task_protocol=task_protocol,
+        episode_horizon=episode_horizon,
+        evaluation_episodes=native_eval_num,
+    )
     request = model(
         SimulatorLaunchRequest,
-        task=task_name,
-        protocol_name=task_protocol,
-        episode_horizon=episode_horizon,
-        native_eval_num=native_eval_num,
+        experiment=experiment,
         policy_name=policy_name,
         host=host,
         port=port,
-        env_config=env_config,
-        scene_config=scene_config,
-        env_gpu=device_id,
+        environment_gpu=device_id,
         seed=seed,
         eval_num=os.environ.get("EVAL_NUM", "native"),
         additional_info=additional_info,
-        protocol=protocol,
+        transport=protocol,
         policy_server_url=policy_server_url,
     )
-    raise typer.Exit(run_simulator_session(paths(root_dir), request))
+    raise typer.Exit(run_simulator_session(repository, request))

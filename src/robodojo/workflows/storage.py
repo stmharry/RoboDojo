@@ -12,8 +12,9 @@ import subprocess
 import sys
 import tempfile
 
-from robodojo.core.models import SnapshotSummary
-from robodojo.core.scene_identity import ArtifactSchemaError, require_current_result_artifact
+from robodojo.core.artifacts.results import ArtifactSchemaError, require_current_result_artifact
+from robodojo.core.artifacts.snapshots import normalize_snapshot_summary
+from robodojo.core.models.reports import SnapshotSummary
 from robodojo.core.storage import eval_work_root, s3_uri, storage_root
 from robodojo.workflows.errors import StorageError
 
@@ -298,7 +299,8 @@ def publish_snapshot_run(
     source = source.expanduser().resolve()
     summary_path = source / "summary.json"
     try:
-        summary = SnapshotSummary.model_validate_json(summary_path.read_text(encoding="utf-8"))
+        payload = json.loads(summary_path.read_text(encoding="utf-8"))
+        summary = SnapshotSummary.model_validate(normalize_snapshot_summary(payload))
     except (OSError, TypeError, ValueError) as exc:
         raise StorageError(f"snapshot summary is invalid: {summary_path}: {exc}") from exc
     if summary.run_id != run_id:

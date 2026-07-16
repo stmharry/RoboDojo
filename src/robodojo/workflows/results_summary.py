@@ -33,7 +33,7 @@ import re
 import statistics
 import sys
 
-from robodojo.core.scene_identity import ArtifactSchemaError, require_current_result_artifact
+from robodojo.core.artifacts.results import ArtifactSchemaError, normalize_artifact, require_current_result_artifact
 from robodojo.core.storage import eval_root, summary_path
 from robodojo.workflows.errors import ResultsError
 
@@ -115,15 +115,15 @@ def load_completed_result(path):
         with open(path) as fh:
             data = json.load(fh)
         require_current_result_artifact(data, context=f"evaluation result {path}")
-        return data
+        return normalize_artifact(data, context=f"evaluation result {path}")
     except ArtifactSchemaError:
         raise
     except (json.JSONDecodeError, OSError, TypeError, ValueError):
         return None
 
 
-def result_scene_config(data):
-    return str(data["scene_config"])
+def result_scene(data):
+    return str(data["scene"])
 
 
 def load_entries(data):
@@ -140,7 +140,7 @@ def load_entries(data):
     return [(s, sc) for _, s, sc in items]
 
 
-def scan_task(root, task, environment=None, scene_config=None):
+def scan_task(root, task, environment=None, scene=None):
     """Return latest entries keyed by policy, embodiment, scene, and seed."""
     task_path = os.path.join(root, task)
     out = {}
@@ -162,8 +162,8 @@ def scan_task(root, task, environment=None, scene_config=None):
                     data = load_completed_result(result_file)
                     if data is None:
                         continue
-                    selected_scene = result_scene_config(data)
-                    if scene_config is not None and selected_scene != scene_config:
+                    selected_scene = result_scene(data)
+                    if scene is not None and selected_scene != scene:
                         continue
                     entries = load_entries(data)
                     key = (policy, embodiment, selected_scene, seed)
@@ -173,13 +173,13 @@ def scan_task(root, task, environment=None, scene_config=None):
     return out
 
 
-def collect_policy_seeds(root, environment=None, scene_config=None):
+def collect_policy_seeds(root, environment=None, scene=None):
     """Return {policy: sorted seeds} seen below the selected result root."""
     seeds = {}
     for name in list_subdirs(root):
         if name.endswith("_random"):
             continue
-        for policy, _embodiment, _scene, seed in scan_task(root, name, environment, scene_config):
+        for policy, _embodiment, _scene, seed in scan_task(root, name, environment, scene):
             seeds.setdefault(policy, set()).add(seed)
     return {policy: sorted(values) for policy, values in seeds.items()}
 
@@ -188,10 +188,10 @@ def ensure_unambiguous(task, *scans, policies=None):
     """Fail before distinct embodiment/scene results collapse into one cell."""
     combinations = {}
     for scan in scans:
-        for policy, embodiment, scene_config, seed in scan:
+        for policy, embodiment, scene, seed in scan:
             if policies is not None and policy not in policies:
                 continue
-            combinations.setdefault((policy, seed), set()).add((embodiment, scene_config))
+            combinations.setdefault((policy, seed), set()).add((embodiment, scene))
     for (policy, seed), values in sorted(combinations.items()):
         if len(values) <= 1:
             continue

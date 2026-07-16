@@ -44,7 +44,7 @@ def recipes(
     root: RepositoryRootOption = None,
 ) -> None:
     """List and validate explicit evaluation recipes."""
-    from robodojo.core.contracts import recipe_rows
+    from robodojo.core.experiments.presentation import recipe_rows
 
     repository = paths(root)
     try:
@@ -58,7 +58,7 @@ def recipes(
         for row in rows:
             typer.echo(
                 f"{row['recipe']}\t{row['policy']}\t{row['environment']}\t"
-                f"{row['scene']}\t{row['protocol']}\t{row['task']}"
+                f"{row['scene']}\t{row['task_protocol']}\t{row['task']}"
             )
     else:
         from robodojo.workflows.recipe_inventory import print_recipe_table

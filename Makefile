@@ -59,10 +59,10 @@ EXPORT_SCENE_FLAG = $(call boolean_flag,EXPORT_SCENE,--export-scene)
 DEEP_FLAG = $(call boolean_flag,DEEP,--deep)
 DRY_RUN_FLAG = $(call boolean_flag,DRY_RUN,--dry-run)
 SNAPSHOT_DIR_FLAG = $(if $(strip $(SNAPSHOT_DIR)),--output-dir "$(SNAPSHOT_DIR)")
-CONTRACT_ARGS = --recipe "$(RECIPE)"
+EXPERIMENT_SELECTION_ARGS = --recipe "$(RECIPE)"
 
 EXPERIMENT_ARGS = \
-	$(CONTRACT_ARGS) \
+	$(EXPERIMENT_SELECTION_ARGS) \
 	--seed "$(SEED)" \
 	--policy-gpu "$(POLICY_GPU)" \
 	--env-gpu "$(ENV_GPU)"
@@ -116,14 +116,14 @@ _eval-config-check: _config-check
 	@$(call boolean_flag,EXPORT_SCENE,true)
 
 setup: _config-check ## Prepare XPolicyLab, locked env, assets, policy runtime, and checkpoint
-	$(ROBODOJO_SETUP) setup $(CONTRACT_ARGS) --seed "$(SEED)" --policy-gpu "$(POLICY_GPU)" $(ARGS)
+	$(ROBODOJO_SETUP) setup $(EXPERIMENT_SELECTION_ARGS) --seed "$(SEED)" --policy-gpu "$(POLICY_GPU)" $(ARGS)
 
 preflight: _config-check ## Validate the configured experiment; DEEP=true checks policy readiness
 	$(ROBODOJO_SIM) preflight $(EXPERIMENT_ARGS) $(DEEP_FLAG) $(ARGS)
 
 eval: _eval-config-check ## Prepare and evaluate locally with built-in fast preflight
 ifneq ($(strip $(DRY_RUN)),true)
-	$(ROBODOJO_SETUP) setup $(CONTRACT_ARGS) --seed "$(SEED)" --policy-gpu "$(POLICY_GPU)"
+	$(ROBODOJO_SETUP) setup $(EXPERIMENT_SELECTION_ARGS) --seed "$(SEED)" --policy-gpu "$(POLICY_GPU)"
 endif
 	$(ROBODOJO_SIM) eval $(EXPERIMENT_ARGS) --eval-num "$(EVAL_NUM)" $(EXPORT_SCENE_FLAG) $(PUBLISH_FLAG) $(DRY_RUN_FLAG) $(ARGS)
 
@@ -157,7 +157,7 @@ tasks: ## List canonical tasks
 	$(ROBODOJO_BASE) tasks $(ARGS)
 
 doctor: _config-check ## Inspect the configured simulator and policy adapter
-	$(ROBODOJO_SIM) doctor $(CONTRACT_ARGS) $(ARGS)
+	$(ROBODOJO_SIM) doctor $(EXPERIMENT_SELECTION_ARGS) $(ARGS)
 
 results: ## Summarize local evaluation results
 	$(ROBODOJO_BASE) results summarize $(ARGS)

@@ -17,7 +17,7 @@ from robodojo.commands.options import (
     SeedOption,
     parse_evaluation_count,
 )
-from robodojo.core.models import SweepRequest
+from robodojo.core.models.requests import SweepRequest
 
 RecipesOption = Annotated[
     list[str],
@@ -68,7 +68,7 @@ def _run_sweep(
         recipes=tuple(recipe),
         seed=seed,
         policy_gpu=policy_gpu,
-        env_gpu=env_gpu,
+        environment_gpu=env_gpu,
         eval_num=parse_evaluation_count(eval_num),
         limit=limit,
         resume=resume,

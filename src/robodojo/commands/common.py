@@ -31,32 +31,32 @@ def model(model_type: type[Any], **values: Any) -> Any:
         raise typer.Exit(2) from exc
 
 
-def contract_values(
+def experiment_spec(
     repository: RepositoryPaths,
     *,
     recipe: str | None,
     policy_profile: str | None,
     environment: str | None,
     scene: str | None,
-    protocol: str | None,
-) -> dict[str, Any]:
-    """Resolve one strict recipe or complete manual component selection."""
+    task_protocol: str | None,
+):
+    """Resolve one recipe or complete manual selection into an immutable aggregate."""
 
-    from robodojo.core.contracts import resolve_selection
+    from robodojo.core.experiments.selection import resolve_selection
 
     try:
-        contract = resolve_selection(
+        experiment = resolve_selection(
             repository,
             recipe=recipe,
             policy=policy_profile,
             environment=environment,
             scene=scene,
-            protocol=protocol,
+            task_protocol=task_protocol,
         )
     except (OSError, RuntimeError, ValueError) as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(2) from exc
-    return contract.request_values(repository)
+    return experiment.spec(repository)
 
 
 def workflow_error(exc: Exception, *, code: int = 1) -> NoReturn:

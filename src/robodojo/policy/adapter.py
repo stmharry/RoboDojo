@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 import sys
 
-from robodojo.core.models import PolicyServerLaunchRequest
+from robodojo.core.models.requests import PolicyServerLaunchRequest
 from robodojo.core.processes import format_command, free_port, run
 from robodojo.core.storage import checkpoint_label
 
@@ -30,18 +30,19 @@ def require_policy_adapter(policy_dir: Path) -> Path:
 
 def policy_server_command(request: PolicyServerLaunchRequest, port: int) -> list[str]:
     """Build the official XPolicyLab setup adapter argument vector."""
-    script = require_policy_adapter(request.policy_dir)
+    experiment = request.experiment
+    script = require_policy_adapter(experiment.policy_dir)
     return [
         "bash",
         str(script),
-        request.dataset,
-        request.task,
-        request.checkpoint,
-        request.policy_contract or request.env_config,
-        request.action_type,
+        experiment.dataset,
+        experiment.task,
+        experiment.checkpoint,
+        experiment.embodiment,
+        experiment.action_type,
         str(request.seed),
         str(request.policy_gpu),
-        request.policy_env,
+        experiment.policy_runtime,
         str(port),
         request.host,
     ]
@@ -52,20 +53,21 @@ def policy_hook_command(request: PolicyServerLaunchRequest, hook_name: str) -> l
     allowed = {"prepare_eval_policy.sh", "check_eval_policy.sh"}
     if hook_name not in allowed:
         raise ValueError(f"unsupported policy hook: {hook_name}")
-    hook = request.policy_dir.expanduser().resolve() / hook_name
+    experiment = request.experiment
+    hook = experiment.policy_dir.expanduser().resolve() / hook_name
     if not hook.is_file():
         return None
     return [
         "bash",
         str(hook),
-        request.dataset,
-        request.task,
-        request.checkpoint,
-        request.policy_contract or request.env_config,
-        request.action_type,
+        experiment.dataset,
+        experiment.task,
+        experiment.checkpoint,
+        experiment.embodiment,
+        experiment.action_type,
         str(request.seed),
         str(request.policy_gpu),
-        request.policy_env,
+        experiment.policy_runtime,
     ]
 
 
@@ -81,9 +83,9 @@ def run_policy_server(request: PolicyServerLaunchRequest) -> int:
     """Launch one policy-owned adapter from its policy directory."""
     port = request.port or free_port()
     argv = policy_server_command(request, port)
-    env = policy_launch_environment(request.checkpoint)
+    env = policy_launch_environment(request.experiment.checkpoint)
     logger.info("policy server: %s:%s", request.host, port)
     if request.dry_run:
         sys.stdout.write(f"{format_command(argv, env)}\n")
         return 0
-    return run(argv, cwd=request.policy_dir.expanduser().resolve(), env=env)
+    return run(argv, cwd=request.experiment.policy_dir.expanduser().resolve(), env=env)
