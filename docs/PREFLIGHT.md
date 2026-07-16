@@ -125,7 +125,7 @@ uv run --locked robodojo setup \
 The preflight JSON object has a stable top-level `status` and a `checks` array whose
 records contain `name`, `status`, `detail`, and optional `remediation`.
 
-Real `eval`, `server`, `smoke`, and `benchmark` commands run fast preflight
+Real `eval`, `server`, `snapshots`, `smoke`, and `benchmark` commands run fast preflight
 before selecting a free port or starting policy/simulator processes. Sweeps
 accept explicit repeated recipes; they never synthesize arbitrary policy/task
 combinations. Dry runs intentionally skip

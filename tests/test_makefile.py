@@ -104,6 +104,36 @@ def test_make_sweeps_forward_only_explicit_recipe_lists():
     assert "--task" not in result.stdout
 
 
+def test_make_snapshots_defaults_to_all_and_forwards_optional_scene_bundle():
+    default = run_make("-n", "snapshots")
+    assert default.returncode == 0, default.stderr
+    assert " snapshots " in default.stdout
+    assert "--recipe" not in default.stdout
+    assert '--seed "0"' in default.stdout
+    assert '--layout-id "0"' in default.stdout
+    assert "--export-scene" not in default.stdout
+
+    selected = run_make(
+        "-n",
+        "snapshots",
+        f"RECIPES={RECIPE}",
+        "LAYOUT_ID=3",
+        "SNAPSHOT_DIR=/tmp/frames",
+        "EXPORT_SCENE=true",
+    )
+    assert selected.returncode == 0, selected.stderr
+    assert f'--recipe "{RECIPE}"' in selected.stdout
+    assert '--layout-id "3"' in selected.stdout
+    assert '--output-dir "/tmp/frames"' in selected.stdout
+    assert "--export-scene" in selected.stdout
+
+
+def test_make_snapshots_rejects_invalid_layout_id():
+    result = run_make("snapshots", "LAYOUT_ID=-1")
+    assert result.returncode != 0
+    assert "LAYOUT_ID must be a nonnegative integer" in result.stderr
+
+
 def test_make_rejects_invalid_controls():
     cases = (
         ("SEED=-1", "SEED must be a nonnegative integer"),

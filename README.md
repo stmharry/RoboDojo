@@ -104,6 +104,22 @@ launching. Inspect the deliberately small Make surface with:
 make help
 ```
 
+Capture the exact first RGB observation for every tracked recipe without
+starting a policy server:
+
+```bash
+make snapshots
+make snapshots EXPORT_SCENE=true
+```
+
+The first command writes every configured camera PNG, a per-recipe contact
+sheet, structured summaries, and an offline `index.html` gallery below
+`.robodojo/runs/snapshots/<timestamp>/`. `EXPORT_SCENE=true` also reuses the
+normal scene exporter to add referenced USDA, flattened USDC, and preview USDZ
+bundles. Use `RECIPES="<name> ..."`, `LAYOUT_ID=<n>`, or `SNAPSHOT_DIR=<path>`
+to narrow or relocate a batch. Completed explicit output directories can be
+continued with `ARGS=--resume`.
+
 Make is the opinionated argument- and environment-driven interface. The CLI is
 explicit and reads runtime settings from the process environment only; support
 operations remain grouped under `assets`, `data`, `storage`, `results`, and

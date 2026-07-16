@@ -101,8 +101,15 @@ SCENE_EXPORT_REQUESTED = _env_flag("ROBODOJO_EXPORT_SCENE") or _env_flag("ROBODO
 SCENE_EXPORT_ONLY = _env_flag("ROBODOJO_EXPORT_SCENE_ONLY")
 SCENE_EXPORT_LAYOUT_ID = int(os.environ.get("ROBODOJO_EXPORT_LAYOUT_ID", "0"))
 SCENE_VISUAL_AUDIT_REQUESTED = _env_flag("ROBODOJO_SCENE_VISUAL_AUDIT")
+FIRST_FRAME_CAPTURE_REQUESTED = _env_flag("ROBODOJO_CAPTURE_FIRST_FRAME")
+FIRST_FRAME_CAPTURE_DIR = os.environ.get("ROBODOJO_FIRST_FRAME_DIR", "").strip()
+SIMULATOR_ONLY = SCENE_EXPORT_ONLY or FIRST_FRAME_CAPTURE_REQUESTED
 if SCENE_VISUAL_AUDIT_REQUESTED and not SCENE_EXPORT_ONLY:
     raise ValueError("ROBODOJO_SCENE_VISUAL_AUDIT=1 is valid only with --export-scene-only")
+if FIRST_FRAME_CAPTURE_REQUESTED and SCENE_EXPORT_ONLY:
+    raise ValueError("first-frame capture cannot be combined with scene-export-only mode")
+if FIRST_FRAME_CAPTURE_REQUESTED and not FIRST_FRAME_CAPTURE_DIR:
+    raise ValueError("ROBODOJO_CAPTURE_FIRST_FRAME=1 requires ROBODOJO_FIRST_FRAME_DIR")
 
 # Safe to import before AppLauncher: env is a namespace package (no __init__)
 # and GLOBAL_CONFIGS only imports os, so this pulls in no app-dependent code.
@@ -122,6 +129,10 @@ class PhysXFatalError(Exception):
 
 
 class SceneExportError(RuntimeError):
+    pass
+
+
+class FirstFrameCaptureError(RuntimeError):
     pass
 
 
@@ -348,7 +359,7 @@ def main():
     PhysX crash/resume recovery until the requested episode count is reached.
     """
     task_name = args_cli.task_name
-    num_envs = 1 if SCENE_EXPORT_ONLY else args_cli.num_envs
+    num_envs = 1 if SIMULATOR_ONLY else args_cli.num_envs
     eval_cfg = deepcopy(ENVIRONMENT_PROFILE.payload)
     eval_cfg["environment_profile_hash"] = ENVIRONMENT_PROFILE.identity_hash
     eval_cfg["policy_contract"] = ENVIRONMENT_PROFILE.policy_contract
@@ -384,7 +395,7 @@ def main():
     eval_cfg["contract_hash"] = args_cli.contract_hash
     eval_cfg["num_envs"] = num_envs
     eval_cfg["device_id"] = args_cli.device_id
-    eval_batch = False if SCENE_EXPORT_ONLY else _eval_batch_from_deploy(args_cli.policy_name)
+    eval_batch = False if SIMULATOR_ONLY else _eval_batch_from_deploy(args_cli.policy_name)
     eval_cfg["eval_batch"] = eval_batch
     eval_cfg["policy_name"] = args_cli.policy_name
     eval_cfg["additional_info"] = args_cli.additional_info
@@ -464,25 +475,28 @@ def main():
 
     env_cfg.sim.seed = [0 for _ in range(num_envs)]
     run_id = os.environ["ROBODOJO_RUN_ID"]
-    resume_state = None if SCENE_EXPORT_ONLY else _load_resume_manifest(eval_cfg, run_id)
+    resume_state = None if SIMULATOR_ONLY else _load_resume_manifest(eval_cfg, run_id)
     env = create_eval_env(
         env_cfg,
         simulation_app,
         resume_state=resume_state,
-        policy_enabled=not SCENE_EXPORT_ONLY,
+        policy_enabled=not SIMULATOR_ONLY,
+        record_video_enabled=not FIRST_FRAME_CAPTURE_REQUESTED,
     )
-    if SCENE_EXPORT_REQUESTED and SCENE_EXPORT_LAYOUT_ID not in env.seed_manager.seed_info:
+    if (SCENE_EXPORT_REQUESTED or FIRST_FRAME_CAPTURE_REQUESTED) and (
+        SCENE_EXPORT_LAYOUT_ID not in env.seed_manager.seed_info
+    ):
         raise ValueError(
             f"layout id {SCENE_EXPORT_LAYOUT_ID} is unavailable for task={task_name} "
             f"seed={args_cli.seed}; available={sorted(env.seed_manager.seed_info)}"
         )
-    if SCENE_EXPORT_REQUESTED and resume_state is None and not SCENE_EXPORT_ONLY:
+    if SCENE_EXPORT_REQUESTED and resume_state is None and not SIMULATOR_ONLY:
         # Preserve the evaluator's full seed set while making the requested
         # snapshot layout the first reset/rollout and avoiding a later duplicate.
         env.seed_manager.seed_list.remove(SCENE_EXPORT_LAYOUT_ID)
         env.seed_manager.seed_list.insert(0, SCENE_EXPORT_LAYOUT_ID)
     eval_time = env.success_nums + env.fail_nums
-    if SCENE_EXPORT_ONLY:
+    if SIMULATOR_ONLY:
         env.env_seeds = [SCENE_EXPORT_LAYOUT_ID]
     elif eval_time >= eval_num:
         # Already complete on resume - nothing left to do.
@@ -532,10 +546,23 @@ def main():
                     simulation_app.close()
                     logger.info("[scene-export] scene-only mode complete; policy rollout skipped")
                     return
+            if FIRST_FRAME_CAPTURE_REQUESTED:
+                from robodojo.sim.scene_export.first_frame import capture_first_frame
+
+                try:
+                    capture_first_frame(env, FIRST_FRAME_CAPTURE_DIR, SCENE_EXPORT_LAYOUT_ID)
+                except Exception as e:
+                    raise FirstFrameCaptureError(str(e)) from e
+                env.seed_manager.eval_step()
+                _close_model_client(env)
+                env.close()
+                simulation_app.close()
+                logger.info("[first-frame] capture complete; policy rollout skipped")
+                return
             env.run_eval()
             env.seed_manager.eval_step()
 
-        except SceneExportError:
+        except (SceneExportError, FirstFrameCaptureError):
             import traceback
 
             traceback.print_exc()

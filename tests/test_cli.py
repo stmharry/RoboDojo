@@ -53,6 +53,7 @@ def test_cli_exposes_the_unified_command_surface():
         "eval",
         "server",
         "client",
+        "snapshots",
         "smoke",
         "storage",
         "assets",
@@ -341,7 +342,7 @@ def test_make_dry_run_toggle_and_local_sweeps():
 
 def test_make_help_exposes_only_the_supported_target_surface():
     result = subprocess.run(["make", "help"], cwd=ROOT, check=True, capture_output=True, text=True)
-    for target in ("recipes", "setup", "preflight", "eval", "smoke", "benchmark", "results", "check"):
+    for target in ("recipes", "setup", "preflight", "eval", "snapshots", "smoke", "benchmark", "results", "check"):
         assert target in result.stdout
     assert "make recipes -> make eval RECIPE=<name>" in result.stdout
     assert "optional machine defaults: .env (?= assignments)" in result.stdout

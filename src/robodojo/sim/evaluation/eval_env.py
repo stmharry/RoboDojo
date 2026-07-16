@@ -56,6 +56,7 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
     class EvalEnv(task_class):
         def __init__(self, config, app, resume_state=None, **kwargs):
             self.policy_enabled = bool(kwargs.pop("policy_enabled", True))
+            self.record_video_enabled = bool(kwargs.pop("record_video_enabled", True))
             super().__init__(config, app, **kwargs)
             self.eval_cfg = config.eval_cfg
             self.config_name = self.eval_cfg.get("config_name", None)
@@ -298,7 +299,7 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
             data = self.obs_manager.get_obs(env_idx_list=env_idx_list)
             data_list = []
             for env_idx in env_idx_list:
-                if not self.end_flag[env_idx] or last_frame:
+                if self.record_video_enabled and (not self.end_flag[env_idx] or last_frame):
                     self._stream_vision(env_idx, data[env_idx])
                 env_data = deepcopy(data[env_idx])
                 env_data["env_idx"] = env_idx

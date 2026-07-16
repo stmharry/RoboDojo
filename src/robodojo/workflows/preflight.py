@@ -571,7 +571,7 @@ def run_fast_preflight(paths: RepositoryPaths, request: PreflightRequest) -> Pre
 
 
 def run_simulator_preflight(paths: RepositoryPaths, request: PreflightRequest) -> PreflightReport:
-    """Validate only the simulator-side contract for scene-only export."""
+    """Validate only the simulator-side contract for policy-free workflows."""
     resolved, gpu_check = _resolve_preflight_gpus(request, simulator_only=True)
     if resolved is None:
         return build_report([_root_runtime_check(paths), gpu_check])

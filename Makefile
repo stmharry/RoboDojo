@@ -28,6 +28,8 @@ SEED ?= 0
 ENV_GPU ?= auto
 POLICY_GPU ?= auto
 EVAL_NUM ?= native
+LAYOUT_ID ?= 0
+SNAPSHOT_DIR ?=
 VERBOSITY ?= INFO
 PUBLISH ?= false
 EXPORT_SCENE ?= false
@@ -56,6 +58,7 @@ PUBLISH_FLAG = $(call boolean_flag,PUBLISH,--publish)
 EXPORT_SCENE_FLAG = $(call boolean_flag,EXPORT_SCENE,--export-scene)
 DEEP_FLAG = $(call boolean_flag,DEEP,--deep)
 DRY_RUN_FLAG = $(call boolean_flag,DRY_RUN,--dry-run)
+SNAPSHOT_DIR_FLAG = $(if $(strip $(SNAPSHOT_DIR)),--output-dir "$(SNAPSHOT_DIR)")
 CONTRACT_ARGS = --recipe "$(RECIPE)"
 
 EXPERIMENT_ARGS = \
@@ -71,9 +74,16 @@ SWEEP_ARGS = \
 	--policy-gpu "$(POLICY_GPU)" \
 	--env-gpu "$(ENV_GPU)"
 
-.PHONY: help recipes setup preflight eval smoke benchmark tasks doctor results \
+SNAPSHOT_ARGS = \
+	$(foreach recipe,$(RECIPES),--recipe "$(recipe)") \
+	--seed "$(SEED)" \
+	--layout-id "$(LAYOUT_ID)" \
+	--env-gpu "$(ENV_GPU)" \
+	$(SNAPSHOT_DIR_FLAG)
+
+.PHONY: help recipes setup preflight eval snapshots smoke benchmark tasks doctor results \
 	assets-moonlake-office assets-moonlake-packing \
-	lint lint-fix format format-check test pre-commit check _config-check _sweep-config-check _eval-config-check
+	lint lint-fix format format-check test pre-commit check _config-check _snapshot-config-check _sweep-config-check _eval-config-check
 
 ##@ Workflow
 help: ## Show the supported local workflow
@@ -116,6 +126,16 @@ ifneq ($(strip $(DRY_RUN)),true)
 	$(ROBODOJO_SETUP) setup $(CONTRACT_ARGS) --seed "$(SEED)" --policy-gpu "$(POLICY_GPU)"
 endif
 	$(ROBODOJO_SIM) eval $(EXPERIMENT_ARGS) --eval-num "$(EVAL_NUM)" $(EXPORT_SCENE_FLAG) $(PUBLISH_FLAG) $(DRY_RUN_FLAG) $(ARGS)
+
+_snapshot-config-check:
+	@case "$(SEED)" in ''|*[!0-9]*) printf 'SEED must be a nonnegative integer.\n' >&2; exit 2;; esac
+	@case "$(LAYOUT_ID)" in ''|*[!0-9]*) printf 'LAYOUT_ID must be a nonnegative integer.\n' >&2; exit 2;; esac
+	@case "$(ENV_GPU)" in auto) ;; ''|*[!0-9]*) printf "ENV_GPU must be 'auto' or a nonnegative integer.\n" >&2; exit 2;; esac
+	@$(call boolean_flag,EXPORT_SCENE,true)
+	@$(call boolean_flag,DRY_RUN,true)
+
+snapshots: _snapshot-config-check ## Capture first-frame RGB and optional USD bundles for selected or all recipes
+	$(ROBODOJO_SIM) snapshots $(SNAPSHOT_ARGS) $(EXPORT_SCENE_FLAG) $(DRY_RUN_FLAG) $(ARGS)
 
 _sweep-config-check:
 	$(call require_recipes)

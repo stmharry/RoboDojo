@@ -25,6 +25,7 @@ from robodojo.core.models import (
     PreflightRequest,
     ServerRequest,
     SimulatorLaunchRequest,
+    SnapshotBatchRequest,
     SweepRequest,
 )
 
@@ -165,6 +166,70 @@ def recipes(
         print_recipe_table(rows)
     else:
         raise typer.BadParameter("expected table, plain, or json", param_hint="--format")
+
+
+@app.command()
+def snapshots(
+    recipe: list[str] | None = typer.Option(
+        None,
+        "--recipe",
+        help="Recipe to capture; repeat for multiple recipes. All tracked recipes are used when omitted.",
+    ),
+    seed: int = typer.Option(0, "--seed", help="Nonnegative seed used to resolve each task layout set."),
+    layout_id: int = typer.Option(0, "--layout-id", help="Nonnegative layout index captured for every recipe."),
+    env_gpu: str = typer.Option(
+        "auto",
+        "--env-gpu",
+        envvar="ENV_GPU",
+        help="Simulator GPU as a zero-based index or auto; ENV_GPU is used when the flag is omitted.",
+    ),
+    output_dir: Path | None = typer.Option(
+        None,
+        "--output-dir",
+        help="Batch output directory; defaults to ROBODOJO_STORAGE_ROOT/runs/snapshots/<timestamp>.",
+    ),
+    export_scene: bool = typer.Option(
+        False,
+        "--export-scene",
+        help="Also create the existing referenced USDA, flattened USDC, and preview USDZ scene bundle.",
+    ),
+    resume: bool = typer.Option(
+        False,
+        "--resume",
+        help="Resume an exact existing --output-dir and reuse completed recipe bundles.",
+    ),
+    fail_fast: bool = typer.Option(
+        False,
+        "--fail-fast",
+        help="Stop after the first failed recipe instead of recording all failures.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Print simulator-only child commands without starting Isaac or writing artifacts.",
+    ),
+    root: Path | None = typer.Option(
+        None,
+        "--root",
+        help="Repository checkout to use; auto-detected when omitted.",
+    ),
+) -> None:
+    """Capture the first rollout RGB observation for selected evaluation recipes."""
+    from robodojo.workflows.snapshots import run_snapshot_batch
+
+    request = _model(
+        SnapshotBatchRequest,
+        recipes=tuple(recipe or ()),
+        seed=seed,
+        layout_id=layout_id,
+        env_gpu=env_gpu,
+        output_dir=output_dir,
+        export_scene=export_scene,
+        resume=resume,
+        fail_fast=fail_fast,
+        dry_run=dry_run,
+    )
+    raise typer.Exit(run_snapshot_batch(_paths(root), request))
 
 
 @app.command()

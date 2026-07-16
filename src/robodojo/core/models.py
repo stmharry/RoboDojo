@@ -305,6 +305,46 @@ class SweepRequest(StrictModel):
         return value
 
 
+class SnapshotBatchRequest(StrictModel):
+    recipes: tuple[str, ...] = ()
+    seed: NonNegativeInt = 0
+    env_gpu: GpuSelector = "auto"
+    layout_id: NonNegativeInt = 0
+    output_dir: Path | None = None
+    export_scene: bool = False
+    resume: bool = False
+    fail_fast: bool = False
+    dry_run: bool = False
+
+    @field_validator("recipes")
+    @classmethod
+    def unique_recipe_list(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        if len(value) != len(set(value)):
+            raise ValueError("recipe selections must be unique")
+        return value
+
+    @model_validator(mode="after")
+    def resume_requires_output_dir(self) -> SnapshotBatchRequest:
+        if self.resume and self.output_dir is None:
+            raise ValueError("--resume requires --output-dir")
+        return self
+
+
+class SnapshotCaptureRequest(ExperimentRequest):
+    output_dir: Path
+    layout_id: NonNegativeInt = 0
+    export_scene: bool = False
+    run_id: str
+    dry_run: bool = False
+
+    @field_validator("run_id")
+    @classmethod
+    def safe_snapshot_run_id(cls, value: str) -> str:
+        if not value.strip() or any(character in value for character in "/\\"):
+            raise ValueError("snapshot run id must be one non-empty path component")
+        return value
+
+
 class EnvironmentConfigReferences(StrictModel):
     sim: str
     robot: str
@@ -716,3 +756,30 @@ class SmokeSummary(StrictModel):
     run_id: str
     eval_num: int | Literal["native"]
     results: list[SmokeRecord]
+
+
+class SnapshotRecord(StrictModel):
+    status: Literal["PENDING", "PASS", "FAIL", "SKIP", "DRY_RUN"]
+    recipe: str
+    policy: str
+    environment: str
+    scene: str
+    protocol: str
+    task: str
+    contract_hash: str
+    exit_code: int | None = None
+    elapsed_sec: float = 0.0
+    output_dir: str
+    message: str = ""
+
+
+class SnapshotSummary(StrictModel):
+    format_version: Literal[1] = 1
+    run_id: str
+    output_dir: str
+    seed: NonNegativeInt
+    layout_id: NonNegativeInt
+    export_scene: bool
+    recipes: tuple[str, ...]
+    complete: bool = False
+    results: list[SnapshotRecord]

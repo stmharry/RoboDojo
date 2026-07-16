@@ -26,6 +26,7 @@ assets/
 datasets/
 model_weights/<policy>/<checkpoint>/
 runs/eval_result/RoboDojo/
+runs/snapshots/<timestamp>/
 runs/smoke/
 runs/reports/
 .cache/
@@ -36,6 +37,30 @@ There are no checkout-local `Assets`, `data`, or `eval_result` compatibility
 paths. Active evaluations and downloads write directly below the local storage
 root. Keep Git/LFS metadata and temporary downloads below `.cache`; `.staging`
 is reserved for transactional storage operations.
+
+## First-frame snapshot galleries
+
+`robodojo snapshots` starts the simulator without a policy and records the
+first post-reset observation for every tracked recipe. With no explicit output
+path, each batch is written to `runs/snapshots/<timestamp>/` below the storage
+root:
+
+```bash
+uv run --extra sim --locked robodojo snapshots
+uv run --extra sim --locked robodojo snapshots --export-scene
+```
+
+The batch root contains `summary.json`, `summary.md`, and an offline
+`index.html` inspection gallery. Each recipe has a `first_frame/` directory
+with every camera PNG, a contact sheet, and exact identity metadata. The
+optional `--export-scene` flag adds the same `scene_snapshot/` USDA, USDC, USDZ,
+and manifest bundle used by scene-only evaluation exports.
+
+Use repeated `--recipe` flags for a subset, `--seed` and `--layout-id` to choose
+the layout, and `--output-dir` to name a stable batch directory. An interrupted
+explicit batch can be continued with `--resume`; only exact completed bundles
+are reused. The snapshot workflow performs simulator-side preflight and never
+requires a policy runtime or checkpoint.
 
 ## Optional S3 remote
 
