@@ -7,6 +7,7 @@ import pytest
 
 from robodojo.core.artifacts.results import ARTIFACT_SCHEMA_VERSION
 from robodojo.sim.evaluation import restart, resume
+from robodojo.sim.evaluation.completion import IncompleteEvaluationError, ensure_evaluation_complete
 from robodojo.sim.evaluation.configuration import build_deploy_config, build_evaluation_config
 from robodojo.sim.evaluation.services.episodes import EpisodesService
 from robodojo.sim.evaluation.services.health import HealthService
@@ -106,6 +107,14 @@ def test_evaluation_configuration_uses_domain_vocabulary_and_ws_boundary(tmp_pat
     )
     assert deploy["protocol"] == "ws"
     assert "transport" not in deploy
+
+
+def test_evaluation_completion_rejects_layout_shortfall():
+    ensure_evaluation_complete(eval_time=1, requested=1)
+    ensure_evaluation_complete(eval_time=20, requested=20)
+
+    with pytest.raises(IncompleteEvaluationError, match="completed=1, requested=20"):
+        ensure_evaluation_complete(eval_time=1, requested=20)
 
 
 def test_episode_completion_records_final_frames_for_success_and_horizon_failure():

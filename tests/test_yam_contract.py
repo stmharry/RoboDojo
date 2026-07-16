@@ -92,6 +92,31 @@ def test_general_pickup_instruction_uses_task_owned_labels():
     assert manager.get_one_description() == ["Pick up the <target> by 10 cm."]
 
 
+def test_general_pickup_declares_staged_lift_process_scores():
+    source = (ROOT / "src/robodojo/sim/tasks/general_pickup.py").read_text(encoding="utf-8")
+    module = ast.parse(source)
+    common = next(node for node in module.body if isinstance(node, ast.ClassDef) and node.name == "GeneralPickupCommon")
+    method = next(node for node in common.body if isinstance(node, ast.FunctionDef) and node.name == "get_score")
+    thresholds = [
+        keyword.value.value
+        for node in ast.walk(method)
+        if isinstance(node, ast.Call)
+        for keyword in node.keywords
+        if keyword.arg == "z_threshold" and isinstance(keyword.value, ast.Constant)
+    ]
+    score_call = next(
+        node
+        for node in ast.walk(method)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "score"
+    )
+
+    assert thresholds == pytest.approx([0.02, 0.05, 0.1])
+    assert ast.literal_eval(score_call.args[1]) == [20, 50, 100]
+    assert ast.literal_eval(next(keyword.value for keyword in score_call.keywords if keyword.arg == "score_mode")) == (
+        "transition"
+    )
+
+
 def test_missing_asset_description_falls_back_to_category_for_task_placeholders():
     assert descriptions_from_metadata({"model_name": "green_ball"}) == ["green ball"]
     assert descriptions_from_metadata({"model_name": "ball", "description": ["green sphere"]}) == ["green sphere"]

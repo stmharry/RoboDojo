@@ -31,6 +31,7 @@ from robodojo.core.revisions import git_revision
 from robodojo.core.storage import assets_root
 from robodojo.core.workspace import validate_resolved_layout_set
 from robodojo.sim.evaluation.communication import close_model_client as _close_model_client
+from robodojo.sim.evaluation.completion import ensure_evaluation_complete
 from robodojo.sim.evaluation.configuration import build_deploy_config, build_evaluation_config
 from robodojo.sim.evaluation.restart import (
     exit_for_shell_restart as _exit_for_shell_restart,
@@ -590,6 +591,8 @@ def main():
     _close_model_client(env)
     env.close()
     simulation_app.close()
+    if not SIMULATOR_ONLY:
+        ensure_evaluation_complete(eval_time=eval_time, requested=eval_num)
 
 
 if __name__ == "__main__":

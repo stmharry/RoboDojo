@@ -1,0 +1,235 @@
+{
+  "Table": {
+    "default": "material_0122",
+    "scale": [
+      1.2,
+      0.7,
+      0.05
+    ],
+    "default_pos": [
+      0.0,
+      0.0,
+      0.725
+    ],
+    "default_ori": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "visual_color": [
+      0.090842,
+      0.046665,
+      0.024158
+    ]
+  },
+  "Ground": {
+    "geometry": "cube",
+    "thickness": 0.02,
+    "axis": "Z",
+    "default_pos": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "base_color": [
+      0.36,
+      0.2,
+      0.08
+    ],
+    "materials": {
+      "type": "color",
+      "color": [
+        0.36,
+        0.2,
+        0.08
+      ]
+    },
+    "physics_material": {
+      "static_friction": 1.0,
+      "dynamic_friction": 1.0,
+      "restitution": 0.0,
+      "friction_combine_mode": "multiply",
+      "restitution_combine_mode": "multiply",
+      "compliant_contact_stiffness": 0.0,
+      "compliant_contact_damping": 0.0
+    }
+  },
+  "Light": {
+    "dome": {
+      "types": "Dome",
+      "common": {
+        "initial_pos_range": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "initial_ori_range": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "color_range": [
+          [
+            1.0,
+            1.0,
+            1.0
+          ],
+          [
+            1.0,
+            1.0,
+            1.0
+          ]
+        ]
+      },
+      "Dome": {
+        "intensity_range": [
+          1000.0,
+          1000.0
+        ]
+      }
+    },
+    "key": {
+      "types": "Distant",
+      "common": {
+        "initial_pos_range": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "initial_ori_range": [
+          -35.0,
+          20.0,
+          0.0,
+          -35.0,
+          20.0,
+          0.0
+        ],
+        "color_range": [
+          [
+            1.0,
+            1.0,
+            1.0
+          ],
+          [
+            1.0,
+            1.0,
+            1.0
+          ]
+        ]
+      },
+      "Distant": {
+        "intensity_range": [
+          3000.0,
+          3000.0
+        ],
+        "angle_range": [
+          1.0,
+          1.0
+        ]
+      }
+    }
+  },
+  "Geometry": {
+    "moonlake_office_fixture": [
+      {
+        "category": "moonlake_office_fixture",
+        "category_idx": 0,
+        "xlim": [
+          0.0,
+          0.0
+        ],
+        "ylim": [
+          0.0,
+          0.0
+        ],
+        "zlim": [
+          0.0,
+          0.0
+        ],
+        "qpos": [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotate_deg": 0,
+        "rotate_rand": false,
+        "relative_plane": "Ground",
+        "place_tag": null,
+        "margin": 0.01,
+        "check_mode": "bbox",
+        "need_check_stable": false,
+        "label": "moonlake_office_fixture",
+        "default_pos": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "default_ori": [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "physics": {
+          "type": "geometry",
+          "collision": false
+        },
+        "visual": {}
+      }
+    ]
+  },
+  "Rigid": {
+    "ball": [
+      {
+        "category_idx": 1,
+        "physics": {
+          "type": "rigid"
+        },
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "type": "cluttered",
+        "clutter_idx": 0,
+        "yaml_path": "Clutter/clutter.yml",
+        "relative_plane": "Table",
+        "default_pos": [
+          -0.22,
+          0.08,
+          0.7533537298662597
+        ],
+        "default_ori": [
+          0.959055682083492,
+          -0.08378034247114842,
+          0.20092118888373203,
+          0.18117320093306527
+        ],
+        "label": "target",
+        "visual": {
+          "color": [
+            0.08,
+            0.3,
+            0.8
+          ]
+        }
+      }
+    ]
+  }
+}

@@ -78,8 +78,9 @@ evaluation videos retain that source geometry. Checkpoint-facing projection is
 owned separately by the policy adapter. The pinned public MolmoAct2 YAM
 checkpoint presents Moonlake RGB through an exact vertical center crop from
 rows 60 through 419, preserving focal scale while mapping the source principal
-point from `cy=240` to the checkpoint's `cy=180`. PI0.5 continues to consume
-the native Moonlake stream through its own aspect-preserving preprocessing.
+point from `cy=240` to the checkpoint's `cy=180`. The generic PI0.5 YAM
+adapter applies the same 640x360 source-geometry contract before OpenPI's
+checkpoint resize; the simulator still records the native Moonlake stream.
 Moonlake robot roots also belong to its environment profile, not its scene
 profile.
 The base YAM environment also declares robot-root offsets in the scene-owned
@@ -88,16 +89,19 @@ the selected saved layout; they never rewrite robot or object poses.
 
 For `general_pickup`, every policy and scene receives RoboDojo's canonical
 `Pick up the <target> by 10 cm.` instruction, 200-step limit, `target` label,
-and 10 cm lift reward. The classic and Moonlake fixed layouts contain the same
-green ball pose in their respective `Table` frames. The task YAML owns the
-label and support plane, while the selected saved layout owns the exact replay
-position. No environment or scene profile overrides the instruction.
+and 10 cm lift reward. The classic layout retains its single green ball, while
+the Moonlake protocol covers 20 tracked ball layouts across four table-depth
+rows, five lateral positions, and four colors. The task YAML owns the label and
+support plane, while each selected saved layout owns the exact replay position.
+No environment or scene profile overrides the instruction.
 
-`moonlake_office_general_pickup` is an explicit benchmark protocol over that
-unchanged task. It selects the same `general_pickup` layout family and native
-episode count, but applies a 400-step horizon and is compatible only with the
-Moonlake scene. Result paths and publication identities use the protocol name;
-artifacts record both the protocol and its `general_pickup` base task.
+`moonlake_office_general_pickup` is an explicit 20-episode benchmark protocol
+over that unchanged task. It selects the `general_pickup` layout family,
+applies a 400-step horizon, and is compatible only with the Moonlake scene.
+Result paths and publication identities use the protocol name; artifacts
+record both the protocol and its `general_pickup` base task. Runtime evaluation
+fails instead of silently accepting a partial result if the requested episode
+count exceeds the available layouts.
 
 Container placement is a separate behavior under `pack_item_into_container`.
 That task owns the `item` and `container` roles, box-and-lid instruction,

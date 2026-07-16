@@ -101,7 +101,8 @@ def test_long_pickup_protocol_reuses_the_upstream_task_keyed_layout():
     canonical = protocols["general_pickup"]
     long = protocols["moonlake_office_general_pickup"]
     assert canonical.task == long.task == "general_pickup"
-    assert canonical.evaluation_episodes == long.evaluation_episodes == 50
+    assert canonical.evaluation_episodes == 50
+    assert long.evaluation_episodes == 20
     assert canonical.episode_horizon == 200
     assert long.episode_horizon == 400
     assert canonical.compatible_scenes == []
@@ -117,7 +118,29 @@ def test_long_pickup_protocol_reuses_the_upstream_task_keyed_layout():
         task=long.task,
         seed=0,
     )
-    assert [layout.path.name for layout in layouts.layouts] == ["general_pickup_0.json"]
+    assert [layout.path.name for layout in layouts.layouts] == [f"general_pickup_{index}.json" for index in range(20)]
+
+    layout_payloads = [yaml.safe_load(layout.path.read_text(encoding="utf-8")) for layout in layouts.layouts]
+    original = layout_payloads[0]["Rigid"]["ball"][0]
+    assert original["default_pos"] == pytest.approx([0.22, -0.05, 0.7533537298662597])
+    assert original["visual"]["color"] == pytest.approx([0.35, 0.65, 0.08])
+
+    expected = []
+    for y_position, color in (
+        (-0.10, [0.75, 0.12, 0.08]),
+        (-0.04, [0.90, 0.72, 0.08]),
+        (0.02, [0.35, 0.65, 0.08]),
+        (0.08, [0.08, 0.30, 0.80]),
+    ):
+        for x_position in (-0.22, -0.11, 0.0, 0.11, 0.22):
+            if (x_position, y_position) != (0.22, -0.04):
+                expected.append((x_position, y_position, color))
+
+    for payload, (x_position, y_position, color) in zip(layout_payloads[1:], expected, strict=True):
+        target = payload["Rigid"]["ball"][0]
+        assert target["default_pos"] == pytest.approx([x_position, y_position, original["default_pos"][2]])
+        assert target["visual"]["color"] == pytest.approx(color)
+        assert target["label"] == "target"
 
 
 def test_general_pickup_task_config_remains_scene_independent():
@@ -138,6 +161,7 @@ def test_recipe_resolution_validates_every_compatibility_edge():
     assert base.policy_name == "pi05_bimanual_yam"
     assert base.policy.checkpoint == "pi05_yam_molmoact2"
     assert base.policy_descriptor.execution.strategy == "fixed_prefix"
+    assert base.policy_descriptor.adapter.image_transform == "pi05_yam_molmoact2_640x360_center_crop_v1"
     assert base.policy_reference_match == "domain_shift"
 
     pickup = resolve_recipe(PATHS, PI_PICKUP_LONG)
@@ -150,6 +174,7 @@ def test_recipe_resolution_validates_every_compatibility_edge():
         assert experiment.policy_descriptor.interface.embodiment == experiment.environment.embodiment == "bimanual_yam"
         assert experiment.scene.name == "moonlake_office"
         assert experiment.task_protocol == "moonlake_office_general_pickup"
+        assert experiment.protocol.evaluation_episodes == 20
 
     with pytest.raises(ValueError, match="requires embodiment"):
         compose_experiment(

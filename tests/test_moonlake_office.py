@@ -129,7 +129,9 @@ def test_molmo_yam_retains_its_existing_fallback_mounts():
 def test_moonlake_layout_bundle_is_fixed_reachable_and_fixture_scoped():
     layout_root = ROOT / "configs" / "layout" / "moonlake_office" / "0"
     assert sorted(path.name for path in layout_root.glob("*.json")) == sorted(
-        [f"{task}_0.json" for task in TASKS] + list(PACKING_LAYOUTS)
+        ["stack_blocks_0.json", "stack_bowls_0.json"]
+        + [f"general_pickup_{index}.json" for index in range(20)]
+        + list(PACKING_LAYOUTS)
     )
 
     expected = {

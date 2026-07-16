@@ -393,13 +393,15 @@ def test_layout_check_fails_when_selected_task_seed_is_missing(monkeypatch, tmp_
 
 
 @pytest.mark.parametrize(
-    ("environment", "scene_name"),
+    ("environment", "scene_name", "expected_layouts"),
     [
-        ("bimanual_yam_molmoact2", "molmo_yam"),
-        ("bimanual_yam_moonlake_office", "moonlake_office"),
+        ("bimanual_yam_molmoact2", "molmo_yam", 1),
+        ("bimanual_yam_moonlake_office", "moonlake_office", 20),
     ],
 )
-def test_general_pickup_preflight_validates_the_same_role_and_workspace_contract(environment, scene_name):
+def test_general_pickup_preflight_validates_the_same_role_and_workspace_contract(
+    environment, scene_name, expected_layouts
+):
     paths = RepositoryPaths.resolve(ROOT)
     profile = load_environment_profile(paths, environment)
     scene = load_scene_profile(paths, scene_name)
@@ -417,7 +419,7 @@ def test_general_pickup_preflight_validates_the_same_role_and_workspace_contract
     result = configuration_checks._layout_check(paths, request, scene, profile)
 
     assert result.status == "PASS"
-    assert result.detail.startswith("1 ")
+    assert result.detail.startswith(f"{expected_layouts} ")
     assert f"/{scene.document.layout_set}/0 layout(s) keyed by task general_pickup" in result.detail
 
 

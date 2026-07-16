@@ -95,7 +95,7 @@ protocols:
   moonlake_office_general_pickup:
     task: general_pickup
     episode_horizon: 400
-    evaluation_episodes: 50
+    evaluation_episodes: 20
     compatible_scenes: [moonlake_office]
   organize_table:
     task: organize_table
