@@ -23,11 +23,17 @@ if _loaded_warp_version != EXPECTED_WARP_VERSION:
 # Sim's bundled Warp 1.8.2 before cuRobo is imported.
 from isaaclab.app import AppLauncher
 
+from robodojo.core.asset_identity import inspect_environment_assets
+from robodojo.core.contracts import resolve_contract, resolve_recipe
 from robodojo.core.layouts import resolve_layout_set
 from robodojo.core.logging import configure_logging
-from robodojo.core.models import SimulatorLaunchRequest
 from robodojo.core.paths import RepositoryPaths
-from robodojo.core.profiles import load_environment_profile, load_scene_profile
+from robodojo.core.profiles import (
+    load_environment_profile,
+    load_scene_profile,
+    validate_scene_environment_compatibility,
+)
+from robodojo.core.revisions import git_revision
 from robodojo.core.scene_identity import ARTIFACT_SCHEMA_VERSION, require_matching_scene_identity
 from robodojo.core.storage import assets_root
 from robodojo.core.workspace import validate_resolved_layout_set
@@ -68,6 +74,13 @@ parser.add_argument(
     type=str,
     required=True,
     help="XPolicyLab module name for deployment",
+)
+parser.add_argument("--policy_profile", type=str, required=True, help="RoboDojo policy profile name")
+parser.add_argument("--policy_descriptor_hash", type=str, required=True)
+parser.add_argument(
+    "--policy_reference_match",
+    choices=("reference_match", "domain_shift", "unspecified"),
+    required=True,
 )
 parser.add_argument("--port", type=int, required=True, help="the port for the policy WebSocket server")
 parser.add_argument(
@@ -130,7 +143,6 @@ if FIRST_FRAME_CAPTURE_REQUESTED and not FIRST_FRAME_CAPTURE_DIR:
 # and GLOBAL_CONFIGS only imports os, so this pulls in no app-dependent code.
 from robodojo.sim import tasks_registry
 from robodojo.sim.environment.global_configs import ROOT_DIR
-from robodojo.sim.launcher import resolve_scene_config
 
 task_registry = tasks_registry
 
@@ -156,26 +168,54 @@ def get_monitor():
 
 
 REPOSITORY_PATHS = RepositoryPaths.resolve(ROOT_DIR)
-ENVIRONMENT_PROFILE = load_environment_profile(REPOSITORY_PATHS, args_cli.env_cfg_type)
-RESOLVED_SCENE_CONFIG = resolve_scene_config(
-    REPOSITORY_PATHS,
-    SimulatorLaunchRequest(
-        task=args_cli.task_name,
-        protocol_name=args_cli.protocol_name,
-        episode_horizon=args_cli.episode_horizon,
-        native_eval_num=args_cli.native_eval_num,
-        recipe=args_cli.recipe_name,
-        contract_hash=args_cli.contract_hash,
-        policy_name=args_cli.policy_name,
-        host=args_cli.host,
-        port=args_cli.port,
-        env_config=args_cli.env_cfg_type,
-        scene_config=args_cli.scene_config,
-        additional_info=args_cli.additional_info,
-    ),
-    profile=ENVIRONMENT_PROFILE,
-)
-SCENE_PROFILE = load_scene_profile(REPOSITORY_PATHS, RESOLVED_SCENE_CONFIG)
+RUNTIME_CONTRACT = None
+if args_cli.policy_profile == "manual":
+    ENVIRONMENT_PROFILE = load_environment_profile(REPOSITORY_PATHS, args_cli.env_cfg_type)
+    SCENE_PROFILE = load_scene_profile(REPOSITORY_PATHS, args_cli.scene_config)
+    validate_scene_environment_compatibility(SCENE_PROFILE, ENVIRONMENT_PROFILE)
+else:
+    RUNTIME_CONTRACT = (
+        resolve_recipe(REPOSITORY_PATHS, args_cli.recipe_name)
+        if args_cli.recipe_name != "manual"
+        else resolve_contract(
+            REPOSITORY_PATHS,
+            policy_name=args_cli.policy_profile,
+            environment_name=args_cli.env_cfg_type,
+            scene_name=args_cli.scene_config,
+            protocol_name=args_cli.protocol_name,
+        )
+    )
+    expected = (
+        RUNTIME_CONTRACT.protocol.task,
+        RUNTIME_CONTRACT.protocol_name,
+        RUNTIME_CONTRACT.protocol.episode_horizon,
+        RUNTIME_CONTRACT.protocol.evaluation_episodes,
+        RUNTIME_CONTRACT.environment.name,
+        RUNTIME_CONTRACT.scene.name,
+        RUNTIME_CONTRACT.policy_descriptor_hash,
+        RUNTIME_CONTRACT.policy_reference_match,
+        RUNTIME_CONTRACT.identity_hash,
+        (REPOSITORY_PATHS.root / RUNTIME_CONTRACT.policy.policy_dir).name,
+    )
+    actual = (
+        args_cli.task_name,
+        args_cli.protocol_name,
+        args_cli.episode_horizon,
+        args_cli.native_eval_num,
+        args_cli.env_cfg_type,
+        args_cli.scene_config,
+        args_cli.policy_descriptor_hash,
+        args_cli.policy_reference_match,
+        args_cli.contract_hash,
+        args_cli.policy_name,
+    )
+    if actual != expected:
+        raise ValueError(f"simulator contract arguments {actual} do not match resolved contract {expected}")
+    ENVIRONMENT_PROFILE = RUNTIME_CONTRACT.environment
+    SCENE_PROFILE = RUNTIME_CONTRACT.scene
+RESOLVED_SCENE_CONFIG = SCENE_PROFILE.name
+ROBODOJO_REVISION = git_revision(REPOSITORY_PATHS.root)
+XPOLICYLAB_REVISION = git_revision(REPOSITORY_PATHS.xpolicy_root)
 RESOLVED_LAYOUT_SET = resolve_layout_set(
     config_root=REPOSITORY_PATHS.environment_configs,
     assets_root=assets_root(),
@@ -238,6 +278,7 @@ simulation_app = app_launcher.app
 from robodojo.sim.scene_assets import inspect_scene_assets
 
 PREPARED_SCENE_ASSETS = inspect_scene_assets(SCENE_PROFILE, args_cli.task_name)
+PREPARED_ENVIRONMENT_ASSETS = inspect_environment_assets(ENVIRONMENT_PROFILE)
 
 from omegaconf import OmegaConf
 
@@ -267,7 +308,7 @@ def _resume_manifest_path(eval_cfg, run_id):
     return os.path.join(
         str(eval_work_root()),
         eval_cfg["protocol_name"],
-        eval_cfg["policy_name"],
+        eval_cfg["policy_profile"],
         eval_cfg["config_name"],
         f"{eval_cfg.get('seed', 0)}_{eval_cfg.get('additional_info', '')}",
         f"_resume_{run_id}.json",
@@ -376,7 +417,16 @@ def main():
     task_name = args_cli.task_name
     num_envs = 1 if SIMULATOR_ONLY else args_cli.num_envs
     eval_cfg = deepcopy(ENVIRONMENT_PROFILE.payload)
+    eval_cfg["environment_profile"] = ENVIRONMENT_PROFILE.name
     eval_cfg["environment_profile_hash"] = ENVIRONMENT_PROFILE.identity_hash
+    eval_cfg["environment_variant"] = (
+        ENVIRONMENT_PROFILE.document.variant.model_dump(mode="json", exclude_none=True)
+        if ENVIRONMENT_PROFILE.document.variant is not None
+        else None
+    )
+    eval_cfg["environment_asset_hash"] = PREPARED_ENVIRONMENT_ASSETS.identity_hash
+    eval_cfg["environment_asset_builds"] = list(ENVIRONMENT_PROFILE.document.asset_builds)
+    eval_cfg["environment_asset_identities"] = list(PREPARED_ENVIRONMENT_ASSETS.artifacts)
     eval_cfg["policy_contract"] = ENVIRONMENT_PROFILE.policy_contract
     eval_cfg["scene_config"] = RESOLVED_SCENE_CONFIG
     eval_cfg["scene_component"] = SCENE_PROFILE.document.component
@@ -408,6 +458,31 @@ def main():
     eval_cfg["native_eval_num"] = args_cli.native_eval_num
     eval_cfg["recipe_name"] = args_cli.recipe_name
     eval_cfg["contract_hash"] = args_cli.contract_hash
+    eval_cfg["policy_profile"] = args_cli.policy_profile
+    eval_cfg["policy_descriptor_hash"] = (
+        RUNTIME_CONTRACT.policy_descriptor_hash if RUNTIME_CONTRACT is not None else None
+    )
+    eval_cfg["policy_reference_match"] = (
+        RUNTIME_CONTRACT.policy_reference_match if RUNTIME_CONTRACT is not None else "unspecified"
+    )
+    eval_cfg["policy_checkpoint"] = RUNTIME_CONTRACT.policy.checkpoint if RUNTIME_CONTRACT is not None else None
+    eval_cfg["policy_execution"] = (
+        RUNTIME_CONTRACT.policy_descriptor.execution.model_dump(mode="json")
+        if RUNTIME_CONTRACT is not None
+        else None
+    )
+    eval_cfg["policy_training"] = (
+        RUNTIME_CONTRACT.policy_descriptor.training.model_dump(mode="json")
+        if RUNTIME_CONTRACT is not None
+        else None
+    )
+    eval_cfg["policy_adapter"] = (
+        RUNTIME_CONTRACT.policy_descriptor.adapter.model_dump(mode="json")
+        if RUNTIME_CONTRACT is not None
+        else None
+    )
+    eval_cfg["robodojo_revision"] = ROBODOJO_REVISION
+    eval_cfg["xpolicylab_revision"] = XPOLICYLAB_REVISION
     eval_cfg["num_envs"] = num_envs
     eval_cfg["device_id"] = args_cli.device_id
     eval_batch = False if SIMULATOR_ONLY else _eval_batch_from_deploy(args_cli.policy_name)

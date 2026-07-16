@@ -1,6 +1,7 @@
 config_name: bimanual_yam
 selectable: false
 policy_contract: bimanual_yam
+asset_builds: [yam]
 
 workspace:
   anchor: Table

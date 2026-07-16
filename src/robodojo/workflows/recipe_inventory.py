@@ -11,9 +11,15 @@ from rich.table import Table
 from rich.text import Text
 
 
-def _group_heading(policy: str, environment: str, scene: str) -> Text:
+def _group_heading(policy: str, environment: str, scene: str, reference_match: str) -> Text:
     heading = Text()
-    for index, (label, value) in enumerate((("Policy", policy), ("Environment", environment), ("Scene", scene))):
+    fields = (
+        ("Policy", policy),
+        ("Environment", environment),
+        ("Scene", scene),
+        ("Training fit", reference_match),
+    )
+    for index, (label, value) in enumerate(fields):
         if index:
             heading.append("  •  ", style="dim")
         heading.append(f"{label}: ", style="bold cyan")
@@ -41,7 +47,7 @@ def print_recipe_table(rows: Sequence[Mapping[str, str]], *, console: Console | 
     for index, ((policy, environment, scene), recipes) in enumerate(sorted(groups.items())):
         if index:
             output.print()
-        output.print(_group_heading(policy, environment, scene))
+        output.print(_group_heading(policy, environment, scene, recipes[0]["reference_match"]))
         table = Table(box=box.SIMPLE, expand=True, pad_edge=False, show_edge=False)
         table.add_column("Recipe", ratio=5, overflow="fold")
         table.add_column("Protocol", min_width=32, overflow="fold", no_wrap=True)

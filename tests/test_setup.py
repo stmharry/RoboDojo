@@ -8,7 +8,6 @@ from types import SimpleNamespace
 
 from pydantic import ValidationError
 import pytest
-import yaml
 
 from robodojo.core.models import SetupRequest, SetupStage, SetupStageResult
 from robodojo.core.paths import RepositoryPaths
@@ -155,7 +154,7 @@ def test_dirty_submodule_is_preserved_and_blocks_update(monkeypatch, tmp_path):
     assert calls == [["git", "status", "--porcelain"]]
 
 
-def test_generated_asset_stage_infers_robot_fixture_and_task_assets(monkeypatch, tmp_path):
+def test_generated_asset_stage_uses_declared_robot_fixture_and_task_assets(monkeypatch, tmp_path):
     profile = object()
     scene = SimpleNamespace(name="moonlake_office", document=SimpleNamespace(asset_builds=["moonlake_office"]))
     calls: list[str] = []
@@ -185,10 +184,8 @@ def test_generated_asset_stage_infers_robot_fixture_and_task_assets(monkeypatch,
 
 
 @pytest.mark.parametrize(("robot_name", "expected"), [("yam", ("yam",)), ("openarm", ("openarm",))])
-def test_generated_robot_builder_is_inferred_from_environment_config(tmp_path, robot_name, expected):
-    config = tmp_path / "robot.yml"
-    config.write_text(yaml.safe_dump({"robots": [{"robot_name": robot_name}]}), encoding="utf-8")
-    profile = SimpleNamespace(component_paths={"robot": config})
+def test_generated_robot_builder_is_declared_by_environment_profile(robot_name, expected):
+    profile = SimpleNamespace(document=SimpleNamespace(asset_builds=[robot_name]))
 
     assert assets.required_robot_builds(profile) == expected
 

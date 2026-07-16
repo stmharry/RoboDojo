@@ -1,4 +1,6 @@
 config_name: openarm_lerobot
+variant: {kind: reference}
+asset_builds: [openarm]
 
 diagnostics:
   matched_replay_manifest: reference/openarm_lerobot_wrist_calibration.yml

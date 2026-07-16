@@ -1,4 +1,6 @@
 config_name: arx_x5
+variant: {kind: reference}
+asset_builds: []
 
 config:
   sim: sim_config

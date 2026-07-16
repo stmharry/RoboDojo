@@ -1,6 +1,7 @@
 config_name: bimanual_yam_molmoact2
 extends: bimanual_yam
 selectable: true
+variant: {kind: reference}
 
 config:
   robot: dual_yam_molmoact2

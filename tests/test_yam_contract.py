@@ -56,7 +56,7 @@ def test_named_yam_profiles_inherit_one_30hz_policy_contract():
     assert robot_info["dual_yam_moonlake_office"] == expected_dimensions
 
     contract = resolve_recipe(paths, "molmoact2-bimanual_yam-molmo_yam-general_pickup")
-    assert contract.policy.embodiment == contract.environment.policy_contract == "bimanual_yam"
+    assert contract.policy_descriptor.interface.embodiment == contract.environment.policy_contract == "bimanual_yam"
 
 
 def test_task_instruction_is_independent_of_environment_and_scene_profiles():

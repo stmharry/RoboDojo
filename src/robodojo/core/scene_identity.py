@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-ARTIFACT_SCHEMA_VERSION = 2
+ARTIFACT_SCHEMA_VERSION = 3
 
 
 class ArtifactSchemaError(ValueError):
@@ -20,7 +20,22 @@ SCENE_IDENTITY_FIELDS = (
     "task_name",
     "episode_horizon",
     "native_eval_num",
+    "robodojo_revision",
+    "xpolicylab_revision",
+    "policy_name",
+    "policy_profile",
+    "policy_checkpoint",
+    "policy_descriptor_hash",
+    "policy_reference_match",
+    "policy_execution",
+    "policy_training",
+    "policy_adapter",
+    "environment_profile",
     "environment_profile_hash",
+    "environment_variant",
+    "environment_asset_hash",
+    "environment_asset_builds",
+    "environment_asset_identities",
     "policy_contract",
     "scene_config",
     "scene_component",
@@ -65,6 +80,13 @@ def require_current_result_artifact(values: Mapping[str, Any], *, context: str) 
         "protocol_name",
         "episode_horizon",
         "native_eval_num",
+        "robodojo_revision",
+        "xpolicylab_revision",
+        "policy_profile",
+        "environment_profile",
+        "environment_profile_hash",
+        "environment_asset_hash",
+        "policy_contract",
         "scene_config",
         "layout_config_name",
         "layout_source",
@@ -73,6 +95,8 @@ def require_current_result_artifact(values: Mapping[str, Any], *, context: str) 
     missing = [field for field in required if values.get(field) in (None, "")]
     if missing:
         raise ArtifactSchemaError(f"{context} is missing required fields: {', '.join(missing)}")
+    if values.get("policy_profile") != "manual" and not values.get("policy_descriptor_hash"):
+        raise ArtifactSchemaError(f"{context} is missing policy_descriptor_hash for a tracked policy profile")
     try:
         eval_time = int(values.get("eval_time", 0))
     except (TypeError, ValueError) as exc:

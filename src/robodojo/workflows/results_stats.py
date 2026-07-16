@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_ROOT = str(eval_root())
 
-DEFAULT_POLICIES = ("Xiaomi_Robotics_0", "X_VLA", "Pi_05")
+DEFAULT_POLICIES = ("pi05_bimanual_yam", "pi05_bimanual_yam_pickup", "molmoact2_bimanual_yam")
 POLICY_ALIASES = {
     "xiaomi_robotics_0": "Xiaomi_Robotics_0",
 }

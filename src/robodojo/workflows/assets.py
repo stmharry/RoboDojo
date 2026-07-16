@@ -29,9 +29,7 @@ def _sha256(path: Path) -> str:
 def required_robot_builds(profile: EnvironmentProfile) -> tuple[str, ...]:
     """Return generated robot assets required by an environment profile."""
 
-    robot_config = yaml.safe_load(profile.component_paths["robot"].read_text(encoding="utf-8")) or {}
-    names = {str(item.get("robot_name", "")) for item in robot_config.get("robots", [])}
-    return tuple(sorted(names.intersection({"yam", "openarm"})))
+    return tuple(profile.document.asset_builds)
 
 
 def generated_robot_error(name: str) -> str | None:

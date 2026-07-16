@@ -60,6 +60,7 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
             super().__init__(config, app, **kwargs)
             self.eval_cfg = config.eval_cfg
             self.config_name = self.eval_cfg.get("config_name", None)
+            self.environment_profile = self.eval_cfg.get("environment_profile", self.config_name)
             self.environment_profile_hash = self.eval_cfg.get("environment_profile_hash")
             self.policy_contract = self.eval_cfg.get("policy_contract")
             self.scene_config = self.eval_cfg.get("scene_config")
@@ -77,6 +78,7 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
             self.eval_batch = self.eval_cfg.get("eval_batch", False)
             self.eval_num = int(self.eval_cfg.get("eval_num", 50))
             self.policy_name = self.eval_cfg.get("policy_name", None)
+            self.policy_profile = self.eval_cfg.get("policy_profile", self.policy_name)
             self.additional_info = self.eval_cfg.get("additional_info", "")
             self.eval_seed = self.eval_cfg.get("seed", 0)
             self.physx_monitor_enabled = bool(self.eval_cfg.get("physx_monitor_enabled", False))
@@ -99,7 +101,7 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
             self.save_dir = os.path.join(
                 str(eval_work_root()),
                 self.protocol_name,
-                self.policy_name,
+                self.policy_profile,
                 self.config_name,
                 str(self.eval_seed) + "_" + self.additional_info,
                 run_id,
@@ -723,7 +725,7 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
             return os.path.join(
                 str(eval_work_root()),
                 self.protocol_name,
-                self.policy_name,
+                self.policy_profile,
                 self.config_name,
                 str(self.eval_seed) + "_" + self.additional_info,
                 f"_resume_{self.run_id}.json",
@@ -752,6 +754,7 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
                 "task_name": self.task_name,
                 "protocol_name": self.protocol_name,
                 "policy_name": self.policy_name,
+                "policy_profile": self.policy_profile,
                 "config_name": self.config_name,
                 **scene_identity(self.eval_cfg),
                 "eval_seed": self.eval_seed,

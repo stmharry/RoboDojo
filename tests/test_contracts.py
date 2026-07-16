@@ -97,7 +97,7 @@ def test_recipe_resolution_validates_every_compatibility_edge():
     long = resolve_recipe(PATHS, PI_LONG)
     assert long.policy_name == "pi05_bimanual_yam_pickup"
     assert long.policy.checkpoint == "pi05_yam_abc_pickplace"
-    assert long.policy.embodiment == long.environment.policy_contract == "bimanual_yam"
+    assert long.policy_descriptor.interface.embodiment == long.environment.policy_contract == "bimanual_yam"
     assert long.scene.name == "moonlake_office"
     assert long.protocol_name == "moonlake_office_general_pickup"
 
@@ -174,7 +174,7 @@ def test_pickup_protocols_have_no_task_specific_scene_assets():
 
 
 def test_policy_profiles_hold_adapter_runtime_checkpoint_and_action_contract():
-    assert load_policy_catalog(PATHS).schema_version == 2
+    assert load_policy_catalog(PATHS).schema_version == 3
     assert load_protocol_catalog(PATHS).schema_version == 2
     assert load_recipe_catalog(PATHS).schema_version == 2
     policies = load_policy_catalog(PATHS).policies
@@ -182,17 +182,26 @@ def test_policy_profiles_hold_adapter_runtime_checkpoint_and_action_contract():
     assert pi.policy_dir == Path("XPolicyLab/policy/Pi_05")
     assert pi.runtime == "uv"
     assert pi.checkpoint == "pi05_yam_molmoact2"
-    assert pi.embodiment == "bimanual_yam"
-    assert pi.dataset == "RoboDojo"
-    assert pi.action_type == "joint"
+    resolved_pi = resolve_recipe(PATHS, "pi05-bimanual_yam-molmo_yam-general_pickup")
+    assert resolved_pi.policy_descriptor.interface.embodiment == "bimanual_yam"
+    assert resolved_pi.policy_descriptor.launch.dataset == "RoboDojo"
+    assert resolved_pi.policy_descriptor.launch.action_type == "joint"
+    assert resolved_pi.policy_descriptor.execution.model_dump() == {
+        "strategy": "fixed_prefix",
+        "prediction_horizon": 16,
+        "nominal_execution_horizon": 8,
+        "maximum_execution_horizon": 8,
+    }
 
     pickup = policies["pi05_bimanual_yam_pickup"]
     assert pickup.policy_dir == Path("XPolicyLab/policy/Pi_05")
     assert pickup.runtime == "uv"
     assert pickup.checkpoint == "pi05_yam_abc_pickplace"
-    assert pickup.embodiment == "bimanual_yam"
-    assert pickup.dataset == "RoboDojo"
-    assert pickup.action_type == "joint"
+    resolved_pickup = resolve_recipe(PATHS, PI_LONG)
+    assert resolved_pickup.policy_descriptor.interface.embodiment == "bimanual_yam"
+    assert resolved_pickup.policy_descriptor.execution.strategy == "adaptive"
+    assert resolved_pickup.policy_descriptor.execution.maximum_execution_horizon == 50
+    assert resolved_pickup.policy_reference_match == "reference_match"
 
 
 def test_protocol_identity_owns_result_paths_and_wrapper_horizon():

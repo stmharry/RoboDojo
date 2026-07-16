@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 import hashlib
+import json
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +28,7 @@ class EnvironmentProfile:
     matched_replay_manifest: Path | None
     source_paths: tuple[Path, ...]
     identity_hash: str
+    policy_interface: EnvironmentPolicyInterface
 
     @property
     def num_envs(self) -> int:
@@ -49,6 +51,24 @@ class SceneProfile:
     component_path: Path
     component: dict[str, Any]
     identity_hash: str
+
+
+@dataclass(frozen=True)
+class EnvironmentCameraInterface:
+    role: str
+    resolutions: tuple[tuple[int, int], ...]
+    rate_hz: int | None
+
+
+@dataclass(frozen=True)
+class EnvironmentPolicyInterface:
+    state_dimension: int
+    action_dimension: int
+    action_rate_hz: int
+    cameras: tuple[EnvironmentCameraInterface, ...]
+
+    def camera(self, role: str) -> EnvironmentCameraInterface | None:
+        return next((camera for camera in self.cameras if camera.role == role), None)
 
 
 def validate_scene_environment_compatibility(scene: SceneProfile, environment: EnvironmentProfile) -> None:
@@ -101,6 +121,73 @@ def _environment_payload(
     return _merge_profile_payload(base, payload), (*source_paths, path)
 
 
+def _policy_interface(
+    config_root: Path,
+    document: EnvironmentConfigDocument,
+    component_paths: dict[str, Path],
+) -> EnvironmentPolicyInterface:
+    robot_info_path = config_root / "robot" / "_robot_info.json"
+    dimension = 0
+    if robot_info_path.is_file():
+        robot_info = json.loads(robot_info_path.read_text(encoding="utf-8"))
+        dimensions = robot_info.get(document.config.robot)
+        if isinstance(dimensions, dict):
+            arm_dimensions = dimensions.get("arm_dim")
+            end_effector_dimensions = dimensions.get("ee_dim")
+            if isinstance(arm_dimensions, list) and isinstance(end_effector_dimensions, list):
+                dimension = sum(int(value) for value in (*arm_dimensions, *end_effector_dimensions))
+
+    rate = document.observation.get("collect_freq")
+    if isinstance(rate, bool) or not isinstance(rate, int) or rate < 1:
+        rate = 0
+
+    camera_payload: dict[str, Any] = yaml.safe_load(component_paths["camera"].read_text(encoding="utf-8")) or {}
+    camera_interfaces: list[EnvironmentCameraInterface] = []
+    layered = camera_payload.get("camera_rig", {}).get("cameras")
+    if isinstance(layered, dict):
+        for camera in layered.values():
+            if not isinstance(camera, dict):
+                continue
+            role = camera.get("role")
+            sensor = camera.get("sensor") or {}
+            if not isinstance(role, str) or not role:
+                continue
+            resolution = sensor.get("stream_resolution")
+            resolutions = ()
+            if isinstance(resolution, list) and len(resolution) == 2:
+                resolutions = ((int(resolution[0]), int(resolution[1])),)
+            fps = sensor.get("fps")
+            camera_interfaces.append(
+                EnvironmentCameraInterface(
+                    role=role,
+                    resolutions=resolutions,
+                    rate_hz=int(fps) if isinstance(fps, int) and not isinstance(fps, bool) else None,
+                )
+            )
+    else:
+        role_by_key = {
+            "cam_head": "top",
+            "cam_left_wrist": "left_wrist",
+            "cam_right_wrist": "right_wrist",
+        }
+        annotators = camera_payload.get("annotator") or {}
+        for key in annotators:
+            if key in role_by_key:
+                camera_interfaces.append(
+                    EnvironmentCameraInterface(role=role_by_key[key], resolutions=(), rate_hz=None)
+                )
+
+    roles = [camera.role for camera in camera_interfaces]
+    if len(roles) != len(set(roles)):
+        raise ValueError(f"environment {document.config_name!r} camera roles must be unique")
+    return EnvironmentPolicyInterface(
+        state_dimension=dimension,
+        action_dimension=dimension,
+        action_rate_hz=rate,
+        cameras=tuple(camera_interfaces),
+    )
+
+
 def load_environment_profile(
     paths: RepositoryPaths,
     name: str,
@@ -142,14 +229,17 @@ def load_environment_profile(
             field="matched replay manifest",
         )
 
+    policy_interface = _policy_interface(config_root, document, component_paths)
     digest = hashlib.sha256()
-    digest.update(b"robodojo-environment-profile-v1\0")
+    digest.update(b"robodojo-environment-profile-v2\0")
     identity_inputs = (*source_paths, *(component_paths[key] for key in sorted(component_paths)))
     for input_path in identity_inputs:
         digest.update(input_path.relative_to(paths.environment_configs).as_posix().encode())
         digest.update(b"\0")
         digest.update(input_path.read_bytes())
         digest.update(b"\0")
+    digest.update(json.dumps(asdict(policy_interface), sort_keys=True, separators=(",", ":")).encode())
+    digest.update(b"\0")
     profile = EnvironmentProfile(
         name=name,
         path=path,
@@ -161,6 +251,7 @@ def load_environment_profile(
         matched_replay_manifest=matched_replay_manifest,
         source_paths=source_paths,
         identity_hash=digest.hexdigest(),
+        policy_interface=policy_interface,
     )
     profile.num_envs
     return profile

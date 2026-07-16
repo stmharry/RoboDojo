@@ -56,7 +56,7 @@ exported values.
 `make setup` is the consolidated mutation interface. It validates host tools,
 initializes pinned submodules without overwriting dirty work, synchronizes the
 locked Python 3.11 simulator environment, downloads the base asset bundle,
-builds robot/scene/task assets inferred from the configured profiles, and then
+builds robot/scene/task assets declared by the configured profiles, and then
 invokes the selected policy's optional `prepare_eval_policy.sh`. The hook runs
 from the policy directory with this argument prefix:
 
@@ -74,6 +74,10 @@ Fast preflight is read-only. It validates:
 - the root `.venv`, `uv.lock`, and installed simulator distributions;
 - the policy/environment, scene/environment, and protocol/scene compatibility
   edges before launch;
+- the selected XPolicyLab `eval_contracts.yml` entry, including state/action
+  dimensions, control rate, required camera roles, and accepted source
+  resolutions; a non-reference training setup reports `WARN` but remains
+  runnable;
 - canonical task code/YAML, protocol horizon and evaluation count, environment
   components, scene profile, and every protocol-selected layout;
 - task label/support-plane contracts and environment robot roots in the resolved

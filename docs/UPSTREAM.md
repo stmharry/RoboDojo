@@ -31,6 +31,12 @@ the MDP while `configs/protocols.yml` owns explicit layout, horizon, evaluation
 count, and scene-compatibility choices. `configs/recipes.yml` then selects one
 policy, environment, scene, and protocol without implicit rebinding.
 
+The upstream task inventory remains a semantically locked subset of this
+fork's composition system; it is not a requirement that every policy, concrete
+embodiment realization, scene, or generated asset form one standardized cross
+product. New combinations use the same explicit contracts and allowlists while
+policy training affinity remains advisory metadata.
+
 ## Future reviews
 
 Use an LLM to inspect upstream commits and diffs, concentrating on material new

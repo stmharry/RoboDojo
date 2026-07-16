@@ -13,7 +13,7 @@ from typing import Iterable
 
 import yaml
 
-from robodojo.core.contracts import load_protocol_catalog
+from robodojo.core.contracts import load_protocol_catalog, resolve_contract
 from robodojo.core.gpu import GpuSelectionError, resolve_gpus, validate_gpu_assignment
 from robodojo.core.layouts import resolve_layout_set
 from robodojo.core.models import (
@@ -67,6 +67,9 @@ def request_from_evaluation(request: ExperimentRequest, *, task: str | None = No
         policy_dir=request.policy_dir,
         task=task or request.task,
         checkpoint=request.checkpoint,
+        policy_profile=request.policy_profile,
+        policy_descriptor_hash=request.policy_descriptor_hash,
+        policy_reference_match=request.policy_reference_match,
         policy_env=request.policy_env,
         dataset=request.dataset,
         env_config=request.env_config,
@@ -211,6 +214,71 @@ def _configuration_checks(
     except Exception as exc:
         checks.append(_check("scene", "FAIL", str(exc), "select compatible SCENE and ENV_CFG values"))
         return checks, profile, None
+
+    if request.policy_profile == "manual":
+        checks.append(
+            _check(
+                "policy_descriptor",
+                "WARN",
+                "direct request has no tracked policy profile identity",
+                "resolve the request through --policy-profile or --recipe",
+            )
+        )
+    else:
+        try:
+            resolved = resolve_contract(
+                paths,
+                policy_name=request.policy_profile,
+                environment_name=request.env_config,
+                scene_name=request.scene_config,
+                protocol_name=request.protocol,
+                recipe_name=request.recipe,
+            )
+            actual = (
+                request.checkpoint,
+                request.policy_contract,
+                request.action_type,
+                request.dataset,
+                request.policy_descriptor_hash,
+                request.contract_hash,
+                request.policy_reference_match,
+            )
+            expected = (
+                resolved.policy.checkpoint,
+                resolved.policy_descriptor.interface.embodiment,
+                resolved.policy_descriptor.launch.action_type,
+                resolved.policy_descriptor.launch.dataset,
+                resolved.policy_descriptor_hash,
+                resolved.identity_hash,
+                resolved.policy_reference_match,
+            )
+            if actual != expected:
+                raise ValueError(f"resolved policy descriptor fields {actual} do not match catalog {expected}")
+            if resolved.policy_reference_match == "domain_shift":
+                checks.append(
+                    _check(
+                        "policy_descriptor",
+                        "WARN",
+                        f"{request.policy_profile} is running outside its declared reference setup",
+                    )
+                )
+            else:
+                checks.append(
+                    _check(
+                        "policy_descriptor",
+                        "PASS",
+                        f"{request.policy_profile} descriptor={resolved.policy_descriptor_hash}",
+                    )
+                )
+        except (KeyError, OSError, TypeError, ValueError, yaml.YAMLError) as exc:
+            checks.append(
+                _check(
+                    "policy_descriptor",
+                    "FAIL",
+                    str(exc),
+                    "select a tracked policy profile with a valid XPolicyLab eval_contracts.yml",
+                )
+            )
     return checks, profile, scene
 
 

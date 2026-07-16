@@ -310,7 +310,7 @@ def test_scene_only_preflight_skips_every_policy_side_check(monkeypatch, tmp_pat
 def test_yam_manifest_requires_asset_and_matching_checksums(monkeypatch, tmp_path):
     config = tmp_path / "dual_yam.yml"
     config.write_text(yaml.safe_dump({"robots": [{"robot_name": "yam"}]}), encoding="utf-8")
-    profile = SimpleNamespace(component_paths={"robot": config})
+    profile = SimpleNamespace(document=SimpleNamespace(asset_builds=["yam"]), component_paths={"robot": config})
     asset_root = tmp_path / "assets"
     monkeypatch.setattr(assets, "assets_root", lambda: asset_root)
 

@@ -83,7 +83,11 @@ Each recipe explicitly selects a typed policy profile, environment profile,
 scene profile, and task protocol. Those components cannot be overridden under a
 recipe. The direct CLI also supports a strict manual mode, but all four profiles
 must be named together. This keeps policy checkpoints and embodiment contracts,
-scene composition, and task-protocol settings independently reviewable. Make
+scene composition, and task-protocol settings independently reviewable. Every
+tracked checkpoint also declares a policy-owned `eval_contracts.yml` entry.
+RoboDojo validates its state/action dimensions, control rate, and camera
+requirements without importing the policy runtime. A training-reference setup
+mismatch is labeled as domain shift rather than rejected. Make
 loads an optional ignored `.env` from the repository root for machine-local
 controls such as GPU selection and storage. Use Make-compatible `?=` assignments
 so explicit arguments and exported variables retain precedence; direct Python
@@ -96,9 +100,10 @@ next-most-free GPU to the policy, breaking ties by device index. Override either
 selector with a Make argument or exported `POLICY_GPU`/`ENV_GPU`; direct CLI
 flags take precedence over those variables. `make eval` first performs the
 idempotent setup workflow, which initializes the pinned XPolicyLab submodule,
-synchronizes the locked simulator environment, prepares inferred assets, and
-invokes the optional policy preparation hook. The managed evaluation then runs
-fast preflight before launching. Inspect the deliberately small Make surface with:
+synchronizes the locked simulator environment, prepares profile-declared assets,
+and invokes the optional policy preparation hook. The managed evaluation then
+runs fast preflight before
+launching. Inspect the deliberately small Make surface with:
 
 ```bash
 make help

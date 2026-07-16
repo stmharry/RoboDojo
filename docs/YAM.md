@@ -8,8 +8,20 @@ camera, and charcoal D405 housings. Both setups share the same 30 Hz
 observation, 14-value action, controller, max-open reset, and finger-collision
 contract.
 
-The normal setup workflow infers and builds the licensed I2RT-derived runtime
-asset from the selected YAM setup before launching the profile:
+Selectable environment profiles are concrete embodiment realizations, not
+policy interfaces. A measured tuning candidate receives a versioned name,
+extends one of these setups, and replaces only the changed sim, robot, or camera
+component references. It may change geometry, collision, dynamics, controller,
+reset, calibration, camera, or appearance while retaining
+`policy_contract: bimanual_yam`; changing the state/action schema requires a
+new base policy contract. `variant.derived_for` records which policy, scene, or
+protocol motivated a candidate but does not make the environment exclusive to
+that policy. The scene must still list every intended environment profile
+explicitly, and every evaluated combination remains an explicit recipe or
+complete manual selection.
+
+The normal setup workflow reads the selected profile's explicit `asset_builds`
+and builds the licensed I2RT-derived runtime asset before launch:
 
 ```bash
 make setup RECIPE=molmoact2-bimanual_yam-molmo_yam-general_pickup
@@ -36,8 +48,11 @@ gripper. Camera keys are `cam_head`, `cam_left_wrist`, and
 `cam_right_wrist`. The source, geometry, controller, reset, camera, and final
 hardware-calibration contracts are recorded in
 `configs/reference/bimanual_yam.yml`. Checkpoint revisions, inference horizons,
-policy camera mappings, and policy-specific joint-sign bridges belong to the
-policy adapter and are intentionally absent from that reference.
+executed chunk prefixes, policy camera mappings, and policy-specific joint-sign
+bridges belong to the policy adapter and are intentionally absent from that
+reference. These values are declared in each adapter's `eval_contracts.yml` and
+implemented by its policy code; the simulator applies the returned commands at
+the environment's control rate, while the protocol alone owns episode length.
 
 ## Independent workspace selection
 
@@ -98,8 +113,11 @@ labels, and episode limit remain unchanged. Newton VBD was also investigated,
 but is not part of this profile because the pinned Isaac Sim 5.1 runtime does
 not provide that backend.
 
-Evaluation results, resume manifests, and scene exports record separate hashes
-for the scene profile, the exact ordered layout set, and prepared scene assets.
+Evaluation results and resume manifests record the policy descriptor and
+execution summary, policy and environment profile names, domain-shift label,
+embodiment and scene asset manifests, and both repository revisions. Scene
+exports record separate hashes for the scene profile, the exact ordered layout
+set, and prepared scene assets.
 A resumed run is rejected if any of those inputs changed.
 
 For example, a YAM evaluation may opt into that workspace explicitly:
@@ -128,7 +146,12 @@ uv run --extra sim --locked robodojo eval \
 
 `pi05_yam_molmoact2` consumes the shared `bimanual_yam` policy contract, but it
 does not require the `molmo_yam` scene. The latter is the recommended
-training-matched appearance.
+training-matched appearance. Selecting Moonlake instead is allowed and recorded
+as domain shift. The pickup-trained `pi05_yam_abc_pickplace` profile declares
+Moonlake as its reference setup and retains its grasp-triggered 8/50-action
+execution and joint-height correction inside XPolicyLab. That correction
+depends on the predicted action chunk and is therefore policy execution logic,
+not a static embodiment calibration.
 
 ## Canonical appearance and hardware calibration
 

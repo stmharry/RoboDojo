@@ -14,6 +14,8 @@ import yaml
 
 from robodojo.core.models import (
     EvaluationRecipeCatalog,
+    PolicyEvaluationContract,
+    PolicyEvaluationContractCatalog,
     PolicyProfileCatalog,
     PolicyProfileDocument,
     TaskProtocolCatalog,
@@ -34,6 +36,10 @@ class ResolvedExperimentContract:
     name: str | None
     policy_name: str
     policy: PolicyProfileDocument
+    policy_descriptor: PolicyEvaluationContract
+    policy_descriptor_path: Path
+    policy_descriptor_hash: str
+    policy_reference_match: str
     environment: EnvironmentProfile
     scene: SceneProfile
     protocol_name: str
@@ -45,12 +51,15 @@ class ResolvedExperimentContract:
             "policy_dir": (paths.root / self.policy.policy_dir).resolve(),
             "task": self.protocol.task,
             "checkpoint": self.policy.checkpoint,
+            "policy_profile": self.policy_name,
+            "policy_descriptor_hash": self.policy_descriptor_hash,
+            "policy_reference_match": self.policy_reference_match,
             "policy_env": self.policy.runtime,
-            "dataset": self.policy.dataset,
+            "dataset": self.policy_descriptor.launch.dataset,
             "env_config": self.environment.name,
-            "policy_contract": self.policy.embodiment,
+            "policy_contract": self.policy_descriptor.interface.embodiment,
             "scene_config": self.scene.name,
-            "action_type": self.policy.action_type,
+            "action_type": self.policy_descriptor.launch.action_type,
             "recipe": self.name,
             "contract_hash": self.identity_hash,
             "protocol": self.protocol_name,
@@ -69,6 +78,25 @@ def load_policy_catalog(paths: RepositoryPaths) -> PolicyProfileCatalog:
     return PolicyProfileCatalog.model_validate(_load_yaml(paths.policy_profiles))
 
 
+def load_policy_evaluation_contract(
+    paths: RepositoryPaths,
+    policy: PolicyProfileDocument,
+) -> tuple[PolicyEvaluationContract, Path, str]:
+    policy_dir = (paths.root / policy.policy_dir).resolve()
+    if not policy_dir.is_relative_to(paths.xpolicy_root.resolve()):
+        raise ValueError(f"tracked policy directory must stay below XPolicyLab: {policy.policy_dir}")
+    descriptor_path = policy_dir / "eval_contracts.yml"
+    catalog = PolicyEvaluationContractCatalog.model_validate(_load_yaml(descriptor_path))
+    try:
+        descriptor = catalog.profiles[policy.checkpoint]
+    except KeyError as exc:
+        raise ValueError(
+            f"policy checkpoint {policy.checkpoint!r} has no entry in {descriptor_path.relative_to(paths.root)}"
+        ) from exc
+    encoded = json.dumps(descriptor.model_dump(mode="json"), sort_keys=True, separators=(",", ":")).encode()
+    return descriptor, descriptor_path, hashlib.sha256(encoded).hexdigest()
+
+
 def load_protocol_catalog(paths: RepositoryPaths) -> TaskProtocolCatalog:
     return TaskProtocolCatalog.model_validate(_load_yaml(paths.task_protocols))
 
@@ -83,23 +111,71 @@ def _safe_recipe_name(name: str) -> str:
     return name
 
 
-def _entry_hash(paths: RepositoryPaths, *values: str) -> str:
+def _entry_hash(*values: Any) -> str:
     digest = hashlib.sha256()
-    digest.update(b"robodojo-experiment-contract-v2\0")
-    for path in (
-        paths.policy_profiles,
-        paths.task_protocols,
-        paths.evaluation_recipes,
-        paths.upstream_task_contracts,
-    ):
-        digest.update(path.relative_to(paths.root).as_posix().encode())
-        digest.update(b"\0")
-        digest.update(path.read_bytes())
-        digest.update(b"\0")
+    digest.update(b"robodojo-experiment-contract-v3\0")
     for value in values:
-        digest.update(value.encode())
+        encoded = json.dumps(value, sort_keys=True, separators=(",", ":"), default=str).encode()
+        digest.update(encoded)
         digest.update(b"\0")
     return digest.hexdigest()
+
+
+def _validate_policy_environment_interface(
+    policy_name: str,
+    descriptor: PolicyEvaluationContract,
+    environment: EnvironmentProfile,
+) -> None:
+    required = descriptor.interface
+    actual = environment.policy_interface
+    if required.embodiment != environment.policy_contract:
+        raise ValueError(
+            f"policy profile {policy_name!r} requires embodiment {required.embodiment!r}; "
+            f"environment {environment.name!r} exposes {environment.policy_contract!r}"
+        )
+    if required.state.dimension != actual.state_dimension or required.action.dimension != actual.action_dimension:
+        raise ValueError(
+            f"policy profile {policy_name!r} requires state/action dimensions "
+            f"{required.state.dimension}/{required.action.dimension}; environment {environment.name!r} exposes "
+            f"{actual.state_dimension}/{actual.action_dimension}"
+        )
+    if required.action.rate_hz != actual.action_rate_hz:
+        raise ValueError(
+            f"policy profile {policy_name!r} requires {required.action.rate_hz} Hz actions; "
+            f"environment {environment.name!r} exposes {actual.action_rate_hz} Hz"
+        )
+    for camera in required.cameras.required:
+        source = actual.camera(camera.role)
+        if source is None:
+            raise ValueError(
+                f"policy profile {policy_name!r} requires camera role {camera.role!r}; "
+                f"environment {environment.name!r} does not expose it"
+            )
+        accepted = set(camera.accepted_resolutions)
+        if accepted and (not source.resolutions or not set(source.resolutions).issubset(accepted)):
+            raise ValueError(
+                f"policy profile {policy_name!r} accepts {camera.role!r} resolutions "
+                f"{sorted(accepted)}; environment {environment.name!r} exposes {list(source.resolutions)}"
+            )
+        if source.rate_hz is not None and source.rate_hz != required.action.rate_hz:
+            raise ValueError(
+                f"environment {environment.name!r} camera role {camera.role!r} runs at {source.rate_hz} Hz; "
+                f"policy profile {policy_name!r} requires {required.action.rate_hz} Hz"
+            )
+
+
+def policy_reference_match(
+    descriptor: PolicyEvaluationContract,
+    environment_name: str,
+    scene_name: str,
+) -> str:
+    training = descriptor.training
+    references = bool(training.reference_environments or training.reference_scenes)
+    if not references:
+        return "unspecified"
+    environment_matches = not training.reference_environments or environment_name in training.reference_environments
+    scene_matches = not training.reference_scenes or scene_name in training.reference_scenes
+    return "reference_match" if environment_matches and scene_matches else "domain_shift"
 
 
 def resolve_contract(
@@ -122,14 +198,11 @@ def resolve_contract(
     except KeyError as exc:
         raise ValueError(f"unknown task protocol {protocol_name!r}") from exc
 
+    policy_descriptor, policy_descriptor_path, policy_descriptor_hash = load_policy_evaluation_contract(paths, policy)
     environment = load_environment_profile(paths, environment_name)
     scene = load_scene_profile(paths, scene_name)
     validate_scene_environment_compatibility(scene, environment)
-    if policy.embodiment != environment.policy_contract:
-        raise ValueError(
-            f"policy profile {policy_name!r} requires embodiment {policy.embodiment!r}; "
-            f"environment {environment_name!r} exposes {environment.policy_contract!r}"
-        )
+    _validate_policy_environment_interface(policy_name, policy_descriptor, environment)
     if protocol.compatible_scenes and scene.name not in protocol.compatible_scenes:
         raise ValueError(
             f"task protocol {protocol_name!r} is compatible only with scenes "
@@ -148,20 +221,22 @@ def resolve_contract(
         name=recipe_name,
         policy_name=policy_name,
         policy=policy,
+        policy_descriptor=policy_descriptor,
+        policy_descriptor_path=policy_descriptor_path,
+        policy_descriptor_hash=policy_descriptor_hash,
+        policy_reference_match=policy_reference_match(policy_descriptor, environment.name, scene.name),
         environment=environment,
         scene=scene,
         protocol_name=protocol_name,
         protocol=protocol,
         identity_hash=_entry_hash(
-            paths,
-            recipe_name or "manual",
-            policy_name,
-            environment_name,
-            scene_name,
-            protocol_name,
-            environment.identity_hash,
-            scene.identity_hash,
-            _upstream_semantic_hash(task_module, task_config),
+            {"recipe": recipe_name or "manual"},
+            {"policy_name": policy_name, "selection": policy.model_dump(mode="json")},
+            {"policy_descriptor": policy_descriptor.model_dump(mode="json")},
+            {"environment": environment.name, "sha256": environment.identity_hash},
+            {"scene": scene.name, "sha256": scene.identity_hash},
+            {"protocol_name": protocol_name, "protocol": protocol.model_dump(mode="json")},
+            {"task_semantic_hash": _upstream_semantic_hash(task_module, task_config)},
         ),
     )
 
@@ -279,6 +354,21 @@ def _validate_upstream_contract_lock(
 
 
 def validate_contract_catalogs(paths: RepositoryPaths) -> list[ResolvedExperimentContract]:
+    for policy_name, policy in load_policy_catalog(paths).policies.items():
+        descriptor, descriptor_path, _ = load_policy_evaluation_contract(paths, policy)
+        for environment in descriptor.training.reference_environments:
+            if not (paths.environment_profiles / f"{environment}.yml").is_file():
+                raise ValueError(
+                    f"policy profile {policy_name!r} references unknown environment {environment!r} "
+                    f"in {descriptor_path.relative_to(paths.root)}"
+                )
+        for scene in descriptor.training.reference_scenes:
+            if not (paths.scene_profiles / f"{scene}.yml").is_file():
+                raise ValueError(
+                    f"policy profile {policy_name!r} references unknown scene {scene!r} "
+                    f"in {descriptor_path.relative_to(paths.root)}"
+                )
+
     protocols = load_protocol_catalog(paths).protocols
     task_dir = paths.root / "src" / "robodojo" / "sim" / "tasks"
     task_names = {path.stem for path in task_dir.glob("*.py") if path.name != "__init__.py"}
@@ -340,6 +430,7 @@ def recipe_rows(paths: RepositoryPaths) -> list[dict[str, str]]:
             "scene": contract.scene.name,
             "protocol": contract.protocol_name,
             "task": contract.protocol.task,
+            "reference_match": contract.policy_reference_match,
         }
         for contract in validate_contract_catalogs(paths)
     ]
