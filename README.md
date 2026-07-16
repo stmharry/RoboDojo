@@ -46,11 +46,14 @@ The [RoboDojo documentation](https://robodojo-benchmark.com/doc/) is the canonic
 ## 🗂️ Repository Structure
 
 ```text
-src/robodojo/core/          lightweight settings, paths, storage, and process contracts
+src/robodojo/core/models/   requests, reports, policy, experiment, environment, and scene models
+src/robodojo/core/profiles/ environment and scene profile loading
+src/robodojo/core/experiments/ catalog loading, composition, compatibility, and identity
+src/robodojo/core/artifacts/ historical result and snapshot normalization
 src/robodojo/policy/        XPolicyLab adapter validation and launching
-src/robodojo/sim/           simulator runtime, tasks, evaluation, and scene export
+src/robodojo/sim/           tasks, rewards, scene/layout services, evaluation, and scene export
 src/robodojo/orchestration/ coordinated policy/simulator evaluation lifecycle
-src/robodojo/workflows/     setup, assets, storage, result, and Docker workflows
+src/robodojo/workflows/     setup, typed asset builders, preflight checks, storage, and results
 configs/                    environment, task, simulator, scene, robot, and camera YAML
 XPolicyLab/                 policy implementations and server adapters (submodule)
 scripts/eval_policy.sh      private compatibility shim for XPolicyLab
@@ -58,8 +61,9 @@ scripts/eval_policy.sh      private compatibility shim for XPolicyLab
 
 The official RoboDojo paths `env_cfg/<profile>.yml` and
 `task/RoboDojo/config/<task>.yml` map to this fork's canonical
-`configs/environment/<profile>.yml` and `configs/task/<task>.yml`. Profile and
-task names, schemas, and XPolicyLab's `env_cfg_type` values remain unchanged.
+`configs/environment/<profile>.yml` and `configs/task/<task>.yml`. Local schemas
+may evolve; legacy `env_cfg_type` naming is translated only at the private
+XPolicyLab adapter boundary.
 
 ## 🚀 Local Setup
 
@@ -82,7 +86,7 @@ output.
 Each recipe explicitly selects a typed policy profile, environment profile,
 scene profile, and task protocol. Those components cannot be overridden under a
 recipe. The direct CLI also supports a strict manual mode, but all four profiles
-must be named together. This keeps policy checkpoints and embodiment contracts,
+must be named together. This keeps policy checkpoints and embodiment interfaces,
 scene composition, and task-protocol settings independently reviewable. Every
 tracked checkpoint also declares a policy-owned `eval_contracts.yml` entry.
 RoboDojo validates its state/action dimensions, control rate, and camera
@@ -153,7 +157,7 @@ Setup remains the consolidated mutation boundary. The setup phase of `make eval`
 may install, download, build, or derive missing prerequisites; its subsequent
 preflight and managed launch are read-only. Fast preflight checks the locked
 simulator and policy runtimes, task/scene/layout and generated robot assets,
-GPUs, checkpoints, policy contracts, and optional publication settings. Deep
+GPUs, checkpoints, policy interfaces, and optional publication settings. Deep
 preflight additionally starts the normal policy server on a temporary port and
 always stops it, without starting Isaac Sim or publishing. See
 [Experiment setup and preflight](docs/PREFLIGHT.md).

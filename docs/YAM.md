@@ -13,7 +13,7 @@ policy interfaces. A measured tuning candidate receives a versioned name,
 extends one of these setups, and replaces only the changed sim, robot, or camera
 component references. It may change geometry, collision, dynamics, controller,
 reset, calibration, camera, or appearance while retaining
-`policy_contract: bimanual_yam`; changing the state/action schema requires a
+`embodiment: bimanual_yam`; changing the state/action schema requires a
 new base policy contract. `variant.derived_for` records which policy, scene, or
 protocol motivated a candidate but does not make the environment exclusive to
 that policy. The scene must still list every intended environment profile

@@ -12,7 +12,8 @@ The Make target displays a grouped terminal table. Use the direct
 `robodojo recipes --format plain|json` formats for automation.
 
 The recipe resolves four typed components: policy, environment, scene, and task
-protocol. A recipe cannot be combined with component overrides. Direct CLI
+protocol. Recipe catalog schema v3 stores this edge as `task_protocol`. A
+recipe cannot be combined with component overrides. Direct CLI
 manual mode requires all four named components, which prevents a partial
 selection from silently changing the policy, embodiment, scene, or benchmark
 behavior. The Makefile defaults to seed 0, automatic policy and simulator GPU
@@ -78,8 +79,8 @@ Fast preflight is read-only. It validates:
   dimensions, control rate, required camera roles, and accepted source
   resolutions; a non-reference training setup reports `WARN` but remains
   runnable;
-- canonical task code/YAML, protocol horizon and evaluation count, environment
-  components, scene profile, and every protocol-selected layout;
+- aligned task code/YAML, protocol horizon and evaluation count, environment
+  components, scene profile, and every selected task-keyed layout;
 - task label/support-plane contracts and environment robot roots in the resolved
   scene workspace frame;
 - scene-owned task asset builds and identities, resolved against the protocol's

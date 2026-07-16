@@ -35,11 +35,14 @@ changes unless the task explicitly includes coordinated XPolicyLab work.
 ## Repository Layout And Ownership
 
 ```text
-src/robodojo/core/           settings, paths, models, storage, processes
+src/robodojo/core/models/    domain models for requests, reports, policies, experiments, environments, scenes
+src/robodojo/core/profiles/  environment and scene profile loading
+src/robodojo/core/experiments/ catalog loading, composition, compatibility, identity, presentation
+src/robodojo/core/artifacts/ historical artifact normalization
 src/robodojo/policy/         policy adapter validation and launching
-src/robodojo/sim/            simulator managers, tasks, evaluation, scene export
+src/robodojo/sim/            simulator managers, task discovery, evaluation, scene export
 src/robodojo/orchestration/  coordinated policy/simulator process lifecycle
-src/robodojo/workflows/      setup, assets, storage, result, Docker workflows
+src/robodojo/workflows/      setup, assets/builders, preflight/checks, storage, results, Docker
 configs/                     environment, task, robot, scene, simulator, and camera YAML
 scripts/eval_policy.sh       private XPolicyLab compatibility shim
 docker/                      container evaluation support
@@ -69,6 +72,13 @@ not import `robodojo.sim` or simulator dependencies. Orchestration may import
 the lightweight simulator launcher but must not initialize Isaac or Torch. The
 simulator uses `XPolicyLab/client_server/ws/model_client.py` for WebSocket
 transport.
+
+Commands and workflows pass one immutable `ExperimentSpec` aggregate rather
+than flattened experiment dictionaries. Policies, environments, scenes, task
+protocols, tasks, layouts, and recipes remain separate concepts: adding one
+must not require unrelated catalog edits. The private XPolicyLab adapter is the
+only place where legacy positional names and `deploy.yml` `protocol: ws` are
+translated to the local domain vocabulary.
 
 ## Dependency Management
 
@@ -117,13 +127,28 @@ robodojo eval
   `play_Xylophone`, `swap_T`, and `push_T` retain their upstream spelling.
 - Keep upstream submodule and asset directory casing, including `XPolicyLab/`
   and `Assets/`.
-- Task registration imports `robodojo.sim.tasks.<task_name>` and expects the
+- Task registration imports `robodojo.sim.tasks.<task>` and expects the
   exported environment class name to match the module basename.
 - Task success checks must call `reward_manager.check(...)` or an equivalent
   meaningful check; never leave success trivially true.
 - Reset all task-owned state in both `reset()` and `soft_reset()` when it must
   not leak between episodes.
 - Do not use `print` in task logic; use the shared logger.
+
+Use this non-enforcing checklist when porting an upstream task or scene:
+
+1. Copy the task module and YAML with their upstream structure recognizable;
+   align the module basename, exported class, YAML name, labels, and layouts.
+2. Confirm task discovery reports it runnable. A runnable task does not need a
+   task protocol or recipe.
+3. Add a task protocol only when benchmark horizon, episode count, or scene
+   compatibility must be selectable; protocols may reuse the same base task.
+4. Add scene components, scene profiles, layout sets, and typed asset builds in
+   their own domains. Do not embed those selectors in task code or task YAML.
+5. Add recipes only for supported policy/environment/scene/task-protocol
+   compositions, then validate every compatibility edge.
+6. Review meaningful reward success, reset and soft-reset state, logging, and
+   task-keyed layout identity. Do not add source-token or upstream hash locks.
 
 ## Validation And Review
 
@@ -146,8 +171,8 @@ During review, verify the applicable items:
 
 - Task Python/YAML names and labels match, success checks are meaningful, and
   episode limits are suitable.
-- Framework changes are backward compatible and add no unnecessary mandatory
-  constructor arguments.
+- External evaluation-boundary changes remain interoperable and add no
+  unnecessary mandatory adapter arguments. Internal APIs may change cleanly.
 - Shared config changes have safe defaults and do not silently alter unrelated
   tasks.
 - Evaluation-boundary changes preserve the official upstream contracts or

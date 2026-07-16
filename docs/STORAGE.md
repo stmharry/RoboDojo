@@ -118,6 +118,12 @@ files are uploaded first, followed by `_MANIFEST.json`,
 `_result.json` when present, and `_COMPLETE.json` last. Completed remote
 destinations are immutable unless `--replace` is explicit.
 
+New evaluation results use artifact schema v4, snapshot summaries and
+first-frame metadata use schema/format v2, and scene exports use format v8.
+Readers accept v3 results and resumes, v1 snapshots, and v7 scene exports by
+normalizing their vocabulary in memory. Historical files are never rewritten
+automatically, and unknown future versions fail validation.
+
 Restore exactly one manifested payload into its canonical local location:
 
 ```bash
