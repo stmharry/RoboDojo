@@ -4,7 +4,7 @@ import zipfile
 import pytest
 
 pxr = pytest.importorskip("pxr")
-from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade  # noqa: E402
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade, UsdUtils  # noqa: E402
 
 from robodojo.sim.scene_export.preview import PREVIEW_NAME, create_blender_preview  # noqa: E402
 
@@ -213,3 +213,38 @@ def test_create_blender_preview_expands_instances_without_prototype_mdl(tmp_path
         "scene_preview.usdc"
     ]
     assert not (tmp_path / ".scene_preview_source.usdc").exists()
+
+
+def test_create_blender_preview_materializes_packaged_textures(tmp_path: Path):
+    texture_dir = tmp_path / "nested_textures"
+    texture_dir.mkdir()
+    texture = texture_dir / "base.png"
+    texture.write_bytes(b"packaged fixture texture")
+
+    nested_source_path = tmp_path / "nested_source.usdc"
+    nested_source = Usd.Stage.CreateNew(str(nested_source_path))
+    nested_root = UsdGeom.Xform.Define(nested_source, "/Asset").GetPrim()
+    nested_source.SetDefaultPrim(nested_root)
+    nested_mesh = _mesh(nested_source, "/Asset/Mesh")
+    nested_material = _preview_material(nested_source, "/Asset/Looks/Material", "nested_textures/base.png")
+    UsdShade.MaterialBindingAPI.Apply(nested_mesh).Bind(nested_material)
+    nested_source.GetRootLayer().Save()
+    nested_package = tmp_path / "nested.usdz"
+    assert UsdUtils.CreateNewUsdzPackage(Sdf.AssetPath(str(nested_source_path)), str(nested_package))
+
+    source_path = tmp_path / "source.usdc"
+    stage = Usd.Stage.CreateNew(str(source_path))
+    UsdGeom.Xform.Define(stage, "/World")
+    mesh = _mesh(stage, "/World/Mesh")
+    material = _preview_material(stage, "/World/Looks/Material", "nested.usdz[nested_textures/base.png]")
+    UsdShade.MaterialBindingAPI.Apply(mesh).Bind(material)
+    stage.GetRootLayer().Save()
+
+    diagnostics = create_blender_preview(stage, tmp_path, [])
+
+    assert diagnostics["materialized_package_assets"] == 1
+    with zipfile.ZipFile(tmp_path / PREVIEW_NAME) as archive:
+        members = archive.namelist()
+    assert any(member.startswith("preview_dependencies/") and member.endswith("base.png") for member in members)
+    assert not any(member.endswith("nested.usdz") for member in members)
+    assert not (tmp_path / "preview_dependencies").exists()

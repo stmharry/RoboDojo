@@ -1,4 +1,5 @@
 from copy import deepcopy
+import math
 
 from curobo.batch_motion_planner import BatchMotionPlanner, MotionPlannerCfg
 from curobo.inverse_kinematics import InverseKinematics, InverseKinematicsCfg
@@ -20,6 +21,35 @@ from robodojo.sim.environment.global_configs import BATCH_NUM
 from robodojo.sim.utils.transformer import calculate_target_pose
 
 _curobo_runtime.cuda_graph_reset = True
+
+_CUROBO_DEFAULT_INTERPOLATION_DT = 0.025
+_CUROBO_DEFAULT_INTERPOLATION_BUFFER_SIZE = 1000
+
+
+def _interpolation_buffer_size(interpolation_dt):
+    """Preserve cuRobo's default interpolation time horizon for smaller timesteps."""
+    if interpolation_dt <= 0:
+        raise ValueError("curobo interpolation dt must be greater than zero")
+    return max(
+        _CUROBO_DEFAULT_INTERPOLATION_BUFFER_SIZE,
+        math.ceil(_CUROBO_DEFAULT_INTERPOLATION_BUFFER_SIZE * _CUROBO_DEFAULT_INTERPOLATION_DT / interpolation_dt),
+    )
+
+
+def _lock_cspace_only_joints(kinematics, active_joint_names):
+    """Lock configured c-space joints that are outside the active planning chain."""
+    cspace = kinematics.get("cspace", {})
+    joint_names = list(cspace.get("joint_names", []))
+    default_positions = list(cspace.get("default_joint_position", []))
+    if len(joint_names) != len(default_positions):
+        return
+    active = set(active_joint_names)
+    lock_joints = dict(kinematics.get("lock_joints") or {})
+    for joint_name, position in zip(joint_names, default_positions, strict=True):
+        if joint_name not in active:
+            lock_joints.setdefault(joint_name, float(position))
+    if lock_joints:
+        kinematics["lock_joints"] = lock_joints
 
 
 class CuroboPlanner:
@@ -457,6 +487,7 @@ class CuroboPlanner:
         if "default_joint_position" not in cspace:
             cspace["default_joint_position"] = [0.0 for _ in cspace["joint_names"]]
         kinematics["cspace"] = cspace
+        _lock_cspace_only_joints(kinematics, self.active_joints_name)
 
         kinematics_allowed = {
             "format_version",
@@ -504,6 +535,7 @@ class CuroboPlanner:
         return robot_cfg_v2, scene_model
 
     def _build_motion_planner_cfg(self, max_batch_size):
+        interpolation_dt = float(self.dt) if self.dt is not None else _CUROBO_DEFAULT_INTERPOLATION_DT
         cfg = MotionPlannerCfg.create(
             robot=self.robot_cfg,
             scene_model=self.scene_model,
@@ -515,9 +547,9 @@ class CuroboPlanner:
             max_batch_size=max_batch_size,
             multi_env=False,
             max_goalset=1,
+            interpolation_dt=interpolation_dt,
+            interpolation_buffer_size=_interpolation_buffer_size(interpolation_dt),
         )
-        if self.dt is not None:
-            cfg.trajopt_solver_config.interpolation_dt = float(self.dt)
         if not self.use_graph_planner:
             cfg.graph_planner_config = None
         return cfg

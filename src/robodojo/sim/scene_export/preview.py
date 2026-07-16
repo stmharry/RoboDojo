@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
+import os
 from pathlib import Path, PurePosixPath
+import shutil
 from typing import Any
 import zipfile
 
@@ -16,6 +19,7 @@ logger = logging.getLogger(__name__)
 PREVIEW_NAME = "scene_preview.usdz"
 _PREVIEW_ROOT_NAME = "scene_preview.usdc"
 _PREVIEW_SOURCE_ROOT_NAME = ".scene_preview_source.usdc"
+_PREVIEW_DEPENDENCY_DIR_NAME = "preview_dependencies"
 _PREVIEW_SCOPE = Sdf.Path("/World/RoboDojoPreviewLooks")
 _ALLOWED_SHADER_IDS = {
     "UsdPreviewSurface",
@@ -167,6 +171,57 @@ def _validate_package_members(package_path: Path) -> None:
             errors.append(f"external-usd:{name}")
     if errors:
         raise RuntimeError(f"portable preview package validation failed: {errors[:20]}")
+
+
+def _resolve_layer_asset(layer: Sdf.Layer, path: str) -> Path | None:
+    outer_path, _ = split_package_asset_path(path)
+    if not outer_path or "://" in outer_path:
+        return None
+    candidate = Path(outer_path)
+    if not candidate.is_absolute():
+        root_path, _ = split_package_asset_path(layer.realPath)
+        candidate = Path(root_path).parent / candidate
+    return candidate.resolve() if candidate.is_file() else None
+
+
+def _materialize_package_assets(stage: Usd.Stage, output_dir: Path) -> tuple[int, Path]:
+    """Extract referenced non-USD package members before creating the preview USDZ."""
+    dependency_dir = output_dir / _PREVIEW_DEPENDENCY_DIR_NAME
+    shutil.rmtree(dependency_dir, ignore_errors=True)
+    materialized: dict[tuple[Path, str], str] = {}
+
+    def rewrite(path: str) -> str:
+        outer_path, package_member = split_package_asset_path(path)
+        if not package_member:
+            return path
+        member = PurePosixPath(package_member)
+        if member.is_absolute() or ".." in member.parts:
+            raise RuntimeError(f"unsafe packaged preview asset path: {path}")
+        if member.suffix.lower() in _USD_EXTENSIONS:
+            raise RuntimeError(f"portable preview retained nested USD composition: {path}")
+        package_path = _resolve_layer_asset(stage.GetRootLayer(), outer_path)
+        if package_path is None:
+            return path
+        key = (package_path, package_member)
+        if key in materialized:
+            return materialized[key]
+        try:
+            with zipfile.ZipFile(package_path) as archive:
+                content = archive.read(package_member)
+        except (KeyError, OSError, zipfile.BadZipFile) as error:
+            raise RuntimeError(f"could not extract packaged preview asset {path}: {error}") from error
+        digest = hashlib.sha256(content).hexdigest()[:12]
+        dependency_dir.mkdir(parents=True, exist_ok=True)
+        destination = dependency_dir / f"{digest}_{member.name}"
+        if not destination.exists():
+            destination.write_bytes(content)
+        relative = os.path.relpath(destination, output_dir).replace(os.sep, "/")
+        materialized[key] = relative
+        return relative
+
+    UsdUtils.ModifyAssetPaths(stage.GetRootLayer(), rewrite)
+    stage.GetRootLayer().Save()
+    return len(materialized), dependency_dir
 
 
 def _display_color(prim: Usd.Prim) -> Gf.Vec3f | None:
@@ -630,9 +685,14 @@ def create_blender_preview(
     stage.GetRootLayer().Save()
     _validate_preview(stage)
 
-    created = UsdUtils.CreateNewUsdzPackage(Sdf.AssetPath(str(preview_root)), str(preview_path))
-    if not created or not preview_path.is_file():
-        raise RuntimeError("failed to create Blender preview USDZ package")
+    materialized_package_assets, preview_dependency_dir = _materialize_package_assets(stage, output_dir)
+    diagnostics["materialized_package_assets"] = materialized_package_assets
+    try:
+        created = UsdUtils.CreateNewUsdzPackage(Sdf.AssetPath(str(preview_root)), str(preview_path))
+        if not created or not preview_path.is_file():
+            raise RuntimeError("failed to create Blender preview USDZ package")
+    finally:
+        shutil.rmtree(preview_dependency_dir, ignore_errors=True)
     _validate_package_members(preview_path)
     packaged = Usd.Stage.Open(str(preview_path), load=Usd.Stage.LoadAll)
     if not packaged:
