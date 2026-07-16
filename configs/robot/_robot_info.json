@@ -7,6 +7,10 @@
         "arm_dim": [6, 6],
         "ee_dim": [1, 1]
     },
+    "dual_piper": {
+        "arm_dim": [6, 6],
+        "ee_dim": [1, 1]
+    },
     "dual_yam_molmoact2": {
         "arm_dim": [6, 6],
         "ee_dim": [1, 1]

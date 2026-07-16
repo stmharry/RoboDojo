@@ -23,7 +23,7 @@ def test_recipe_table_groups_deterministically_without_tsv_output():
     result = RUNNER.invoke(app, ["recipes", "--format", "table", "--root", str(ROOT)])
 
     assert result.exit_code == 0
-    assert "Tracked evaluation recipes (25)" in result.stdout
+    assert "Tracked evaluation recipes (26)" in result.stdout
     assert "Policy: molmoact2_bimanual_yam" in result.stdout
     assert "Environment: bimanual_yam_moonlake_office" in result.stdout
     assert "Scene: moonlake_office" in result.stdout

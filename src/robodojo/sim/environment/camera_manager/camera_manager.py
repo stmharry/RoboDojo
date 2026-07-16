@@ -23,6 +23,8 @@ from robodojo.sim.camera_template import (
     OPENARM_BASE,
     OPENARM_WRIST,
     PINHOLE,
+    PIPER_TOP,
+    PIPER_WRIST,
     THIRD_VIEW,
     YAM_TOP,
     YAM_WRIST,
@@ -52,6 +54,8 @@ REAL_MAP = {
     "openarm_wrist": OPENARM_WRIST,
     "yam_top": YAM_TOP,
     "yam_wrist": YAM_WRIST,
+    "piper_top": PIPER_TOP,
+    "piper_wrist": PIPER_WRIST,
 }
 
 VISUAL_MAP = {

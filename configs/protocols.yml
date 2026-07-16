@@ -134,6 +134,11 @@ protocols:
     task: plug_in_charger
     episode_horizon: 400
     evaluation_episodes: 50
+  place_blue_cube_in_red_bin:
+    task: place_blue_cube_in_red_bin
+    episode_horizon: 750
+    evaluation_episodes: 10
+    compatible_scenes: [piper_pickplace_tabletop]
   pour_balls_into_vase:
     task: pour_balls_into_vase
     episode_horizon: 600

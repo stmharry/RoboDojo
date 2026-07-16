@@ -1,0 +1,27 @@
+config_name: bimanual_piper
+selectable: false
+embodiment: bimanual_piper
+asset_builds: [piper]
+
+workspace:
+  anchor: Table
+  robot_root_offsets:
+    robot0: [-0.25, -0.38, 0.025]
+    robot1: [0.25, -0.38, 0.025]
+
+config:
+  sim: real_time_30hz
+  robot: dual_piper
+  camera: bimanual_piper_pickplace
+
+observation:
+  collect_freq: 30
+  robot:
+    joint_states: true
+    world_ee_state: true
+  vision:
+    approximate_depth: false
+    depth: false
+    intrinsic_matrix: false
+    extrinsic_matrix: false
+    shape: true

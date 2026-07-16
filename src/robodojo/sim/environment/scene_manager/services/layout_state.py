@@ -67,6 +67,15 @@ class LayoutStateService:
         env_config = deepcopy(self.saved_layouts[env_idx])
         if env_config is None:
             return None
+        # Bundled layouts may keep immutable fixture definitions in the scene
+        # component and record only per-layout poses/objects. Merge saved
+        # overrides onto those defaults so a compact layout cannot accidentally
+        # drop the selected scene's material, lighting, or physics contract.
+        for fixture in ("Room", "Table", "Ground", "Light"):
+            defaults = self.scene_config.get(fixture)
+            if defaults is not None:
+                merged = OmegaConf.merge(deepcopy(defaults), deepcopy(env_config.get(fixture) or {}))
+                env_config[fixture] = OmegaConf.to_container(merged, resolve=True)
         self.clear_layout_state([env_idx])
         for key, value in env_config.items():
             if key in ["Rigid", "Dynamic", "Geometry", "Articulation", "Garment", "Fluid"]:

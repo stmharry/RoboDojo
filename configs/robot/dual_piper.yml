@@ -1,0 +1,35 @@
+robots:
+  - robot_type: arm
+    robot_name: piper
+    coupled: false
+    need_planner: false
+    enabled_self_collisions: false
+    default_root_pos: [-0.25, -0.38, 0.765]
+    default_root_rot: [1.0, 0.0, 0.0, 0.0]
+    grasp_perfect_direction: top_down_little_right
+    initial_joint_positions:
+      joint1: -0.09788833134626188
+      joint2: 0.8574327545542113
+      joint3: -1.1794956420880138
+      joint4: 0.9722126642074953
+      joint5: 0.1472871958280768
+      joint6: -1.5462758390893823
+      joint7: 0.00773373982178254
+      joint8: -0.00773373982178254
+  - robot_type: arm
+    robot_name: piper
+    coupled: false
+    need_planner: false
+    enabled_self_collisions: false
+    default_root_pos: [0.25, -0.38, 0.765]
+    default_root_rot: [1.0, 0.0, 0.0, 0.0]
+    grasp_perfect_direction: top_down_little_left
+    initial_joint_positions:
+      joint1: 0.030837954402011574
+      joint2: 0.26230295741844356
+      joint3: -1.1454185191913338
+      joint4: 1.3615899277087606
+      joint5: -0.4416629471380815
+      joint6: -2.0621834310924525
+      joint7: 0.0
+      joint8: 0.0

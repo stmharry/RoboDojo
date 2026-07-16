@@ -11,7 +11,7 @@ from pydantic import Field, field_validator, model_validator
 
 from robodojo.core.models.common import NonNegativeInt, StrictModel, finite_vector
 
-SceneAssetBuildName = Literal["moonlake_office", "moonlake_packing"]
+SceneAssetBuildName = Literal["moonlake_office", "moonlake_packing", "piper_pickplace"]
 
 
 class SceneCatalogAsset(StrictModel):

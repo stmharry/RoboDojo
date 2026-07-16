@@ -60,7 +60,7 @@ def test_make_recipe_catalog_is_owned_by_typed_yaml():
     recipes = yaml.safe_load((ROOT / "configs/recipes.yml").read_text(encoding="utf-8"))["recipes"]
     assert "register_preset" not in source
     assert "PRESET." not in source
-    assert len(recipes) == 25
+    assert len(recipes) == 26
     assert "molmoact2-bimanual_yam-moonlake_office-moonlake_office_general_pickup" in recipes
     assert "pi05-bimanual_yam-moonlake_office-moonlake_office_general_pickup" in recipes
     assert "pi05_pickup-bimanual_yam-moonlake_office-moonlake_office_general_pickup" in recipes

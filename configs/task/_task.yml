@@ -63,6 +63,9 @@ tasks:
   pack_item_into_container:
     data_source: "teleop"
 
+  place_blue_cube_in_red_bin:
+    data_source: "policy_eval"
+
   pour_balls_into_vase:
     data_source: "teleop"
 

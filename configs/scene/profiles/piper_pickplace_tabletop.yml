@@ -1,0 +1,7 @@
+config_name: piper_pickplace_tabletop
+component: piper_pickplace_tabletop
+layout_set: piper_pickplace_tabletop
+layout_source: bundled
+task_asset_builds:
+  place_blue_cube_in_red_bin: [piper_pickplace]
+compatible_environments: [bimanual_piper_pickplace]

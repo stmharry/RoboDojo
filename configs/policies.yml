@@ -16,6 +16,10 @@ policies:
     policy_dir: XPolicyLab/policy/Pi_05
     runtime: uv
     checkpoint: pi05_yam_abc_pickplace
+  pi05_bimanual_piper_pickplace:
+    policy_dir: XPolicyLab/policy/Pi_05
+    runtime: uv
+    checkpoint: pi05_piper_bimanual_v1
   lerobot_pi05_openarm:
     policy_dir: XPolicyLab/policy/LeRobot_Pi05_OpenArm
     runtime: lerobot-pi05

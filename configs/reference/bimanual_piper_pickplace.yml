@@ -1,0 +1,66 @@
+setup_id: piper_dataset_policy_tuned_v1
+classification: policy_tuned
+hardware_calibrated: false
+sources:
+  dataset:
+    repository: https://huggingface.co/datasets/Ishan-Axibo/piperx_pick_place_bimanual
+    revision: 60e9d08e7f1b40ed213738374dba7acb093b456c
+    episodes: 100
+    frequency_hz: 30
+    artifacts:
+      data/chunk-000/file-000.parquet: e3b66829fc1ed39780891f9926bcb6e2f949cf9813a550345c1018ce42dc9d15
+      meta/info.json: a72b1c4f02f61abbe3a0757f3311efd475a4f8483d43cc8351e5eaefc12f6155
+      meta/stats.json: c94df38f96ac8c8b231f33ce8c00609d20dc3d78beb401b07185de2a4516411d
+      videos/observation.images.cam_front/chunk-000/file-000.mp4: 604aef8da1a5922f95ef961a1310b4b5076e2a1efa016e0f7c2795ec6313125d
+      videos/observation.images.cam_left_wrist/chunk-000/file-000.mp4: b7aefc545a41424c9c21e9dce97ae98c491f2bc3f997a224f1b8eb51ea651214
+      videos/observation.images.cam_right_wrist/chunk-000/file-000.mp4: a869df1d5e5a28abdb0e57068ab5937130be143d81b2be7993da8e977f8bb556
+state_replay:
+  statistic: q50
+  state:
+    [-0.09788833134626188, 0.8574327545542113, -1.1794956420880138, 0.9722126642074953,
+     0.1472871958280768, -1.5462758390893823, 0.01546747964356508,
+     0.030837954402011574, 0.26230295741844356, -1.1454185191913338, 1.3615899277087606,
+     -0.4416629471380815, -2.0621834310924525, -0.00009999999383580871]
+camera_fit:
+  method: pinned_dataset_state_replay_and_live_simulator_visual_audit
+  status: failed_acceptance_experimental
+  acceptance_px:
+    top_cube_bin_landmarks: 12
+    wrist_gripper_landmarks: 15
+  streams:
+    top: observation.images.cam_front
+    left_wrist: observation.images.cam_left_wrist
+    right_wrist: observation.images.cam_right_wrist
+  selected_pinned_frame:
+    global_index: 48207
+    episode_index: 79
+    frame_index: 405
+    nearest_state_metric: robust_iqr_rmse
+    nearest_state_distance: 0.251438
+  simulator_replay:
+    date_utc: 2026-07-16
+    layout_id: 0
+    median_state_applied: true
+    live_hold_seconds: 2
+    policy_calls: 0
+    wrist_workspace_visible: true
+    wrist_gripper_landmarks_visible: false
+    source_object_pose_correspondence: false
+  landmark_results:
+    top_cube_bin_landmarks:
+      error_px: null
+      passed: false
+      reason: pinned source frame and bundled simulator layout do not share an annotated object pose
+    left_wrist_gripper_landmarks:
+      error_px: null
+      passed: false
+      reason: non-X PiPER finger landmarks are outside the workspace-facing camera frame
+    right_wrist_gripper_landmarks:
+      error_px: null
+      passed: false
+      reason: non-X PiPER finger landmarks are outside the workspace-facing camera frame
+  qualification_gate:
+    passed: false
+    behavioral_benchmark_permitted: false
+    disposition: experimental_diagnostic
+    reason: pinned PiPER-X wrist geometry cannot be reproduced by the current non-X PiPER embodiment without hiding the workspace or looking back through the arm

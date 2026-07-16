@@ -53,7 +53,7 @@ def test_contract_documents_are_strict_and_typed():
 
 def test_catalogs_validate_without_requiring_protocol_coverage_for_every_task():
     resolved = validate_experiment_catalogs(PATHS)
-    assert len(resolved) == 25
+    assert len(resolved) == 26
 
 
 def test_runnable_task_discovery_does_not_require_a_protocol(tmp_path):

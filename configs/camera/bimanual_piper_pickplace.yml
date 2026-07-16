@@ -1,0 +1,75 @@
+default_frequency: 30
+annotator:
+  common:
+    enabled: true
+    rgb_capture:
+      type: rgb
+      device: cpu
+
+camera_rig:
+  profile_id: bimanual_piper_pickplace
+  cameras:
+    cam_head:
+      role: top
+      type: piper_top
+      mesh: pinhole
+      sensor:
+        vendor: dataset_reference
+        model: piper_cam_front
+        native_resolution: [224, 224]
+        stream_resolution: [224, 224]
+        fps: 30
+        diagonal_fov_deg: 78.0
+      mount:
+        kind: world
+        position: [0.0, -0.43, 1.30]
+        orientation: [0.6532815, -0.2705981, 0.2705981, 0.6532815]
+        pose_convention: sapien_robotics
+        optical_roll_deg: 0.0
+        basis: piper_dataset_policy_tuned_v1
+      projection:
+        model: pinhole
+        backend: native
+        cx: 112.0
+        cy: 112.0
+        fx: 175.0
+        fy: 175.0
+    cam_left_wrist: &wrist
+      role: left_wrist
+      type: piper_wrist
+      mesh: pinhole
+      sensor: &wrist_sensor
+        vendor: dataset_reference
+        model: piper_wrist
+        native_resolution: [224, 224]
+        stream_resolution: [224, 224]
+        fps: 30
+        diagonal_fov_deg: 90.0
+      mount:
+        kind: robot_link
+        target: robot0/wrist_camera_mount
+        position: [0.03, 0.06, 0.10]
+        orientation: [0.70710678, 0.0, 0.5, 0.5]
+        pose_convention: sapien_robotics
+        optical_roll_deg: 0.0
+        basis: piper_dataset_policy_tuned_v1
+      projection: &wrist_projection
+        model: pinhole
+        backend: native
+        cx: 112.0
+        cy: 112.0
+        fx: 158.4
+        fy: 158.4
+    cam_right_wrist:
+      <<: *wrist
+      role: right_wrist
+      sensor: *wrist_sensor
+      mount:
+        kind: robot_link
+        target: robot1/wrist_camera_mount
+        position: [0.03, 0.06, 0.10]
+        orientation: [0.70710678, 0.0, 0.5, 0.5]
+        pose_convention: sapien_robotics
+        optical_roll_deg: 0.0
+        basis: piper_dataset_policy_tuned_v1
+      projection: *wrist_projection

@@ -678,6 +678,13 @@ class RobotManager:
             robots = (robots,)
 
         scene_cfg = self._get_robot_cfg(robot_name=robot_name, usd_asset=cfg.get("usd_asset"))
+        initial_joint_positions = cfg.get("initial_joint_positions")
+        if initial_joint_positions is not None:
+            scene_cfg = scene_cfg.replace(
+                init_state=scene_cfg.init_state.replace(
+                    joint_pos={str(name): float(value) for name, value in initial_joint_positions.items()}
+                )
+            )
 
         # Default rule:
         # - single robot: use robot.entity_origin_pose
@@ -761,6 +768,10 @@ ROBOT_CLASS_REGISTRY = {
         "module": "openarm",
         "classes": ("LeftOpenArm", "RightOpenArm"),
     },
+    "piper": {
+        "module": "piper",
+        "classes": ("PiPER",),
+    },
 }
 
 
@@ -769,4 +780,5 @@ ROBOT_CONFIG_REGISTRY = {
     "x5": "x5",
     "yam": "yam",
     "openarm": "openarm",
+    "piper": "piper",
 }

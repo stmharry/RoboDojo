@@ -1,5 +1,10 @@
 schema_version: 3
 recipes:
+  pi05-bimanual_piper-piper_pickplace_tabletop-place_blue_cube_in_red_bin:
+    policy: pi05_bimanual_piper_pickplace
+    environment: bimanual_piper_pickplace
+    scene: piper_pickplace_tabletop
+    task_protocol: place_blue_cube_in_red_bin
   molmoact2-bimanual_yam-default-deposit_coin:
     policy: molmoact2_bimanual_yam
     environment: bimanual_yam_molmoact2

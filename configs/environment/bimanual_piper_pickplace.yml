@@ -1,0 +1,19 @@
+config_name: bimanual_piper_pickplace
+extends: bimanual_piper
+selectable: true
+variant:
+  kind: policy_tuned
+  derived_for:
+    policy: pi05_bimanual_piper_pickplace
+    scene: piper_pickplace_tabletop
+    task_protocol: place_blue_cube_in_red_bin
+  notes: Dataset-frame fit; not a hardware calibration.
+
+# Keep the policy-tuned camera selection explicit for standalone consumers
+# (notably XPolicyLab timing preflight) that intentionally do not resolve the
+# full RoboDojo profile inheritance chain.
+config:
+  camera: bimanual_piper_pickplace
+
+diagnostics:
+  matched_replay_manifest: reference/bimanual_piper_pickplace.yml

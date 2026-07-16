@@ -139,11 +139,15 @@ class ArticulationObject(SingleArticulation):
             usd_articulation_api = UsdPhysics.ArticulationRootAPI(target_prim)
             for attr_name in usd_articulation_api.GetSchemaAttributeNames():
                 attr = target_prim.GetAttribute(attr_name)
-                parent_prim.GetAttribute(attr_name).Set(attr.Get())
+                value = attr.Get()
+                if value is not None:
+                    parent_prim.GetAttribute(attr_name).Set(value)
             physx_articulation_api = PhysxSchema.PhysxArticulationAPI(target_prim)
             for attr_name in physx_articulation_api.GetSchemaAttributeNames():
                 attr = target_prim.GetAttribute(attr_name)
-                parent_prim.GetAttribute(attr_name).Set(attr.Get())
+                value = attr.Get()
+                if value is not None:
+                    parent_prim.GetAttribute(attr_name).Set(value)
             target_prim.RemoveAPI(UsdPhysics.ArticulationRootAPI)
             target_prim.RemoveAPI(PhysxSchema.PhysxArticulationAPI)
 
@@ -251,7 +255,8 @@ class ArticulationObject(SingleArticulation):
         self.upper_joint_positions = limits[:, 1].copy()
         self.initial_joint_positions = self.get_current_joint_positions()
         self.app = omni.kit.app.get_app()
-        self.app.update()
+        if hasattr(self, "app"):
+            self.app.update()
 
     def get_current_joint_positions(self):
         return self.get_joint_positions()
@@ -273,14 +278,16 @@ class ArticulationObject(SingleArticulation):
         return None
 
     def apply_saved_pose(self):
-        self.set_current_joint_positions(self.initial_joint_positions)
+        if hasattr(self, "initial_joint_positions"):
+            self.set_current_joint_positions(self.initial_joint_positions)
         pos = self.default_pos
         ori = self.default_ori
         scale = self.init_scale
         self.set_local_pose(pos, ori)
         self.set_local_scale(np.array(scale))
         self._apply_default_velocities()
-        self.app.update()
+        if hasattr(self, "app"):
+            self.app.update()
         visible = self.visual_cfg.get("visible", True)
         imageable = UsdGeom.Imageable(self.prim)
         if imageable:
@@ -297,13 +304,15 @@ class ArticulationObject(SingleArticulation):
             _FAR_CENTER[1] + random.uniform(-_FAR_JITTER, _FAR_JITTER),
             _FAR_CENTER[2] + random.uniform(-_FAR_JITTER, _FAR_JITTER),
         )
-        self.set_current_joint_positions(self.initial_joint_positions)
+        if hasattr(self, "initial_joint_positions"):
+            self.set_current_joint_positions(self.initial_joint_positions)
         ori = self.default_ori
         scale = self.init_scale
         self.set_local_pose(pos, ori)
         self.set_local_scale(np.array(scale))
         self._apply_default_velocities()
-        self.app.update()
+        if hasattr(self, "app"):
+            self.app.update()
         visible = self.visual_cfg.get("visible", True)
         imageable = UsdGeom.Imageable(self.prim)
         if imageable:

@@ -55,12 +55,16 @@ def generated_robot_error(name: str) -> str | None:
         output_name = manifest.get("output")
         if output_name and not (root / str(output_name)).is_file():
             return f"generated {name} asset is missing: {root / str(output_name)}"
-    if name == "yam" and "provenance" in manifest:
+    tooling_manifests = {
+        "yam": "yam_manifest",
+        "piper": "piper_manifest",
+    }
+    if name in tooling_manifests and "provenance" in manifest:
         repository = RepositoryPaths.resolve(Path(__file__).resolve().parents[3])
-        expected_manifest_hash = _sha256(repository.yam_manifest)
+        expected_manifest_hash = _sha256(getattr(repository, tooling_manifests[name]))
         actual_manifest_hash = manifest.get("provenance", {}).get("build_manifest_sha256")
         if actual_manifest_hash != expected_manifest_hash:
-            return f"generated yam asset is stale: {manifest_path}"
+            return f"generated {name} asset is stale: {manifest_path}"
     return None
 
 
@@ -87,21 +91,21 @@ def _fixture_paths(paths: RepositoryPaths, name: str) -> tuple[Path, Path, Path]
     return tooling, root, root / "manifest.json"
 
 
-def _packing_asset_error(paths: RepositoryPaths) -> str | None:
-    tooling = paths.moonlake_packing_manifest
+def _catalog_asset_error(paths: RepositoryPaths, name: str) -> str | None:
+    tooling = getattr(paths, f"{name}_manifest")
     specification = yaml.safe_load(tooling.read_text(encoding="utf-8")) or {}
     root = assets_root()
-    manifest_path = root / "manifests" / "moonlake_packing.json"
+    manifest_path = root / "manifests" / f"{name}.json"
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        return f"generated moonlake_packing manifest is missing or invalid: {manifest_path}: {exc}"
+        return f"generated {name} manifest is missing or invalid: {manifest_path}: {exc}"
     if manifest.get("tooling_manifest_sha256") != _sha256(tooling):
-        return f"generated moonlake_packing manifest is stale: {manifest_path}"
+        return f"generated {name} manifest is stale: {manifest_path}"
     records = manifest.get("assets")
     expected = specification.get("assets")
     if not isinstance(records, dict) or not isinstance(expected, dict) or set(records) != set(expected):
-        return f"generated moonlake_packing manifest has an invalid asset inventory: {manifest_path}"
+        return f"generated {name} manifest has an invalid asset inventory: {manifest_path}"
     filenames = {"object.usd", "metadata.json", "description.json", "provenance.json"}
     for key, asset in expected.items():
         relative = (
@@ -109,24 +113,24 @@ def _packing_asset_error(paths: RepositoryPaths) -> str | None:
         )
         record = records[key]
         if not isinstance(record, dict) or record.get("asset") != relative.as_posix():
-            return f"generated moonlake_packing asset path mismatch for {key}: {manifest_path}"
+            return f"generated {name} asset path mismatch for {key}: {manifest_path}"
         files = record.get("files")
         if not isinstance(files, dict) or set(files) != filenames:
-            return f"generated moonlake_packing file inventory is invalid for {key}: {manifest_path}"
+            return f"generated {name} file inventory is invalid for {key}: {manifest_path}"
         for filename in sorted(filenames):
             output = root / relative / filename
             if not output.is_file():
-                return f"generated moonlake_packing asset is missing: {output}"
+                return f"generated {name} asset is missing: {output}"
             if files[filename] != _sha256(output):
-                return f"generated moonlake_packing asset checksum mismatch: {output}"
+                return f"generated {name} asset checksum mismatch: {output}"
     return None
 
 
 def generated_fixture_error(paths: RepositoryPaths, name: str) -> str | None:
     """Return a read-only integrity error for a scene-declared fixture build."""
 
-    if name == "moonlake_packing":
-        return _packing_asset_error(paths)
+    if name in {"moonlake_packing", "piper_pickplace"}:
+        return _catalog_asset_error(paths, name)
     tooling, root, manifest_path = _fixture_paths(paths, name)
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -246,6 +250,40 @@ def build_yam(paths: RepositoryPaths) -> int:
     return code
 
 
+def build_piper(paths: RepositoryPaths) -> int:
+    """Build the pinned AgileX PiPER description without executing upstream code."""
+    manifest = yaml.safe_load(paths.piper_manifest.read_text(encoding="utf-8"))
+    source_spec = manifest["sources"]["piper_ros"]
+    cache = storage_root() / ".cache" / "piper"
+    source = cache / "piper_ros"
+    output = assets_root() / "Robots" / "piper"
+    output.mkdir(parents=True, exist_ok=True)
+
+    if not (source / ".git").is_dir():
+        subprocess.run(["git", "clone", source_spec["repository"], str(source)], check=True)
+    revision = source_spec["revision"]
+    subprocess.run(["git", "-C", str(source), "fetch", "--depth", "1", "origin", revision], check=True)
+    subprocess.run(["git", "-C", str(source), "checkout", "--detach", "--force", revision], check=True)
+
+    (output / "manifest.json").unlink(missing_ok=True)
+    env = {**os.environ, "OMNI_KIT_ACCEPT_EULA": "YES"}
+    command = [
+        sys.executable,
+        "-m",
+        "robodojo.workflows.assets_piper",
+        "--source-root",
+        str(source),
+        "--output-root",
+        str(output),
+        "--manifest",
+        str(paths.piper_manifest),
+    ]
+    code = subprocess.run(command, cwd=paths.root, env=env).returncode
+    if code == 0 and not (output / "manifest.json").is_file():
+        raise RuntimeError("PiPER build completed without manifest.json")
+    return code
+
+
 def build_moonlake_office(paths: RepositoryPaths) -> int:
     """Build the pinned internal Moonlake office fixture without executing upstream code."""
     manifest = yaml.safe_load(paths.moonlake_office_manifest.read_text(encoding="utf-8"))
@@ -322,6 +360,31 @@ def build_moonlake_packing(paths: RepositoryPaths) -> int:
     return code
 
 
+def build_piper_pickplace(paths: RepositoryPaths) -> int:
+    """Build the internal procedural cube and bin used by the PiPER task."""
+    output = assets_root()
+    shared_manifest = output / "manifests" / "piper_pickplace.json"
+    env = {
+        **os.environ,
+        "OMNI_KIT_ACCEPT_EULA": "YES",
+        "ACCEPT_EULA": "Y",
+        "PRIVACY_CONSENT": "Y",
+    }
+    command = [
+        sys.executable,
+        "-m",
+        "robodojo.workflows.assets_piper_pickplace",
+        "--output-root",
+        str(output),
+        "--manifest",
+        str(paths.piper_pickplace_manifest),
+    ]
+    code = subprocess.run(command, cwd=paths.root, env=env).returncode
+    if code == 0 and not shared_manifest.is_file():
+        raise RuntimeError("PiPER pick-place build completed without its shared manifest")
+    return code
+
+
 def _builder_registry() -> AssetBuilderRegistry:
     return AssetBuilderRegistry(
         (
@@ -338,6 +401,12 @@ def _builder_registry() -> AssetBuilderRegistry:
                 validate=lambda paths: generated_robot_error("openarm"),
             ),
             AssetBuilder(
+                name="piper",
+                kind="robot",
+                build=build_piper,
+                validate=lambda paths: generated_robot_error("piper"),
+            ),
+            AssetBuilder(
                 name="moonlake_office",
                 kind="fixture",
                 build=build_moonlake_office,
@@ -348,6 +417,12 @@ def _builder_registry() -> AssetBuilderRegistry:
                 kind="fixture",
                 build=build_moonlake_packing,
                 validate=lambda paths: generated_fixture_error(paths, "moonlake_packing"),
+            ),
+            AssetBuilder(
+                name="piper_pickplace",
+                kind="fixture",
+                build=build_piper_pickplace,
+                validate=lambda paths: generated_fixture_error(paths, "piper_pickplace"),
             ),
         )
     )

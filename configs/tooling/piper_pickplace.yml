@@ -1,0 +1,33 @@
+format_version: 1
+distribution:
+  classification: generated_project_asset
+  license: MIT
+  publish: allowed
+  embeds_third_party_media: false
+references:
+  training_dataset:
+    repository: https://huggingface.co/datasets/Ishan-Axibo/piperx_pick_place_bimanual
+    revision: 60e9d08e7f1b40ed213738374dba7acb093b456c
+    usage: dimensional_appearance_and_layout_reference_only
+    media_embedded: false
+    episodes: 100
+    frequency_hz: 30
+assets:
+  cube:
+    object_type: Rigid
+    category: piper_blue_cube
+    index: 0
+    description: 35 mm blue cube
+    dimensions_m: [0.035, 0.035, 0.035]
+    mass_kg: 0.042
+    color_linear_rgb: [0.018, 0.095, 0.80]
+  bin:
+    object_type: Articulation
+    category: piper_red_bin
+    index: 0
+    description: red open bin
+    cavity_dimensions_m: [0.160, 0.080, 0.055]
+    wall_thickness_m: 0.004
+    mass_kg: 0.35
+    color_linear_rgb: [0.78, 0.018, 0.012]
+    functional_volume_tag: pickplace_cavity

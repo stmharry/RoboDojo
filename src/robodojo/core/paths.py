@@ -93,9 +93,17 @@ class RepositoryPaths(BaseModel):
         return self.root / "configs" / "tooling" / "yam.yml"
 
     @property
+    def piper_manifest(self) -> Path:
+        return self.root / "configs" / "tooling" / "piper.yml"
+
+    @property
     def moonlake_office_manifest(self) -> Path:
         return self.root / "configs" / "tooling" / "moonlake_office.yml"
 
     @property
     def moonlake_packing_manifest(self) -> Path:
         return self.root / "configs" / "tooling" / "moonlake_packing.yml"
+
+    @property
+    def piper_pickplace_manifest(self) -> Path:
+        return self.root / "configs" / "tooling" / "piper_pickplace.yml"

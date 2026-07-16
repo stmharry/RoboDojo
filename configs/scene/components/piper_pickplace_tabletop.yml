@@ -1,0 +1,54 @@
+# Policy-tuned replay of the pinned PiPER dataset workspace. This is not a
+# measured hardware calibration.
+provenance:
+  repository: https://huggingface.co/datasets/Ishan-Axibo/piperx_pick_place_bimanual
+  revision: 60e9d08e7f1b40ed213738374dba7acb093b456c
+  classification: policy_tuned
+
+Background:
+  intensity: 180
+  default: brown_photostudio_02_4k.hdr
+
+Table:
+  default: material_0122
+  scale: [0.8, 0.6, 0.05]
+  default_pos: [0.0, 0.0, 0.74]
+  default_ori: [1.0, 0.0, 0.0, 0.0]
+  visual_color: [0.63, 0.45, 0.28]
+
+Ground:
+  geometry: cube
+  thickness: 0.02
+  axis: Z
+  default_pos: [0.0, 0.0, 0.0]
+  base_color: [0.018, 0.018, 0.022]
+  materials:
+    type: color
+    color: [0.018, 0.018, 0.022]
+  physics_material:
+    static_friction: 1.0
+    dynamic_friction: 1.0
+    restitution: 0.0
+    friction_combine_mode: multiply
+    restitution_combine_mode: multiply
+    compliant_contact_stiffness: 0.0
+    compliant_contact_damping: 0.0
+
+Light:
+  dome:
+    types: Dome
+    common:
+      initial_pos_range: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+      initial_ori_range: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+      color_range: [[0.82, 0.82, 0.82], [0.82, 0.82, 0.82]]
+    Dome:
+      intensity_range: [650.0, 650.0]
+  key:
+    types: Distant
+    common:
+      initial_pos_range: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+      initial_ori_range: [-32.0, 25.0, 0.0, -32.0, 25.0, 0.0]
+      color_range: [[1.0, 0.94, 0.88], [1.0, 0.94, 0.88]]
+    Distant:
+      intensity_range: [2600.0, 2600.0]
+      angle_range: [1.0, 1.0]

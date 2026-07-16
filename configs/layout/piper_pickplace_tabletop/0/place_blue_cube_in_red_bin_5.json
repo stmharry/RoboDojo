@@ -1,0 +1,5 @@
+{
+  "Table": {"default": "material_0122", "scale": [0.8, 0.6, 0.05], "default_pos": [0, 0, 0.74], "default_ori": [1, 0, 0, 0], "visual_color": [0.63, 0.45, 0.28]}, "Ground": {"geometry": "cube", "thickness": 0.02, "axis": "Z", "default_pos": [0, 0, 0]}, "Light": {},
+  "Rigid": {"piper_blue_cube": [{"category": "piper_blue_cube", "category_idx": 0, "relative_plane": "Table", "default_pos": [-0.145, -0.055, 0.7825], "default_ori": [0.9981348, 0, 0, -0.0610485], "label": "cube", "scale": [1, 1, 1], "need_check_stable": true, "physics": {"type": "rigid", "mass": 0.042}, "visual": {}}]},
+  "Articulation": {"piper_red_bin": [{"category": "piper_red_bin", "category_idx": 0, "relative_plane": "Table", "default_pos": [0.095, 0.125, 0.765], "default_ori": [1, 0, 0, 0], "label": "bin", "scale": [1, 1, 1], "need_check_stable": false, "physics": {"type": "articulation", "fixed_base": true}, "visual": {}}]}
+}
