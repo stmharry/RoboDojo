@@ -8,6 +8,7 @@ from robodojo.core.models import EvaluationRequest, ServerRequest, SimulatorLaun
 from robodojo.core.paths import RepositoryPaths
 from robodojo.orchestration import evaluation, split
 from robodojo.workflows import storage as storage_workflow
+from robodojo.workflows.errors import StorageError
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -263,7 +264,7 @@ def test_evaluation_publishes_once_only_after_success(monkeypatch, tmp_path):
 @pytest.mark.parametrize(
     ("failure", "expected_code", "message"),
     [
-        (SystemExit("remote destination is already complete"), 1, "already complete"),
+        (StorageError("remote destination is already complete"), 1, "already complete"),
         (subprocess.CalledProcessError(5, ["aws"], stderr="access denied"), 5, "access denied"),
         (OSError("aws executable failed"), 1, "aws executable failed"),
     ],

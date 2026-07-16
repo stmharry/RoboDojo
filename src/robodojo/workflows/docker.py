@@ -42,7 +42,7 @@ def smoke(
     task: str,
     policy: str,
     port: int,
-    env_config: str,
+    environment: str,
     scene_config: str | None = None,
 ) -> int:
     local_storage = storage_root()
@@ -79,21 +79,21 @@ def smoke(
         "host",
         image,
         "client",
-        "--task",
-        task,
-        "--policy-name",
+        "--policy-profile",
         policy,
+        "--environment",
+        environment,
+        "--scene",
+        scene_config or "default",
+        "--protocol",
+        task,
         "--policy-host",
         "127.0.0.1",
         "--policy-port",
         str(port),
-        "--env-cfg",
-        env_config,
         "--eval-num",
         "1",
     ]
-    if scene_config is not None:
-        command += ["--scene", scene_config]
     return subprocess.run(command, cwd=paths.root).returncode
 
 

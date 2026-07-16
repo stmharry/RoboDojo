@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Aggregate RoboDojo eval results into a markdown table.
 
 Layout on disk:
@@ -27,18 +26,16 @@ Rules:
     score        = sum(scores) / count * 100
 """
 
-import argparse
 import json
 import os
+from pathlib import Path
 import re
 import statistics
 import sys
 
 from robodojo.core.scene_identity import ArtifactSchemaError, require_current_result_artifact
 from robodojo.core.storage import eval_root, summary_path
-
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT = str(eval_root())
+from robodojo.workflows.errors import ResultsError
 
 SEED_RE = re.compile(r"^(\d+)_")
 STANDALONE_EPISODES = 50
@@ -143,15 +140,15 @@ def load_entries(data):
     return [(s, sc) for _, s, sc in items]
 
 
-def scan_task(task, env_config=None, scene_config=None):
+def scan_task(root, task, environment=None, scene_config=None):
     """Return latest entries keyed by policy, embodiment, scene, and seed."""
-    task_path = os.path.join(ROOT, task)
+    task_path = os.path.join(root, task)
     out = {}
     latest_ts = {}
     for policy in list_subdirs(task_path):
         policy_path = os.path.join(task_path, policy)
         for embodiment in list_subdirs(policy_path):
-            if env_config is not None and embodiment != env_config:
+            if environment is not None and embodiment != environment:
                 continue
             emb_path = os.path.join(policy_path, embodiment)
             for run in list_subdirs(emb_path):
@@ -176,13 +173,13 @@ def scan_task(task, env_config=None, scene_config=None):
     return out
 
 
-def collect_policy_seeds(env_config=None, scene_config=None):
-    """Return {policy: sorted seeds} seen anywhere under ROOT."""
+def collect_policy_seeds(root, environment=None, scene_config=None):
+    """Return {policy: sorted seeds} seen below the selected result root."""
     seeds = {}
-    for name in list_subdirs(ROOT):
+    for name in list_subdirs(root):
         if name.endswith("_random"):
             continue
-        for policy, _embodiment, _scene, seed in scan_task(name, env_config, scene_config):
+        for policy, _embodiment, _scene, seed in scan_task(root, name, environment, scene_config):
             seeds.setdefault(policy, set()).add(seed)
     return {policy: sorted(values) for policy, values in seeds.items()}
 
@@ -199,9 +196,9 @@ def ensure_unambiguous(task, *scans, policies=None):
         if len(values) <= 1:
             continue
         rendered = ", ".join(f"{embodiment}/{scene}" for embodiment, scene in sorted(values))
-        raise SystemExit(
+        raise ResultsError(
             f"Ambiguous results for task={task!r}, policy={policy!r}, seed={seed}: {rendered}. "
-            "Pass --env-cfg and/or --scene to select one environment/scene combination."
+            "Pass --environment and/or --scene to select one environment/scene combination."
         )
 
 
@@ -214,9 +211,9 @@ def stats(entries):
     return count, successes / count * 100.0, score_sum / count * 100.0
 
 
-def discover_random_tasks():
+def discover_random_tasks(root):
     """Return {base task -> random task name} for Generalization tasks on disk."""
-    all_task_dirs = set(list_subdirs(ROOT))
+    all_task_dirs = set(list_subdirs(root))
     random_of = {}
     for task in GENERALIZATION_TASKS:
         random_name = task + "_random"
@@ -230,27 +227,24 @@ def is_paired_task(task, random_of):
     return task in GENERALIZATION_TASKS and task in random_of
 
 
-def parse_args(argv=None):
-    parser = argparse.ArgumentParser(description="Aggregate RoboDojo evaluation results into Markdown.")
-    parser.add_argument(
-        "--output",
-        help="Markdown output path (default: <storage-root>/runs/reports/_summary.md)",
-    )
-    parser.add_argument("--env-cfg", help="Only include this environment profile")
-    parser.add_argument("--scene", help="Only include results recorded with this scene config")
-    return parser.parse_args(argv)
+def summarize_results(
+    *,
+    results_root: Path | None = None,
+    output: Path | None = None,
+    environment: str | None = None,
+    scene: str | None = None,
+) -> Path:
+    """Aggregate evaluation results into Markdown and return the output path."""
 
-
-def main(argv=None):
-    args = parse_args(argv)
-    output_md = summary_path(args.output)
-    if not os.path.isdir(ROOT):
-        raise SystemExit(
-            f"Eval result directory not found: {ROOT}\nPopulate the local storage root or use `robodojo storage pull`."
+    root = (results_root or eval_root()).expanduser().resolve()
+    output_md = summary_path(output)
+    if not root.is_dir():
+        raise ResultsError(
+            f"Eval result directory not found: {root}\nPopulate the local storage root or use `robodojo storage pull`."
         )
 
-    random_of = discover_random_tasks()
-    policy_seeds = collect_policy_seeds(args.env_cfg, args.scene)
+    random_of = discover_random_tasks(root)
+    policy_seeds = collect_policy_seeds(root, environment, scene)
 
     # data[policy][task][seed] = (success_rate, score)
     data = {policy: {} for policy in policy_seeds}
@@ -265,13 +259,13 @@ def main(argv=None):
         gen_split.setdefault(policy, {}).setdefault(task, {}).setdefault(seed, {})[half] = (sr, score)
 
     for task in ALL_TASKS:
-        base_scan = scan_task(task, args.env_cfg, args.scene)
+        base_scan = scan_task(root, task, environment, scene)
 
         if is_paired_task(task, random_of):
-            rand_scan = scan_task(random_of[task], args.env_cfg, args.scene)
+            rand_scan = scan_task(root, random_of[task], environment, scene)
             ensure_unambiguous(task, base_scan, rand_scan)
             for key in sorted(set(base_scan) | set(rand_scan)):
-                policy, _embodiment, _scene, seed = key
+                policy, _selected_environment, _selected_scene, seed = key
                 base_e = base_scan.get(key, [])
                 rand_e = rand_scan.get(key, [])
                 if len(base_e) >= PAIRED_HALF_EPISODES:
@@ -292,18 +286,20 @@ def main(argv=None):
                 if len(entries) < STANDALONE_EPISODES:
                     continue
                 _, sr, score = stats(entries[:STANDALONE_EPISODES])
-                policy, _embodiment, _scene, seed = key
+                policy, _selected_environment, _selected_scene, seed = key
                 record(policy, task, seed, sr, score)
 
     canonical_result_dirs = set(ALL_TASKS) | set(random_of.values())
-    for protocol in sorted(set(list_subdirs(ROOT)) - canonical_result_dirs):
-        scan = scan_task(protocol, args.env_cfg, args.scene)
+    for protocol in sorted(set(list_subdirs(root)) - canonical_result_dirs):
+        scan = scan_task(root, protocol, environment, scene)
         ensure_unambiguous(protocol, scan)
-        for (policy, environment, scene, seed), entries in sorted(scan.items()):
+        for (policy, selected_environment, selected_scene, seed), entries in sorted(scan.items()):
             if not entries:
                 continue
             count, sr, score = stats(entries)
-            additional_protocols.append((protocol, policy, environment, scene, seed, count, sr, score))
+            additional_protocols.append(
+                (protocol, policy, selected_environment, selected_scene, seed, count, sr, score)
+            )
 
     write_markdown(data, gen_split, additional_protocols, output_md)
     n_cells = sum(len(seeds) for tasks in data.values() for seeds in tasks.values())
@@ -313,6 +309,7 @@ def main(argv=None):
         f"Wrote {len(data)} policy tables ({n_cells} filled cells, "
         f"{tested} in overview, {complete} complete) to {output_md}\n"
     )
+    return output_md
 
 
 def mean_with_spread(values, integer=False):
@@ -751,7 +748,3 @@ def write_markdown(data, gen_split, additional_protocols, output_md):
     output_md.parent.mkdir(parents=True, exist_ok=True)
     with output_md.open("w", encoding="utf-8") as fh:
         fh.write("\n".join(lines) + "\n")
-
-
-if __name__ == "__main__":
-    main()

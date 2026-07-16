@@ -2,11 +2,21 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import typer
 
-from robodojo.commands.common import contract_values, model, paths, report_format
+from robodojo.commands.common import contract_values, model, paths
+from robodojo.commands.options import (
+    EnvironmentOption,
+    PolicyGpuOption,
+    PolicyProfileOption,
+    ProtocolOption,
+    RecipeOption,
+    ReportFormat,
+    ReportFormatOption,
+    RepositoryRootOption,
+    SceneOption,
+    SeedOption,
+)
 from robodojo.core.models import SetupRequest, SetupStage
 
 
@@ -16,24 +26,15 @@ def setup(
         "--only",
         help="Prepare only this stage; repeat for root, assets, or policy.",
     ),
-    recipe: str | None = typer.Option(None, "--recipe", help="Tracked evaluation recipe."),
-    policy_profile: str | None = typer.Option(None, "--policy-profile", help="Manual policy profile."),
-    environment: str | None = typer.Option(None, "--environment", help="Manual environment profile."),
-    scene: str | None = typer.Option(None, "--scene", help="Manual scene profile."),
-    protocol: str | None = typer.Option(None, "--protocol", help="Manual task protocol."),
-    seed: int = typer.Option(0, "--seed", help="Nonnegative experiment seed."),
-    policy_gpu: str = typer.Option(
-        "auto",
-        "--policy-gpu",
-        envvar="POLICY_GPU",
-        help="Policy GPU as a zero-based index or auto; POLICY_GPU is used when the flag is omitted.",
-    ),
-    output_format: str = typer.Option("human", "--format", help="Report format: human or json."),
-    root: Path | None = typer.Option(
-        None,
-        "--root",
-        help="Repository checkout to prepare; auto-detected when omitted.",
-    ),
+    recipe: RecipeOption = None,
+    policy_profile: PolicyProfileOption = None,
+    environment: EnvironmentOption = None,
+    scene: SceneOption = None,
+    protocol: ProtocolOption = None,
+    seed: SeedOption = 0,
+    policy_gpu: PolicyGpuOption = "auto",
+    output_format: ReportFormatOption = ReportFormat.HUMAN,
+    root: RepositoryRootOption = None,
 ) -> None:
     """Prepare repository-local dependencies, assets, policy runtime, and checkpoint."""
     from robodojo.workflows.setup import setup as setup_workflow
@@ -57,4 +58,4 @@ def setup(
         seed=seed,
         policy_gpu=policy_gpu,
     )
-    raise typer.Exit(setup_workflow(repository, request, output_format=report_format(output_format)))
+    raise typer.Exit(setup_workflow(repository, request, output_format=output_format.value))

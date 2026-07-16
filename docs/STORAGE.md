@@ -98,11 +98,15 @@ uv run --locked robodojo storage doctor
 Publish a completed local payload explicitly:
 
 ```bash
-robodojo storage publish-assets .robodojo/assets
-robodojo storage publish-data demo .robodojo/datasets/demo
-robodojo storage publish-checkpoint SmolVLA run-10000 /local/checkpoints/run-10000
+robodojo storage publish .robodojo/assets assets
 robodojo storage publish .robodojo/datasets/example datasets/example
+robodojo storage publish /local/checkpoints/run-10000 model_weights/SmolVLA/run-10000
+robodojo storage publish-eval --run-id 2026-07-16_12-00-00
 ```
+
+`storage publish-eval` can instead take `--source` for a completed evaluation
+directory below canonical local evaluation storage. The two selectors are
+mutually exclusive; when neither is supplied, the current directory is used.
 
 With `--publish`, a successful evaluation or fully completed snapshot batch
 publishes its timestamped run exactly once through the typed storage API.

@@ -2,13 +2,15 @@ import ast
 import json
 import logging
 from pathlib import Path
-import sys
 
 import pytest
+from typer.testing import CliRunner
 
+from robodojo.cli import app
 from robodojo.core.logging import configure_logging, parse_log_level
 from robodojo.sim.utils.load_file import load_object_metadata
 from robodojo.workflows import results_stats, task_inventory
+from robodojo.workflows.errors import ResultsError
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "src" / "robodojo"
@@ -81,28 +83,26 @@ def test_debug_progress_is_opt_in(isolated_robodojo_logger, capsys):
     assert captured.err == "DEBUG robodojo.sim.evaluation.eval_env: env0 step: 1 / 10\n"
 
 
-def test_results_stats_missing_root_is_logged(isolated_robodojo_logger, capsys, tmp_path):
-    configure_logging("ERROR")
+def test_results_stats_missing_root_is_a_domain_error(tmp_path):
     missing = tmp_path / "missing"
 
-    assert results_stats.main(["--root", str(missing)]) == 1
-    captured = capsys.readouterr()
-    assert captured.out == ""
-    assert captured.err == f"ERROR robodojo.workflows.results_stats: Eval result directory not found: {missing}\n"
+    with pytest.raises(ResultsError, match="Eval result directory not found"):
+        results_stats.generate_score_report(results_root=missing)
+
+    result = CliRunner().invoke(app, ["results", "stats", "--results-root", str(missing)])
+    assert result.exit_code == 1
+    assert result.stderr == f"Eval result directory not found: {missing}\n"
 
 
-def test_task_inventory_check_keeps_json_clean_and_logs_errors(
-    isolated_robodojo_logger, capsys, monkeypatch
-):
+def test_task_inventory_check_keeps_json_clean(monkeypatch):
     inventory = {"tasks": [{"name": "broken_task", "runnable": False}]}
     monkeypatch.setattr(task_inventory, "build_inventory", lambda: inventory)
-    monkeypatch.setattr(sys, "argv", ["task_inventory.py", "--format", "json", "--check"])
-    configure_logging("ERROR")
 
-    assert task_inventory.main() == 1
-    captured = capsys.readouterr()
-    assert json.loads(captured.out) == inventory
-    assert captured.err == "ERROR robodojo.workflows.task_inventory: Task is not runnable: broken_task\n"
+    result = CliRunner().invoke(app, ["tasks", "--format", "json", "--check"])
+
+    assert result.exit_code == 1
+    assert json.loads(result.stdout) == inventory
+    assert result.stderr == ""
 
 
 def test_package_has_no_print_calls():

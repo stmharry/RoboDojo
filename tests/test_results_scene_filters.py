@@ -7,6 +7,7 @@ from typer.testing import CliRunner
 from robodojo.cli import app
 from robodojo.core.scene_identity import ARTIFACT_SCHEMA_VERSION, ArtifactSchemaError
 from robodojo.workflows import results_stats, results_summary
+from robodojo.workflows.errors import ResultsError
 
 RUNNER = CliRunner()
 
@@ -63,7 +64,7 @@ def _write_result(
     return run
 
 
-def test_summary_fails_on_ambiguous_environment_scene_and_filters_cleanly(monkeypatch, tmp_path):
+def test_summary_fails_on_ambiguous_environment_scene_and_filters_cleanly(tmp_path):
     _write_result(
         tmp_path,
         task="fasten_screws",
@@ -79,18 +80,25 @@ def test_summary_fails_on_ambiguous_environment_scene_and_filters_cleanly(monkey
         count=50,
         score=0.0,
     )
-    monkeypatch.setattr(results_summary, "ROOT", str(tmp_path))
-
-    with pytest.raises(SystemExit, match="Pass --env-cfg and/or --scene"):
-        results_summary.main(["--output", str(tmp_path / "ambiguous.md")])
+    with pytest.raises(ResultsError, match="Pass --environment and/or --scene"):
+        results_summary.summarize_results(
+            results_root=tmp_path,
+            output=tmp_path / "ambiguous.md",
+        )
 
     output = tmp_path / "filtered.md"
-    results_summary.main(["--output", str(output), "--env-cfg", "arx_x5", "--scene", "default"])
+    result = results_summary.summarize_results(
+        results_root=tmp_path,
+        output=output,
+        environment="arx_x5",
+        scene="default",
+    )
+    assert result == output.resolve()
     assert output.is_file()
     assert "RoboDojo Evaluation Summary" in output.read_text(encoding="utf-8")
 
 
-def test_summary_reports_named_protocols_without_folding_them_into_the_upstream_scorecard(monkeypatch, tmp_path):
+def test_summary_reports_named_protocols_without_folding_them_into_the_upstream_scorecard(tmp_path):
     _write_result(
         tmp_path,
         task="moonlake_office_general_pickup",
@@ -101,10 +109,9 @@ def test_summary_reports_named_protocols_without_folding_them_into_the_upstream_
         score=0.0,
         policy="Pi_05",
     )
-    monkeypatch.setattr(results_summary, "ROOT", str(tmp_path))
     output = tmp_path / "summary.md"
 
-    results_summary.main(["--output", str(output)])
+    results_summary.summarize_results(results_root=tmp_path, output=output)
 
     report = output.read_text(encoding="utf-8")
     assert "Additional named protocols" in report
@@ -129,7 +136,7 @@ def test_stats_filters_preserve_unambiguous_output_schema(tmp_path):
         score=0.5,
     )
 
-    with pytest.raises(SystemExit, match="Ambiguous results"):
+    with pytest.raises(ResultsError, match="Ambiguous results"):
         results_stats.collect_distributions(
             str(tmp_path),
             ["TestPolicy"],
@@ -167,7 +174,7 @@ def test_paired_results_require_the_same_environment_and_scene(tmp_path):
         count=25,
     )
 
-    with pytest.raises(SystemExit, match="Ambiguous results"):
+    with pytest.raises(ResultsError, match="Ambiguous results"):
         results_stats.collect_distributions(
             str(tmp_path),
             ["TestPolicy"],
@@ -231,5 +238,87 @@ def test_result_loaders_strictly_reject_legacy_artifacts(tmp_path, loader, mutat
 def test_result_commands_expose_environment_and_scene_filters(command):
     result = RUNNER.invoke(app, command)
     assert result.exit_code == 0
-    assert "--env-cfg" in result.stdout
+    assert "--results-root" in result.stdout
+    assert "--environment" in result.stdout
     assert "--scene" in result.stdout
+    assert "--env-cfg" not in result.stdout
+
+
+def test_result_commands_use_explicit_results_root(tmp_path):
+    _write_result(
+        tmp_path,
+        task="fasten_screws",
+        embodiment="arx_x5",
+        scene="default",
+        count=50,
+    )
+    output = tmp_path / "report.md"
+
+    summary = RUNNER.invoke(
+        app,
+        [
+            "results",
+            "summarize",
+            "--results-root",
+            str(tmp_path),
+            "--output",
+            str(output),
+            "--environment",
+            "arx_x5",
+            "--scene",
+            "default",
+        ],
+    )
+    stats = RUNNER.invoke(
+        app,
+        [
+            "results",
+            "stats",
+            "--results-root",
+            str(tmp_path),
+            "--policy",
+            "TestPolicy",
+            "--task",
+            "fasten_screws",
+            "--environment",
+            "arx_x5",
+            "--scene",
+            "default",
+        ],
+    )
+
+    assert summary.exit_code == 0, summary.output
+    assert output.is_file()
+    assert stats.exit_code == 0, stats.output
+    assert "TestPolicy (50 episodes)" in stats.stdout
+
+
+def test_stats_uses_default_policies_and_writes_json(tmp_path):
+    _write_result(
+        tmp_path,
+        task="fasten_screws",
+        embodiment="arx_x5",
+        scene="default",
+        count=50,
+        policy="pi05_bimanual_yam",
+    )
+    output = tmp_path / "nested/score-stats.json"
+
+    result = RUNNER.invoke(
+        app,
+        [
+            "results",
+            "stats",
+            "--results-root",
+            str(tmp_path),
+            "--task",
+            "fasten_screws",
+            "--json-out",
+            str(output),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    report = json.loads(output.read_text(encoding="utf-8"))
+    assert report["policies"] == list(results_stats.DEFAULT_POLICIES)
+    assert report["aggregated"]["fasten_screws"]["pi05_bimanual_yam"] == {"1": 50}

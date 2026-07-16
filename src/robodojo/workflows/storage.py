@@ -1,9 +1,7 @@
-#!/usr/bin/env python3
 """Manage canonical local RoboDojo storage and immutable S3 payloads."""
 
 from __future__ import annotations
 
-import argparse
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -17,6 +15,7 @@ import tempfile
 from robodojo.core.models import SnapshotSummary
 from robodojo.core.scene_identity import ArtifactSchemaError, require_current_result_artifact
 from robodojo.core.storage import eval_work_root, s3_uri, storage_root
+from robodojo.workflows.errors import StorageError
 
 INTERNAL_FILES = {"_MANIFEST.json", "_COMPLETE.json"}
 EXCLUDED_DIRS = {".cache", ".git"}
@@ -27,30 +26,36 @@ SNAPSHOT_PREFIX = Path("runs/snapshots")
 
 
 def _aws(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["aws", *args],
-        check=check,
-        text=True,
-        capture_output=True,
-    )
+    try:
+        return subprocess.run(
+            ["aws", *args],
+            check=check,
+            text=True,
+            capture_output=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        detail = (exc.stderr or exc.stdout or str(exc)).strip()
+        raise StorageError(f"AWS command failed: {detail}") from exc
+    except OSError as exc:
+        raise StorageError(f"could not run AWS CLI: {exc}") from exc
 
 
 def _base_uri() -> str:
     base = s3_uri()
     if not base or not base.startswith("s3://"):
-        raise SystemExit("ROBODOJO_S3_URI must be set to the dedicated s3://.../robodojo prefix")
+        raise StorageError("ROBODOJO_S3_URI must be set to the dedicated s3://.../robodojo prefix")
     return base.rstrip("/")
 
 
 def _destination(relative: str) -> str:
     clean = relative.strip("/")
     if not clean or ".." in Path(clean).parts:
-        raise SystemExit(f"invalid storage destination: {relative!r}")
+        raise StorageError(f"invalid storage destination: {relative!r}")
     if Path(clean).parts[0] not in CANONICAL_TOP_LEVEL:
-        raise SystemExit(f"destination must use a canonical storage root: {relative!r}")
+        raise StorageError(f"destination must use a canonical storage root: {relative!r}")
     destination = f"{_base_uri()}/{clean}"
     if not destination.startswith(_base_uri() + "/"):
-        raise SystemExit("refusing destination outside ROBODOJO_S3_URI")
+        raise StorageError("refusing destination outside ROBODOJO_S3_URI")
     return destination
 
 
@@ -58,9 +63,9 @@ def _relative_path(relative: str) -> Path:
     clean = relative.strip("/")
     path = Path(clean)
     if not clean or ".." in path.parts:
-        raise SystemExit(f"invalid storage destination: {relative!r}")
+        raise StorageError(f"invalid storage destination: {relative!r}")
     if path.parts[0] not in CANONICAL_TOP_LEVEL:
-        raise SystemExit(f"destination must use a canonical storage root: {relative!r}")
+        raise StorageError(f"destination must use a canonical storage root: {relative!r}")
     return path
 
 
@@ -87,7 +92,7 @@ def _payload_files(source: Path) -> list[Path]:
         if excluded_part is not None or path.name in INTERNAL_FILES:
             continue
         if path.is_symlink():
-            raise SystemExit(f"payload contains unsupported symlink: {path}")
+            raise StorageError(f"payload contains unsupported symlink: {path}")
         if path.is_file():
             files.append(path)
     return files
@@ -136,14 +141,14 @@ def _validate_evaluation_source(source: Path, relative: str) -> dict | None:
         result = json.loads(result_path.read_text(encoding="utf-8"))
         require_current_result_artifact(result, context=f"evaluation result {result_path}")
     except (OSError, json.JSONDecodeError, ArtifactSchemaError) as exc:
-        raise SystemExit(str(exc)) from exc
+        raise StorageError(str(exc)) from exc
     return result
 
 
 def publish(source: Path, relative: str, *, replace: bool = False, dry_run: bool = False) -> None:
     source = source.resolve()
     if not source.is_dir():
-        raise SystemExit(f"publish source is not a directory: {source}")
+        raise StorageError(f"publish source is not a directory: {source}")
     _validate_evaluation_source(source, relative)
     destination = _destination(relative)
     if dry_run:
@@ -164,7 +169,7 @@ def publish(source: Path, relative: str, *, replace: bool = False, dry_run: bool
         == 0
     )
     if completed and not replace:
-        raise SystemExit(f"destination is already complete: {destination}")
+        raise StorageError(f"destination is already complete: {destination}")
     if completed and replace:
         _aws("s3", "rm", destination, "--recursive", "--only-show-errors")
 
@@ -241,13 +246,13 @@ def publish(source: Path, relative: str, *, replace: bool = False, dry_run: bool
 def _find_eval_run(run_id: str) -> Path:
     matches = [path.parent for path in eval_work_root().rglob("_result.json") if path.parent.name == run_id]
     if len(matches) != 1:
-        raise SystemExit(f"expected one completed local eval run named {run_id!r}, found {len(matches)}")
+        raise StorageError(f"expected one completed local eval run named {run_id!r}, found {len(matches)}")
     result_path = matches[0] / "_result.json"
     try:
         result = json.loads(result_path.read_text(encoding="utf-8"))
         require_current_result_artifact(result, context=f"evaluation result {result_path}")
     except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
-        raise SystemExit(f"evaluation result is invalid: {result_path}: {exc}") from exc
+        raise StorageError(f"evaluation result is invalid: {result_path}: {exc}") from exc
     return matches[0]
 
 
@@ -257,6 +262,29 @@ def publish_evaluation_run(run_id: str, *, replace: bool = False, dry_run: bool 
     source = _find_eval_run(run_id)
     relative = str(Path("runs/eval_result/RoboDojo") / source.resolve().relative_to(eval_work_root().resolve()))
     publish(source, relative, replace=replace, dry_run=dry_run)
+
+
+def publish_evaluation(
+    source: Path | None = None,
+    *,
+    run_id: str | None = None,
+    replace: bool = False,
+    dry_run: bool = False,
+) -> None:
+    """Publish one evaluation selected by source directory or runtime identifier."""
+
+    if source is not None and run_id is not None:
+        raise StorageError("--source and --run-id are mutually exclusive")
+    if run_id is not None:
+        publish_evaluation_run(run_id, replace=replace, dry_run=dry_run)
+        return
+    resolved = (source or Path.cwd()).expanduser().resolve()
+    try:
+        suffix = resolved.relative_to(eval_work_root().resolve())
+    except ValueError as exc:
+        raise StorageError(f"evaluation source must be below {eval_work_root().resolve()}: {resolved}") from exc
+    relative = str(Path("runs/eval_result/RoboDojo") / suffix)
+    publish(resolved, relative, replace=replace, dry_run=dry_run)
 
 
 def publish_snapshot_run(
@@ -272,19 +300,19 @@ def publish_snapshot_run(
     try:
         summary = SnapshotSummary.model_validate_json(summary_path.read_text(encoding="utf-8"))
     except (OSError, TypeError, ValueError) as exc:
-        raise SystemExit(f"snapshot summary is invalid: {summary_path}: {exc}") from exc
+        raise StorageError(f"snapshot summary is invalid: {summary_path}: {exc}") from exc
     if summary.run_id != run_id:
-        raise SystemExit(f"snapshot summary run id {summary.run_id!r} does not match {run_id!r}")
+        raise StorageError(f"snapshot summary run id {summary.run_id!r} does not match {run_id!r}")
     if Path(summary.output_dir).expanduser().resolve() != source:
-        raise SystemExit(f"snapshot summary output does not match publication source: {source}")
+        raise StorageError(f"snapshot summary output does not match publication source: {source}")
     if tuple(record.recipe for record in summary.results) != summary.recipes:
-        raise SystemExit("snapshot summary recipe results do not match the selected recipes")
+        raise StorageError("snapshot summary recipe results do not match the selected recipes")
     if (
         not summary.results
         or not summary.complete
         or any(record.status not in {"PASS", "SKIP"} for record in summary.results)
     ):
-        raise SystemExit(f"snapshot batch is not complete and successful: {summary_path}")
+        raise StorageError(f"snapshot batch is not complete and successful: {summary_path}")
     publish(source, str(SNAPSHOT_PREFIX / run_id), replace=replace, dry_run=dry_run)
 
 
@@ -292,36 +320,36 @@ def _verify_materialized(path: Path) -> None:
     manifest_path = path / "_MANIFEST.json"
     complete_path = path / "_COMPLETE.json"
     if not manifest_path.is_file() or not complete_path.is_file():
-        raise SystemExit(f"durable payload is incomplete: {path}")
+        raise StorageError(f"durable payload is incomplete: {path}")
     manifest_bytes = manifest_path.read_bytes()
     complete = json.loads(complete_path.read_text(encoding="utf-8"))
     if hashlib.sha256(manifest_bytes).hexdigest() != complete.get("manifest_sha256"):
-        raise SystemExit(f"durable payload manifest hash mismatch: {path}")
+        raise StorageError(f"durable payload manifest hash mismatch: {path}")
     manifest = json.loads(manifest_bytes)
     entries = manifest.get("files", [])
     expected = {entry["path"] for entry in entries}
     actual: set[str] = set()
     for candidate in path.rglob("*"):
         if candidate.is_symlink():
-            raise SystemExit(f"materialized payload contains unsupported symlink: {candidate}")
+            raise StorageError(f"materialized payload contains unsupported symlink: {candidate}")
         if candidate.is_file() and candidate.name not in INTERNAL_FILES:
             relative = str(candidate.relative_to(path))
             actual.add(relative)
             if relative not in expected:
-                raise SystemExit(f"materialized payload contains unmanifested file: {candidate}")
+                raise StorageError(f"materialized payload contains unmanifested file: {candidate}")
     if actual != expected:
         missing = sorted(expected - actual)
-        raise SystemExit(f"materialized payload is missing manifest files: {', '.join(missing)}")
+        raise StorageError(f"materialized payload is missing manifest files: {', '.join(missing)}")
     if manifest.get("file_count") != len(entries):
-        raise SystemExit(f"materialized payload manifest file count mismatch: {path}")
+        raise StorageError(f"materialized payload manifest file count mismatch: {path}")
     if manifest.get("total_bytes") != sum(entry["size"] for entry in entries):
-        raise SystemExit(f"materialized payload manifest byte count mismatch: {path}")
+        raise StorageError(f"materialized payload manifest byte count mismatch: {path}")
     for entry in entries:
         candidate = path / entry["path"]
         if not candidate.is_file() or candidate.stat().st_size != entry["size"]:
-            raise SystemExit(f"materialized payload failed size verification: {candidate}")
+            raise StorageError(f"materialized payload failed size verification: {candidate}")
         if _sha256(candidate) != entry["sha256"]:
-            raise SystemExit(f"materialized payload failed hash verification: {candidate}")
+            raise StorageError(f"materialized payload failed hash verification: {candidate}")
 
 
 def pull(relative: str, *, replace: bool = False, dry_run: bool = False) -> None:
@@ -334,7 +362,7 @@ def pull(relative: str, *, replace: bool = False, dry_run: bool = False) -> None
         return
     destination_exists = destination.exists() or destination.is_symlink()
     if destination_exists and not replace:
-        raise SystemExit(f"local destination already exists: {destination}")
+        raise StorageError(f"local destination already exists: {destination}")
 
     bucket, key = _s3_location(source)
     completed = (
@@ -350,7 +378,7 @@ def pull(relative: str, *, replace: bool = False, dry_run: bool = False) -> None
         == 0
     )
     if not completed:
-        raise SystemExit(f"remote payload is incomplete: {source}")
+        raise StorageError(f"remote payload is incomplete: {source}")
 
     staging_root = storage_root() / ".staging"
     staging_root.mkdir(parents=True, exist_ok=True)
@@ -362,7 +390,7 @@ def pull(relative: str, *, replace: bool = False, dry_run: bool = False) -> None
         _verify_materialized(payload)
         manifest = json.loads((payload / "_MANIFEST.json").read_text(encoding="utf-8"))
         if manifest.get("destination") != str(relative_path):
-            raise SystemExit(
+            raise StorageError(
                 f"remote manifest destination mismatch: {manifest.get('destination')!r} != {str(relative_path)!r}"
             )
 
@@ -394,71 +422,7 @@ def doctor() -> None:
     sys.stdout.write(f"local storage supports replace/delete: {root}\n")
     if s3_uri() is not None:
         if shutil.which("aws") is None:
-            raise SystemExit("aws CLI is not installed")
+            raise StorageError("aws CLI is not installed")
         bucket, key = _s3_location(_base_uri())
         _aws("s3api", "list-objects-v2", "--bucket", bucket, "--prefix", key, "--max-keys", "1")
         sys.stdout.write(f"S3 prefix accessible: {_base_uri()}\n")
-
-
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    subparsers = parser.add_subparsers(dest="command", required=True)
-    subparsers.add_parser("doctor")
-    subparsers.add_parser("status")
-    pull_parser = subparsers.add_parser("pull")
-    pull_parser.add_argument("relative")
-    pull_parser.add_argument("--replace", action="store_true")
-    pull_parser.add_argument("--dry-run", action="store_true")
-
-    def add_publish(name: str, positional: tuple[str, ...]) -> argparse.ArgumentParser:
-        child = subparsers.add_parser(name)
-        for argument in positional:
-            child.add_argument(argument)
-        child.add_argument("--replace", action="store_true")
-        child.add_argument("--dry-run", action="store_true")
-        return child
-
-    add_publish("publish-assets", ("source",))
-    add_publish("publish-data", ("dataset", "source"))
-    add_publish("publish-model", ("policy", "model", "source"))
-    add_publish("publish-checkpoint", ("policy", "checkpoint", "source"))
-    add_publish("publish-reference-cache", ("name", "revision", "source"))
-    eval_parser = add_publish("publish-eval", ("source",))
-    eval_parser.add_argument("--run-id")
-    add_publish("publish-run", ("kind", "run_id", "source"))
-    add_publish("publish", ("source", "relative"))
-
-    args = parser.parse_args(argv)
-    if args.command in {"doctor", "status"}:
-        doctor()
-        return 0
-    if args.command == "pull":
-        pull(args.relative, replace=args.replace, dry_run=args.dry_run)
-        return 0
-
-    source = Path(args.source)
-    if args.command == "publish":
-        relative = args.relative
-    elif args.command == "publish-assets":
-        relative = "assets"
-    elif args.command == "publish-data":
-        relative = f"datasets/{args.dataset}"
-    elif args.command == "publish-model":
-        relative = f"model_weights/{args.policy}/{args.model}"
-    elif args.command == "publish-checkpoint":
-        relative = f"model_weights/{args.policy}/{args.checkpoint}"
-    elif args.command == "publish-reference-cache":
-        relative = f"datasets/reference_cache/{args.name}/{args.revision}"
-    elif args.command == "publish-eval":
-        if args.run_id:
-            publish_evaluation_run(args.run_id, replace=args.replace, dry_run=args.dry_run)
-            return 0
-        relative = str(Path("runs/eval_result/RoboDojo") / source.resolve().relative_to(eval_work_root().resolve()))
-    else:
-        relative = f"runs/{args.kind}/{args.run_id}"
-    publish(source, relative, replace=args.replace, dry_run=args.dry_run)
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

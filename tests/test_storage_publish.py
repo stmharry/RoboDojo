@@ -7,10 +7,15 @@ import subprocess
 import sys
 
 import pytest
+from typer.testing import CliRunner
 
+from robodojo.cli import app
 from robodojo.core.models import SnapshotRecord, SnapshotSummary
 from robodojo.core.scene_identity import ARTIFACT_SCHEMA_VERSION
 from robodojo.workflows import storage as storage_cli
+from robodojo.workflows.errors import StorageError
+
+RUNNER = CliRunner()
 
 
 def _result_payload(**overrides):
@@ -57,8 +62,18 @@ def test_storage_cli_help_runs_through_typer():
         env=environment,
     )
     assert result.returncode == 0, result.stderr
-    assert "publish-checkpoint" in result.stdout
-    assert "pull" in result.stdout
+    for command in ("doctor", "publish", "pull", "publish-eval"):
+        assert command in result.stdout
+    for removed in (
+        "status",
+        "publish-assets",
+        "publish-data",
+        "publish-checkpoint",
+        "publish-model",
+        "publish-reference-cache",
+        "publish-run",
+    ):
+        assert removed not in result.stdout
 
 
 def test_storage_dry_runs_preserve_stdout(monkeypatch, tmp_path, capsys):
@@ -131,7 +146,7 @@ def test_evaluation_publication_strictly_rejects_legacy_or_incomplete_results(
     (source / "_result.json").write_text(json.dumps(payload), encoding="utf-8")
     monkeypatch.setenv("ROBODOJO_S3_URI", "s3://bucket/robodojo")
 
-    with pytest.raises(SystemExit, match=message):
+    with pytest.raises(StorageError, match=message):
         storage_cli.publish(source, "runs/eval_result/RoboDojo/general_pickup/run", dry_run=True)
 
 
@@ -147,7 +162,7 @@ def test_publish_evaluation_run_requires_current_result_before_dry_run(monkeypat
     monkeypatch.setenv("ROBODOJO_STORAGE_ROOT", str(storage))
     monkeypatch.setenv("ROBODOJO_S3_URI", "s3://bucket/robodojo")
 
-    with pytest.raises(SystemExit, match="artifact_schema_version mismatch"):
+    with pytest.raises(StorageError, match="artifact_schema_version mismatch"):
         storage_cli.publish_evaluation_run("legacy-run", dry_run=True)
 
 
@@ -189,7 +204,7 @@ def test_publish_snapshot_run_requires_success_and_uses_snapshot_destination(mon
 
     failed = summary.model_copy(update={"results": [record.model_copy(update={"status": "FAIL", "exit_code": 1})]})
     (source / "summary.json").write_text(failed.model_dump_json(), encoding="utf-8")
-    with pytest.raises(SystemExit, match="not complete and successful"):
+    with pytest.raises(StorageError, match="not complete and successful"):
         storage_cli.publish_snapshot_run("snapshot-run", source)
 
 
@@ -202,7 +217,7 @@ def test_publish_rejects_completed_destination(monkeypatch, tmp_path):
         return subprocess.CompletedProcess(args, 0, "", "")
 
     monkeypatch.setattr(storage_cli, "_aws", already_complete)
-    with pytest.raises(SystemExit, match="already complete"):
+    with pytest.raises(StorageError, match="already complete"):
         storage_cli.publish(source, "assets")
 
 
@@ -222,13 +237,13 @@ def test_payload_excludes_cache_git_locks_partials_and_rejects_symlinks(tmp_path
     assert storage_cli._payload_files(source) == [source / "payload"]
 
     (source / "link").symlink_to(source / "payload")
-    with pytest.raises(SystemExit, match="unsupported symlink"):
+    with pytest.raises(StorageError, match="unsupported symlink"):
         storage_cli._payload_files(source)
 
 
 def test_destination_cannot_escape_prefix(monkeypatch):
     monkeypatch.setenv("ROBODOJO_S3_URI", "s3://bucket/robodojo")
-    with pytest.raises(SystemExit, match="invalid storage destination"):
+    with pytest.raises(StorageError, match="invalid storage destination"):
         storage_cli._destination("../other")
 
 
@@ -269,24 +284,68 @@ def test_pull_preserves_existing_destination_without_replace(monkeypatch, tmp_pa
     (local / "assets").mkdir(parents=True)
     monkeypatch.setenv("ROBODOJO_STORAGE_ROOT", str(local))
     monkeypatch.setenv("ROBODOJO_S3_URI", "s3://bucket/robodojo")
-    with pytest.raises(SystemExit, match="already exists"):
+    with pytest.raises(StorageError, match="already exists"):
         storage_cli.pull("assets")
 
 
-def test_status_publish_and_pull_aliases(monkeypatch, tmp_path):
-    seen = []
-    monkeypatch.setattr(storage_cli, "doctor", lambda: seen.append("status"))
+def test_publish_evaluation_accepts_source_or_run_id_but_not_both(monkeypatch, tmp_path):
+    local = tmp_path / "local"
+    source = local / "runs/eval_result/RoboDojo/task/run"
+    source.mkdir(parents=True)
+    monkeypatch.setenv("ROBODOJO_STORAGE_ROOT", str(local))
+    published = []
     monkeypatch.setattr(
         storage_cli,
         "publish",
-        lambda source, relative, **kwargs: seen.append((source, relative, kwargs)),
+        lambda path, relative, **kwargs: published.append((path, relative, kwargs)),
     )
-    monkeypatch.setattr(storage_cli, "pull", lambda relative, **kwargs: seen.append((relative, kwargs)))
 
-    assert storage_cli.main(["status"]) == 0
-    assert storage_cli.main(["publish", str(tmp_path), "datasets/example", "--dry-run"]) == 0
-    assert storage_cli.main(["pull", "datasets/example", "--dry-run"]) == 0
-    assert seen[0] == "status"
-    assert seen[1][1] == "datasets/example"
-    assert seen[1][2]["dry_run"] is True
-    assert seen[2] == ("datasets/example", {"replace": False, "dry_run": True})
+    storage_cli.publish_evaluation(source, dry_run=True)
+
+    assert published == [
+        (
+            source.resolve(),
+            "runs/eval_result/RoboDojo/task/run",
+            {"replace": False, "dry_run": True},
+        )
+    ]
+    with pytest.raises(StorageError, match="mutually exclusive"):
+        storage_cli.publish_evaluation(source, run_id="run")
+
+
+def test_storage_domain_errors_are_rendered_without_tracebacks(tmp_path):
+    missing = tmp_path / "missing"
+    result = RUNNER.invoke(
+        app,
+        ["storage", "publish", str(missing), "assets"],
+        env={"ROBODOJO_S3_URI": "s3://bucket/robodojo"},
+    )
+
+    assert result.exit_code == 1
+    assert "publish source is not a directory" in result.stderr
+    assert "Traceback" not in result.output
+
+
+@pytest.mark.parametrize(
+    ("failure", "message"),
+    [
+        (subprocess.CalledProcessError(5, ["aws"], stderr="access denied"), "AWS command failed: access denied"),
+        (OSError("aws is unavailable"), "could not run AWS CLI: aws is unavailable"),
+    ],
+)
+def test_aws_failures_are_storage_errors(monkeypatch, failure, message):
+    monkeypatch.setattr(storage_cli.subprocess, "run", lambda *args, **kwargs: (_ for _ in ()).throw(failure))
+
+    with pytest.raises(StorageError, match=message):
+        storage_cli._aws("s3", "ls")
+
+
+def test_publish_evaluation_cli_rejects_conflicting_selectors(tmp_path):
+    result = RUNNER.invoke(
+        app,
+        ["storage", "publish-eval", "--source", str(tmp_path), "--run-id", "run"],
+    )
+
+    assert result.exit_code == 1
+    assert "mutually exclusive" in result.stderr
+    assert "Traceback" not in result.output

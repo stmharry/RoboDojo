@@ -15,8 +15,9 @@
 #   docker run --rm -it --gpus all --network host --ipc host \
 #     -v "$PWD/.robodojo:/workspace/RoboDojo/.robodojo" \
 #     robodojo:cuda12.8 \
-#     client --task stack_bowls \
-#       --policy-name GR00T_N17 --policy-host 127.0.0.1 --policy-port 9999 --eval-num 1
+#     client --policy-profile pi05_arx_x5 --environment arx_x5 \
+#       --scene default --protocol stack_bowls \
+#       --policy-host 127.0.0.1 --policy-port 9999 --eval-num 1
 
 ARG CUDA_IMAGE=nvidia/cuda:12.8.1-cudnn-devel-ubuntu22.04
 FROM ${CUDA_IMAGE}

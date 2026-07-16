@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 
 from pydantic import ValidationError
 import typer
@@ -59,7 +59,8 @@ def contract_values(
     return contract.request_values(repository)
 
 
-def report_format(value: str) -> str:
-    if value not in {"human", "json"}:
-        raise typer.BadParameter("expected human or json", param_hint="--format")
-    return value
+def workflow_error(exc: Exception, *, code: int = 1) -> NoReturn:
+    """Render an expected workflow failure at the CLI boundary."""
+
+    typer.echo(str(exc), err=True)
+    raise typer.Exit(code) from exc

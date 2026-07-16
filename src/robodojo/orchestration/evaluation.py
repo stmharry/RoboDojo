@@ -43,13 +43,14 @@ def run_simulator_session(
 
 
 def _publish_evaluation(run_id: str) -> int:
+    from robodojo.workflows.errors import StorageError
     from robodojo.workflows.storage import publish_evaluation_run
 
     try:
         publish_evaluation_run(run_id)
-    except SystemExit as exc:
+    except StorageError as exc:
         logger.error("evaluation completed, but S3 publication failed: %s", exc)
-        return exc.code if isinstance(exc.code, int) and exc.code != 0 else 1
+        return 1
     except subprocess.CalledProcessError as exc:
         detail = (exc.stderr or exc.stdout or str(exc)).strip()
         logger.error("evaluation completed, but S3 publication failed: %s", detail)

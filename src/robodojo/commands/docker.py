@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import typer
 
 from robodojo.commands.common import paths
+from robodojo.commands.options import DockerImageOption, RepositoryRootOption
 
 docker_app = typer.Typer(no_args_is_help=True, help="Build and validate RoboDojo containers.")
 
 
 @docker_app.command("install")
 def install_command(
-    root: Path | None = typer.Option(None, "--root", help="Repository checkout to use; auto-detected when omitted."),
+    root: RepositoryRootOption = None,
 ) -> None:
     """Install Docker and the NVIDIA container runtime when missing."""
     from robodojo.workflows.docker import install
@@ -23,8 +22,8 @@ def install_command(
 
 @docker_app.command("build")
 def build_command(
-    image: str = typer.Option("robodojo:cuda12.8", "--image", help="Repository and tag for the simulator image."),
-    root: Path | None = typer.Option(None, "--root", help="Repository checkout to use; auto-detected when omitted."),
+    image: DockerImageOption = "robodojo:cuda12.8",
+    root: RepositoryRootOption = None,
 ) -> None:
     """Build the RoboDojo simulator container image."""
     from robodojo.workflows.docker import build
@@ -35,22 +34,22 @@ def build_command(
 @docker_app.command("smoke")
 def smoke_command(
     port: int = typer.Option(..., "--policy-port", help="Host TCP port of the external policy server."),
-    image: str = typer.Option("robodojo:cuda12.8", "--image", help="Simulator image for the container check."),
-    task: str = typer.Option("stack_bowls", "--task", help="Canonical task to evaluate."),
-    policy: str = typer.Option("demo_policy", "--policy", help="XPolicyLab policy name expected by the client."),
-    env_config: str = typer.Option("arx_x5", "--env-cfg", help="Environment profile to evaluate."),
+    image: DockerImageOption = "robodojo:cuda12.8",
+    task: str = typer.Option("stack_bowls", "--task", help="Task protocol to evaluate."),
+    policy: str = typer.Option("pi05_arx_x5", "--policy", help="Tracked policy profile expected by the client."),
+    environment: str = typer.Option("arx_x5", "--environment", help="Environment profile to evaluate."),
     scene_config: str | None = typer.Option(None, "--scene", help="Optional scene profile override."),
-    root: Path | None = typer.Option(None, "--root", help="Repository checkout to use; auto-detected when omitted."),
+    root: RepositoryRootOption = None,
 ) -> None:
     """Run a one-episode GPU and policy-connectivity check in Docker."""
     from robodojo.workflows.docker import smoke
 
-    raise typer.Exit(smoke(paths(root), image, task, policy, port, env_config, scene_config))
+    raise typer.Exit(smoke(paths(root), image, task, policy, port, environment, scene_config))
 
 
 @docker_app.command("monitor")
 def monitor_command(
-    root: Path | None = typer.Option(None, "--root", help="Repository checkout to use; auto-detected when omitted."),
+    root: RepositoryRootOption = None,
 ) -> None:
     """Follow the newest Docker smoke log."""
     from robodojo.workflows.docker import monitor
@@ -60,7 +59,7 @@ def monitor_command(
 
 @docker_app.command("clean")
 def clean_command(
-    root: Path | None = typer.Option(None, "--root", help="Repository checkout whose Docker state is cleaned."),
+    root: RepositoryRootOption = None,
 ) -> None:
     """Stop and remove RoboDojo Docker smoke-test state."""
     from robodojo.workflows.docker import clean

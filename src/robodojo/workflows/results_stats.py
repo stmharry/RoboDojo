@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Count per-score episode frequencies for selected policies under eval_result.
 
 Example output (conceptually):
@@ -16,27 +15,22 @@ Rules:
   * Scores are aggregated across all seeds by default; use ``--per-seed`` for a breakdown.
 
 Usage:
-    python stat_score_distribution.py
-    python stat_score_distribution.py --policies Pi_05 X_VLA Xiaomi_Robotics_0
     robodojo results stats --task stack_bowls --json-out score_stats.json
 """
 
 from __future__ import annotations
 
-import argparse
 from collections import Counter, defaultdict
+from collections.abc import Sequence
 import json
-import logging
 import os
+from pathlib import Path
 import re
 import sys
 
 from robodojo.core.scene_identity import ArtifactSchemaError, require_current_result_artifact
 from robodojo.core.storage import eval_root
-
-logger = logging.getLogger(__name__)
-
-DEFAULT_ROOT = str(eval_root())
+from robodojo.workflows.errors import ResultsError
 
 DEFAULT_POLICIES = ("pi05_bimanual_yam", "pi05_bimanual_yam_pickup", "molmoact2_bimanual_yam")
 POLICY_ALIASES = {
@@ -142,9 +136,9 @@ def ensure_unambiguous(
         if len(values) <= 1:
             continue
         rendered = ", ".join(f"{embodiment}/{scene}" for embodiment, scene in sorted(values))
-        raise SystemExit(
+        raise ResultsError(
             f"Ambiguous results for task={task!r}, policy={policy!r}, seed={seed}: {rendered}. "
-            "Pass --env-cfg and/or --scene to select one environment/scene combination."
+            "Pass --environment and/or --scene to select one environment/scene combination."
         )
 
 
@@ -218,7 +212,7 @@ def collect_distributions(
     if tasks:
         unknown = sorted(set(tasks) - set(all_tasks))
         if unknown:
-            raise SystemExit(f"Unknown task(s): {', '.join(unknown)}")
+            raise ResultsError(f"Unknown task(s): {', '.join(unknown)}")
         selected_tasks = sorted(tasks)
     else:
         selected_tasks = all_tasks
@@ -307,65 +301,34 @@ def print_report(result: dict, per_seed: bool) -> None:
         sys.stdout.write("\n")
 
 
-def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Count how many episodes received each score for selected policies.")
-    parser.add_argument(
-        "--root",
-        default=DEFAULT_ROOT,
-        help="Path to the canonical local evaluation results (default: %(default)s)",
-    )
-    parser.add_argument(
-        "--policies",
-        nargs="+",
-        default=list(DEFAULT_POLICIES),
-        help="Policy names to include (default: %(default)s)",
-    )
-    parser.add_argument(
-        "--task",
-        action="append",
-        dest="tasks",
-        help="Only include this task; repeatable",
-    )
-    parser.add_argument("--env-cfg", help="Only include this environment profile")
-    parser.add_argument("--scene", help="Only include results recorded with this scene config")
-    parser.add_argument(
-        "--per-seed",
-        action="store_true",
-        help="Also show score counts per seed",
-    )
-    parser.add_argument(
-        "--json-out",
-        help="Write the full result dict to this JSON file",
-    )
-    return parser.parse_args(argv)
+def generate_score_report(
+    *,
+    results_root: Path | None = None,
+    policies: Sequence[str] | None = None,
+    tasks: Sequence[str] | None = None,
+    environment: str | None = None,
+    scene: str | None = None,
+    per_seed: bool = False,
+    json_out: Path | None = None,
+) -> dict:
+    """Generate, print, and optionally persist one score-distribution report."""
 
-
-def main(argv: list[str] | None = None) -> int:
-    args = parse_args(argv)
-    policies = [normalize_policy_name(name) for name in args.policies]
-
-    if not os.path.isdir(args.root):
-        logger.error("Eval result directory not found: %s", args.root)
-        return 1
-
+    root = (results_root or eval_root()).expanduser().resolve()
+    if not root.is_dir():
+        raise ResultsError(f"Eval result directory not found: {root}")
+    selected_policies = [normalize_policy_name(name) for name in (policies or DEFAULT_POLICIES)]
     result = collect_distributions(
-        root=args.root,
-        policies=policies,
-        tasks=args.tasks,
-        per_seed=args.per_seed,
-        env_config=args.env_cfg,
-        scene_config=args.scene,
+        root=str(root),
+        policies=selected_policies,
+        tasks=list(tasks) if tasks is not None else None,
+        per_seed=per_seed,
+        env_config=environment,
+        scene_config=scene,
     )
-
-    print_report(result, per_seed=args.per_seed)
-
-    if args.json_out:
-        with open(args.json_out, "w") as fh:
-            json.dump(result, fh, indent=2, ensure_ascii=False)
-        sys.stdout.write(f"Wrote JSON to {args.json_out}\n")
-
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+    print_report(result, per_seed=per_seed)
+    if json_out is not None:
+        destination = json_out.expanduser().resolve()
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        sys.stdout.write(f"Wrote JSON to {destination}\n")
+    return result

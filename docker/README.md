@@ -35,8 +35,9 @@ Start a policy server on the host or another machine, then run:
 uv run --locked robodojo docker smoke \
   --image robodojo:cuda12.8 \
   --policy-port 9999 \
-  --policy demo_policy \
-  --task stack_bowls
+  --policy pi05_arx_x5 \
+  --task stack_bowls \
+  --environment arx_x5
 ```
 
 The default Docker workflow uses host networking and mounts the single local
@@ -55,7 +56,8 @@ Because `robodojo` is the image entrypoint, commands follow the normal CLI:
 docker run --rm --gpus all --network host --ipc host \
   -v "$PWD/.robodojo:/workspace/RoboDojo/.robodojo" \
   robodojo:cuda12.8 \
-  client --task stack_bowls --policy-name demo_policy \
+  client --policy-profile pi05_arx_x5 --environment arx_x5 \
+  --scene default --protocol stack_bowls \
   --policy-host 127.0.0.1 --policy-port 9999 --eval-num 1
 ```
 

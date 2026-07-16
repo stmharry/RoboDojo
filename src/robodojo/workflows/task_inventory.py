@@ -1,12 +1,8 @@
-#!/usr/bin/env python3
 """List runnable RoboDojo tasks without importing Isaac-dependent task modules."""
 
 from __future__ import annotations
 
-import argparse
 import ast
-import json
-import logging
 from pathlib import Path
 import sys
 from typing import Any
@@ -18,7 +14,6 @@ ROOT_DIR = discover_repository_root()
 BENCHMARK = "RoboDojo"
 TASK_DIR = ROOT_DIR / "src" / "robodojo" / "sim" / "tasks"
 CONFIG_DIR = RepositoryPaths.resolve(ROOT_DIR).task_configs
-logger = logging.getLogger(__name__)
 
 
 def _module_classes(path: Path) -> set[str]:
@@ -69,14 +64,14 @@ def build_inventory() -> dict[str, Any]:
     return inventory
 
 
-def _print_plain(inventory: dict[str, Any], only_runnable: bool) -> None:
+def print_plain(inventory: dict[str, Any], only_runnable: bool) -> None:
     for task in inventory["tasks"]:
         if only_runnable and not task["runnable"]:
             continue
         sys.stdout.write(f"{task['name']}\n")
 
 
-def _print_markdown(inventory: dict[str, Any]) -> None:
+def print_markdown(inventory: dict[str, Any]) -> None:
     sys.stdout.write("| Task | Runnable | Config | Issue |\n")
     sys.stdout.write("| --- | --- | --- | --- |\n")
     for task in inventory["tasks"]:
@@ -93,44 +88,3 @@ def _print_markdown(inventory: dict[str, Any]) -> None:
         sys.stdout.write("\nConfig-only entries:\n")
         for name in inventory["config_only"]:
             sys.stdout.write(f"- `{name}`\n")
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--format",
-        choices=("plain", "json", "markdown"),
-        default="plain",
-        help="Output format. Use json for agents and plain for shell loops.",
-    )
-    parser.add_argument(
-        "--only-runnable",
-        action="store_true",
-        help="Only print runnable task names in plain output.",
-    )
-    parser.add_argument(
-        "--check",
-        action="store_true",
-        help="Exit non-zero if any task is missing its config or exported class.",
-    )
-    args = parser.parse_args()
-
-    inventory = build_inventory()
-    if args.format == "json":
-        sys.stdout.write(json.dumps(inventory, indent=2, sort_keys=True) + "\n")
-    elif args.format == "markdown":
-        _print_markdown(inventory)
-    else:
-        _print_plain(inventory, only_runnable=args.only_runnable)
-
-    if args.check:
-        broken = [task for task in inventory["tasks"] if not task["runnable"]]
-        if broken:
-            for task in broken:
-                logger.error("Task is not runnable: %s", task["name"])
-            return 1
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

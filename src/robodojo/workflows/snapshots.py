@@ -43,11 +43,13 @@ def _publication_prerequisites() -> int:
 
 
 def _publish_snapshot(output: Path, run_id: str) -> int:
+    from robodojo.workflows.errors import StorageError
+
     try:
         publish_snapshot_run(run_id, output)
-    except SystemExit as exc:
+    except StorageError as exc:
         logger.error("snapshot completed, but S3 publication failed: %s", exc)
-        return exc.code if isinstance(exc.code, int) and exc.code != 0 else 1
+        return 1
     except subprocess.CalledProcessError as exc:
         detail = (exc.stderr or exc.stdout or str(exc)).strip()
         logger.error("snapshot completed, but S3 publication failed: %s", detail)

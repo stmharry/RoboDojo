@@ -6,6 +6,7 @@ import sys
 
 from pydantic import ValidationError
 import pytest
+import typer
 from typer.main import get_command
 from typer.testing import CliRunner
 
@@ -63,9 +64,38 @@ def test_cli_exposes_the_unified_command_surface():
     ):
         assert command in result.stdout
     commands = get_command(app).commands
-    for removed in ("install", "policy-setup", "summarize"):
-        assert removed not in commands
+    assert set(commands) == {
+        "setup",
+        "doctor",
+        "tasks",
+        "recipes",
+        "snapshots",
+        "preflight",
+        "eval",
+        "server",
+        "client",
+        "smoke",
+        "benchmark",
+        "_adapter-client",
+        "assets",
+        "data",
+        "storage",
+        "results",
+        "docker",
+    }
     assert "upstream" not in result.stdout
+
+    assert set(commands["assets"].commands) == {
+        "download",
+        "build-moonlake-office",
+        "build-moonlake-packing",
+        "build-yam",
+        "build-openarm",
+    }
+    assert set(commands["data"].commands) == {"list", "download"}
+    assert set(commands["storage"].commands) == {"doctor", "publish", "pull", "publish-eval"}
+    assert set(commands["results"].commands) == {"summarize", "stats"}
+    assert set(commands["docker"].commands) == {"install", "build", "smoke", "monitor", "clean"}
 
 
 def test_every_public_command_and_parameter_has_human_readable_help():
@@ -99,7 +129,111 @@ def test_eval_help_explains_publication_and_evaluation_inputs():
     assert "ROBODOJO_S3_URI" in result.stdout
     assert "--recipe" in result.stdout
     assert "--protocol" in result.stdout
-    assert "positive integer" in result.stdout
+    assert "--checkpoint-label" in result.stdout
+    assert "--ckpt-label" not in result.stdout
+    assert "Episode count" in result.stdout
+    assert "native" in result.stdout
+
+
+def test_clean_break_help_only_lists_new_option_names():
+    results = runner.invoke(app, ["results", "stats", "--help"])
+    docker = runner.invoke(app, ["docker", "smoke", "--help"])
+
+    assert results.exit_code == 0
+    assert "--results-root" in results.stdout
+    assert "--environment" in results.stdout
+    assert "--env-cfg" not in results.stdout
+    assert "--root" not in results.stdout
+    assert docker.exit_code == 0
+    assert "--environment" in docker.stdout
+    assert "--env-cfg" not in docker.stdout
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["eval", "--ckpt-label", "checkpoint"],
+        ["results", "summarize", "--root", "/tmp/results"],
+        ["results", "stats", "--env-cfg", "arx_x5"],
+        ["docker", "smoke", "--env-cfg", "arx_x5"],
+    ],
+)
+def test_clean_break_rejects_removed_option_names(arguments):
+    result = runner.invoke(app, arguments)
+
+    assert result.exit_code == 2
+    assert "No such option" in result.output
+
+
+def test_docker_smoke_uses_the_typed_client_interface(monkeypatch, tmp_path):
+    from robodojo.workflows import docker
+
+    calls = []
+    monkeypatch.setenv("ROBODOJO_STORAGE_ROOT", str(tmp_path / "storage"))
+    monkeypatch.delenv("ROBODOJO_S3_URI", raising=False)
+    monkeypatch.setattr(
+        docker.subprocess,
+        "run",
+        lambda command, **kwargs: calls.append((command, kwargs)) or subprocess.CompletedProcess(command, 0),
+    )
+
+    assert (
+        docker.smoke(
+            RepositoryPaths.resolve(ROOT),
+            "robodojo:test",
+            "stack_bowls",
+            "pi05_arx_x5",
+            19000,
+            "arx_x5",
+        )
+        == 0
+    )
+
+    command = calls[0][0]
+    assert command[command.index("client") :] == [
+        "client",
+        "--policy-profile",
+        "pi05_arx_x5",
+        "--environment",
+        "arx_x5",
+        "--scene",
+        "default",
+        "--protocol",
+        "stack_bowls",
+        "--policy-host",
+        "127.0.0.1",
+        "--policy-port",
+        "19000",
+        "--eval-num",
+        "1",
+    ]
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "all"])
+def test_evaluation_count_has_one_validation_rule(value):
+    from robodojo.commands.options import parse_evaluation_count
+
+    with pytest.raises(typer.BadParameter, match="positive integer or native"):
+        parse_evaluation_count(value)
+
+    assert parse_evaluation_count("native") == "native"
+    assert parse_evaluation_count("3") == 3
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["eval", "--recipe", RECIPE],
+        ["client", "--recipe", RECIPE, "--policy-port", "19000"],
+        ["smoke", "--recipe", RECIPE],
+        ["benchmark", "--recipe", RECIPE],
+    ],
+)
+def test_evaluation_count_validation_is_shared_by_all_consumers(arguments):
+    result = runner.invoke(app, [*arguments, "--eval-num", "0", "--root", str(ROOT)])
+
+    assert result.exit_code == 2
+    assert "positive integer or native" in result.output
 
 
 def test_gpu_cli_precedence_is_flag_then_environment_then_auto(monkeypatch):
@@ -191,6 +325,9 @@ def test_client_resolves_only_the_simulator_gpu(monkeypatch):
     assert result.exit_code == 0
     assert selections == [{"env_gpu": "auto"}]
     assert launched[0].env_gpu == 7
+    assert launched[0].policy_profile == "pi05_bimanual_yam"
+    assert launched[0].policy_descriptor_hash
+    assert launched[0].policy_reference_match == "reference_match"
 
 
 def test_publish_is_incompatible_with_scene_only_export(tmp_path):
@@ -439,7 +576,7 @@ def test_server_cli_rejects_invalid_port():
         ],
     )
     assert result.exit_code == 2
-    assert "less than or equal to 65535" in result.output
+    assert "1<=x<=65535" in result.output
 
 
 def test_cli_rejects_invalid_log_level():

@@ -27,6 +27,7 @@ from robodojo.sim.scene_export.first_frame import (
     completed_first_frame_matches,
 )
 from robodojo.workflows import snapshots
+from robodojo.workflows.errors import StorageError
 from robodojo.workflows.snapshot_gallery import render_snapshot_gallery
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -413,7 +414,7 @@ def test_successful_snapshot_batch_publishes_once(monkeypatch, tmp_path):
 @pytest.mark.parametrize(
     ("failure", "expected_code", "message"),
     [
-        (SystemExit("remote destination is already complete"), 1, "already complete"),
+        (StorageError("remote destination is already complete"), 1, "already complete"),
         (subprocess.CalledProcessError(5, ["aws"], stderr="access denied"), 5, "access denied"),
         (OSError("aws executable failed"), 1, "aws executable failed"),
     ],
