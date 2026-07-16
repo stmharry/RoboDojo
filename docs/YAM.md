@@ -71,10 +71,17 @@ tabletop material with the packaged material-0122 Mahogany MDL. This is the
 only scene-level appearance override: keeping the referenced room materials is
 required for the classic MolmoAct2 wrist-camera domain. Scene profiles do not
 override the robot, camera, task, or policy contract. Camera resolution/aspect
-ratio, intrinsics, focal length, and mounts are owned by the camera component
-selected by the environment profile: Moonlake uses 640x480 streams, while the
-classic MolmoAct2 setup uses 640x360. Moonlake robot roots also belong to its
-environment profile, not its scene profile.
+ratio, intrinsics, focal length, and mounts at acquisition are owned by the
+camera component selected by the environment profile: Moonlake uses 640x480
+streams, while the classic MolmoAct2 setup uses 640x360. Scene exports and
+evaluation videos retain that source geometry. Checkpoint-facing projection is
+owned separately by the policy adapter. The pinned public MolmoAct2 YAM
+checkpoint presents Moonlake RGB through an exact vertical center crop from
+rows 60 through 419, preserving focal scale while mapping the source principal
+point from `cy=240` to the checkpoint's `cy=180`. PI0.5 continues to consume
+the native Moonlake stream through its own aspect-preserving preprocessing.
+Moonlake robot roots also belong to its environment profile, not its scene
+profile.
 The base YAM environment also declares robot-root offsets in the scene-owned
 `Table` frame. Preflight and simulator startup validate those offsets against
 the selected saved layout; they never rewrite robot or object poses.
