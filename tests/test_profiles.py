@@ -2,9 +2,11 @@ from pathlib import Path
 
 import pytest
 
-from robodojo.core.models import EnvironmentConfigDocument, SceneConfigDocument
+from robodojo.core.models.environment import EnvironmentConfigDocument
+from robodojo.core.models.scene import SceneConfigDocument
 from robodojo.core.paths import RepositoryPaths
-from robodojo.core.profiles import load_environment_profile, load_scene_profile
+from robodojo.core.profiles.environment import load_environment_profile
+from robodojo.core.profiles.scene import load_scene_profile
 
 ROOT = Path(__file__).resolve().parents[1]
 

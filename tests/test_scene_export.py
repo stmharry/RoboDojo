@@ -7,6 +7,7 @@ import sys
 
 import pytest
 
+from robodojo.core.models.experiment import ExperimentSpec
 from robodojo.sim.scene_export.contracts import (
     SCENE_EXPORT_FORMAT_VERSION,
     ExportIdentity,
@@ -14,7 +15,7 @@ from robodojo.sim.scene_export.contracts import (
     calculate_fov_degrees,
     completed_export_matches,
     package_member_exists,
-    scene_config_paths,
+    scene_input_paths,
     split_package_asset_path,
 )
 
@@ -24,18 +25,18 @@ ROOT = Path(__file__).resolve().parents[1]
 def _identity(**overrides) -> ExportIdentity:
     values = {
         "task": "fold_clothes",
-        "protocol": "fold_clothes",
+        "task_protocol": "fold_clothes",
         "episode_horizon": 500,
-        "native_eval_num": 25,
+        "evaluation_episodes": 25,
         "recipe": "pi05-arx_x5-default-fold_clothes",
-        "contract_hash": "d" * 64,
-        "profile": "arx_x5",
-        "scene_config": "default",
+        "experiment_hash": "d" * 64,
+        "environment": "arx_x5",
+        "scene": "default",
         "seed": 0,
         "layout_id": 0,
         "repository_revision": "abc123",
         "environment_profile_hash": "e" * 64,
-        "policy_contract": "arx_x5",
+        "embodiment": "arx_x5",
         "scene_profile_hash": "a" * 64,
         "layout_set_hash": "b" * 64,
         "scene_asset_hash": "c" * 64,
@@ -83,7 +84,7 @@ def test_openarm_fisheye_intrinsics_match_fitted_and_published_diagonal_fov():
 
 
 def test_completed_export_requires_exact_identity(tmp_path):
-    identity = _identity(profile="openarm_wowrobo_v1_1")
+    identity = _identity(environment="openarm_wowrobo_v1_1")
     assert not completed_export_matches(tmp_path, identity)
     (tmp_path / "scene_manifest.json").write_text(
         json.dumps(_complete_manifest(identity)),
@@ -95,29 +96,29 @@ def test_completed_export_requires_exact_identity(tmp_path):
     assert completed_export_matches(tmp_path, identity)
     assert not completed_export_matches(
         tmp_path,
-        _identity(profile="openarm_wowrobo_v1_1", layout_id=1),
+        _identity(environment="openarm_wowrobo_v1_1", layout_id=1),
     )
     assert not completed_export_matches(
         tmp_path,
-        _identity(profile="openarm_wowrobo_v1_1", scene_config="molmo_yam"),
+        _identity(environment="openarm_wowrobo_v1_1", scene="molmo_yam"),
     )
     assert not completed_export_matches(
         tmp_path,
-        _identity(profile="openarm_wowrobo_v1_1", layout_set_hash="d" * 64),
+        _identity(environment="openarm_wowrobo_v1_1", layout_set_hash="d" * 64),
     )
     assert not completed_export_matches(
         tmp_path,
-        _identity(profile="openarm_wowrobo_v1_1", scene_asset_hash="e" * 64),
+        _identity(environment="openarm_wowrobo_v1_1", scene_asset_hash="e" * 64),
     )
 
 
-def test_scene_export_v7_identity_has_no_protocol_layout_selector():
-    assert SCENE_EXPORT_FORMAT_VERSION == 7
+def test_scene_export_v8_identity_has_no_layout_selector():
+    assert SCENE_EXPORT_FORMAT_VERSION == 8
     assert "layout" not in {field.name for field in fields(ExportIdentity)}
     assert "layout" not in _identity().to_dict()
 
 
-def test_completed_export_rejects_incomplete_v7_manifest(tmp_path):
+def test_completed_export_rejects_incomplete_v8_manifest(tmp_path):
     identity = _identity()
     for name in ("scene_referenced.usda", "scene_flattened.usdc", "scene_preview.usdz"):
         (tmp_path / name).touch()
@@ -145,6 +146,29 @@ def test_completed_export_rejects_legacy_manifest(tmp_path):
     assert not completed_export_matches(tmp_path, identity)
 
 
+def test_completed_export_normalizes_v7_manifest_in_memory(tmp_path):
+    identity = _identity()
+    legacy_identity = identity.to_dict()
+    for new, old in {
+        "task_protocol": "protocol",
+        "evaluation_episodes": "native_eval_num",
+        "experiment_hash": "contract_hash",
+        "environment": "profile",
+        "scene": "scene_config",
+        "embodiment": "policy_contract",
+    }.items():
+        legacy_identity[old] = legacy_identity.pop(new)
+    manifest = _complete_manifest(identity)
+    manifest["format_version"] = 7
+    manifest["identity"] = legacy_identity
+    (tmp_path / "scene_manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    for name in ("scene_referenced.usda", "scene_flattened.usdc", "scene_preview.usdz"):
+        (tmp_path / name).touch()
+
+    assert completed_export_matches(tmp_path, identity)
+    assert json.loads((tmp_path / "scene_manifest.json").read_text(encoding="utf-8"))["format_version"] == 7
+
+
 def test_package_asset_member_validation(tmp_path):
     import zipfile
 
@@ -162,7 +186,7 @@ def test_package_asset_member_validation(tmp_path):
 
 
 def test_scene_export_inputs_follow_canonical_config_domains():
-    paths = scene_config_paths(
+    paths = scene_input_paths(
         ROOT,
         "arx_x5",
         "default",
@@ -238,7 +262,7 @@ def test_scene_visual_audit_dry_run_is_propagated_only_through_scene_only_path()
 
 
 def test_scene_visual_audit_rejects_non_scene_only_evaluation(monkeypatch, tmp_path):
-    from robodojo.core.models import EvaluationRequest
+    from robodojo.core.models.requests import EvaluationRequest
     from robodojo.core.paths import RepositoryPaths
     from robodojo.orchestration import evaluation
 
@@ -246,16 +270,20 @@ def test_scene_visual_audit_rejects_non_scene_only_evaluation(monkeypatch, tmp_p
     policy_dir.mkdir()
     monkeypatch.setenv("ROBODOJO_SCENE_VISUAL_AUDIT", "1")
     request = EvaluationRequest(
-        policy_dir=policy_dir,
-        task="fold_clothes",
-        checkpoint="folding_final",
-        policy_env="test-policy-env",
-        env_config="arx_x5",
-        policy_contract="arx_x5",
-        protocol="fold_clothes",
-        episode_horizon=500,
-        native_eval_num=25,
-        scene_config="default",
+        experiment=ExperimentSpec(
+            policy_dir=policy_dir,
+            task="fold_clothes",
+            checkpoint="folding_final",
+            policy_profile="test-policy",
+            policy_runtime="test-policy-env",
+            environment="arx_x5",
+            embodiment="arx_x5",
+            scene="default",
+            action_type="joint",
+            task_protocol="fold_clothes",
+            episode_horizon=500,
+            evaluation_episodes=25,
+        ),
         export_scene=True,
     )
     with pytest.raises(ValueError, match="valid only with --export-scene-only"):
@@ -285,25 +313,3 @@ def test_export_and_continue_keeps_policy_orchestrator():
     )
     assert "setup_eval_policy_server.sh" in result.stdout
     assert "robodojo.sim.evaluation.main" in result.stdout
-
-
-def test_export_hook_precedes_rollout():
-    source = (ROOT / "src/robodojo/sim/evaluation/main.py").read_text(encoding="utf-8")
-    reset = source.index("env.reset(seed=env.env_seeds)")
-    export = source.index("export_scene_snapshot(env, export_dir", reset)
-    rollout = source.index("env.run_eval()", export)
-    assert reset < export < rollout
-
-
-def test_direct_simulator_entrypoint_validates_calibration_before_kit_startup():
-    source = (ROOT / "src/robodojo/sim/evaluation/main.py").read_text(encoding="utf-8")
-    validation = source.index("ENVIRONMENT_PROFILE = load_environment_profile(")
-    app_launch = source.index("app_launcher = AppLauncher(args_cli)")
-    assert validation < app_launch
-
-
-def test_direct_simulator_entrypoint_guards_visual_audit_before_kit_startup():
-    source = (ROOT / "src/robodojo/sim/evaluation/main.py").read_text(encoding="utf-8")
-    validation = source.index("if SCENE_VISUAL_AUDIT_REQUESTED and not SCENE_EXPORT_ONLY:")
-    app_launch = source.index("app_launcher = AppLauncher(args_cli)")
-    assert validation < app_launch

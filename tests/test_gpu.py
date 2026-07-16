@@ -6,7 +6,12 @@ import pytest
 
 from robodojo.core import gpu
 from robodojo.core.gpu import GpuSelectionError
-from robodojo.core.models import EvaluationRequest, PolicyServerLaunchRequest, SimulatorLaunchRequest
+from robodojo.core.models.experiment import ExperimentSpec
+from robodojo.core.models.requests import (
+    EvaluationRequest,
+    PolicyServerLaunchRequest,
+    SimulatorLaunchRequest,
+)
 
 
 def _inventory(monkeypatch, output: str, *, returncode: int = 0, stderr: str = "") -> None:
@@ -129,39 +134,33 @@ def test_gpu_inventory_failures_are_actionable(monkeypatch, output, returncode, 
 
 
 def test_selection_models_default_to_auto_but_launch_models_require_indices(tmp_path: Path):
-    selection = EvaluationRequest(
+    experiment = ExperimentSpec(
         policy_dir=tmp_path,
         task="stack_bowls",
         checkpoint="test",
-        policy_env="test",
-        env_config="arx_x5",
-        policy_contract="arx_x5",
-        protocol="stack_bowls",
+        policy_profile="test",
+        policy_runtime="test",
+        environment="arx_x5",
+        embodiment="arx_x5",
+        scene="default",
+        action_type="joint",
+        task_protocol="stack_bowls",
         episode_horizon=800,
-        native_eval_num=25,
-        scene_config="default",
+        evaluation_episodes=25,
     )
-    assert selection.policy_gpu == selection.env_gpu == "auto"
+    selection = EvaluationRequest(experiment=experiment)
+    assert selection.policy_gpu == selection.environment_gpu == "auto"
 
     with pytest.raises(ValidationError):
         PolicyServerLaunchRequest(
-            policy_dir=tmp_path,
-            task="stack_bowls",
-            checkpoint="test",
-            policy_env="test",
-            env_config="arx_x5",
-            policy_contract="arx_x5",
+            experiment=experiment,
             policy_gpu="auto",
         )
     with pytest.raises(ValidationError):
         SimulatorLaunchRequest(
-            task="stack_bowls",
-            protocol_name="stack_bowls",
-            episode_horizon=800,
-            native_eval_num=25,
+            experiment=experiment,
             policy_name="TestPolicy",
             port=19000,
-            scene_config="default",
-            env_gpu="auto",
+            environment_gpu="auto",
             additional_info="test",
         )

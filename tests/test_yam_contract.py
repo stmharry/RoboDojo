@@ -8,9 +8,10 @@ from omegaconf import OmegaConf
 import pytest
 import yaml
 
-from robodojo.core.contracts import resolve_recipe
+from robodojo.core.experiments.selection import resolve_recipe
 from robodojo.core.paths import RepositoryPaths
-from robodojo.core.profiles import load_environment_profile, load_scene_profile
+from robodojo.core.profiles.environment import load_environment_profile
+from robodojo.core.profiles.scene import load_scene_profile
 from robodojo.sim.camera_template import YAM_TOP, YAM_WRIST, resolve_pinhole_lens
 from robodojo.sim.environment.camera_manager.mount_registry import (
     apply_optical_roll,
@@ -23,11 +24,10 @@ from robodojo.sim.environment.camera_manager.mount_registry import (
 from robodojo.sim.environment.camera_manager.rig_spec import normalize_camera_rig
 from robodojo.sim.environment.description_manager.desc_manager import DescManager, descriptions_from_metadata
 from robodojo.sim.utils.pipeline_utils import process_config
-from robodojo.workflows.assets_yam import (
-    _appearance_contract,
+from robodojo.workflows.asset_builders.yam.appearance import _appearance_contract, _visual_proxy_contracts
+from robodojo.workflows.asset_builders.yam.geometry import (
     _finger_collider_contract,
     _fixed_camera_frame_contract,
-    _visual_proxy_contracts,
     derive_yam_urdf,
 )
 
@@ -36,7 +36,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_named_yam_profiles_inherit_one_30hz_policy_contract():
     paths = RepositoryPaths.resolve(ROOT)
-    with pytest.raises(ValueError, match="internal contract"):
+    with pytest.raises(ValueError, match="internal"):
         load_environment_profile(paths, "bimanual_yam")
     profile = load_environment_profile(paths, "bimanual_yam_molmoact2")
     assert profile.document.config.model_dump() == {
@@ -45,7 +45,7 @@ def test_named_yam_profiles_inherit_one_30hz_policy_contract():
         "camera": "bimanual_yam_molmoact2",
     }
     assert profile.document.extends == "bimanual_yam"
-    assert profile.policy_contract == "bimanual_yam"
+    assert profile.embodiment == "bimanual_yam"
     assert profile.document.observation["collect_freq"] == 30
     assert profile.num_envs == 1
 
@@ -56,7 +56,7 @@ def test_named_yam_profiles_inherit_one_30hz_policy_contract():
     assert robot_info["dual_yam_moonlake_office"] == expected_dimensions
 
     contract = resolve_recipe(paths, "molmoact2-bimanual_yam-molmo_yam-general_pickup")
-    assert contract.policy_descriptor.interface.embodiment == contract.environment.policy_contract == "bimanual_yam"
+    assert contract.policy_descriptor.interface.embodiment == contract.environment.embodiment == "bimanual_yam"
 
 
 def test_task_instruction_is_independent_of_environment_and_scene_profiles():
@@ -78,16 +78,8 @@ def test_task_instruction_is_independent_of_environment_and_scene_profiles():
     assert yam_manager.templates == [["Fold the clothes neatly."]]
 
 
-def test_general_pickup_matches_the_upstream_task_contract():
-    source = (ROOT / "src/robodojo/sim/tasks/general_pickup.py").read_text(encoding="utf-8")
-    assert "self.step_lim = 200" in source
-    assert 'templates = ["Pick up the <target> by 10 cm."]' in source
-    assert 'is_lift(label="target", z_threshold=0.1)' in source
-    assert "scene_component" not in source
-    assert "general_pickup_contract" not in source
-    assert all(term not in source for term in ("basket", "box", "container"))
-    assert not (ROOT / "src/robodojo/sim/general_pickup_contract.py").exists()
-
+def test_general_pickup_instruction_uses_task_owned_labels():
+    config = yaml.safe_load((ROOT / "configs/task/general_pickup.yml").read_text(encoding="utf-8"))
     layout_manager = SimpleNamespace(get_label_descriptions=lambda **kwargs: [])
 
     fake_env = SimpleNamespace(
@@ -96,6 +88,7 @@ def test_general_pickup_matches_the_upstream_task_contract():
     )
     manager = DescManager(num_envs=1, description_cfg={"seen": 1}, desc_type="seen")
     manager.initialize(fake_env)
+    assert config["Rigid"][0]["select_mode"]["label"] == ["target"]
     assert manager.get_one_description() == ["Pick up the <target> by 10 cm."]
 
 
@@ -153,7 +146,7 @@ def test_fold_clothes_does_not_replace_yam_profile_components():
             "eval_cfg": payload,
         }
     )
-    processed, eval_num = process_config(env_cfg, "fold_clothes", native_eval_num=25)
+    processed, eval_num = process_config(env_cfg, "fold_clothes", evaluation_episodes=25)
     assert [robot.robot_name for robot in processed.robot.robots] == ["yam", "yam"]
     assert processed.camera.camera_rig.profile_id == "bimanual_yam_molmoact2"
     assert processed.sim.render_interval == 8

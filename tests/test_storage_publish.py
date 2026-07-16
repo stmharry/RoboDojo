@@ -10,8 +10,10 @@ import pytest
 from typer.testing import CliRunner
 
 from robodojo.cli import app
-from robodojo.core.models import SnapshotRecord, SnapshotSummary
-from robodojo.core.scene_identity import ARTIFACT_SCHEMA_VERSION
+from robodojo.core.models.reports import (
+    SnapshotRecord,
+    SnapshotSummary,
+)
 from robodojo.workflows import storage as storage_cli
 from robodojo.workflows.errors import StorageError
 
@@ -20,7 +22,7 @@ RUNNER = CliRunner()
 
 def _result_payload(**overrides):
     payload = {
-        "artifact_schema_version": ARTIFACT_SCHEMA_VERSION,
+        "artifact_schema_version": 3,
         "task_name": "general_pickup",
         "protocol_name": "moonlake_office_general_pickup",
         "episode_horizon": 400,
@@ -128,12 +130,12 @@ def test_publish_uses_canonical_destination_and_completion_is_last(monkeypatch, 
     ("mutation", "message"),
     [
         (lambda payload: payload.pop("artifact_schema_version"), "artifact_schema_version mismatch"),
-        (lambda payload: payload.update(artifact_schema_version=1), "artifact_schema_version mismatch"),
+        (lambda payload: payload.update(artifact_schema_version=2), "artifact_schema_version mismatch"),
         (lambda payload: payload.update(layout_name="general_pickup"), "removed layout_name selector"),
         (lambda payload: payload.update(details={}), "incomplete episode details"),
     ],
 )
-def test_evaluation_publication_strictly_rejects_legacy_or_incomplete_results(
+def test_evaluation_publication_rejects_unsupported_or_incomplete_results(
     monkeypatch,
     tmp_path,
     mutation,
@@ -175,9 +177,9 @@ def test_publish_snapshot_run_requires_success_and_uses_snapshot_destination(mon
         policy="pi05_arx_x5",
         environment="arx_x5",
         scene="default",
-        protocol="fold_clothes",
+        task_protocol="fold_clothes",
         task="fold_clothes",
-        contract_hash="a" * 64,
+        experiment_hash="a" * 64,
         exit_code=0,
         output_dir=str(source / "pi05-arx_x5-default-fold_clothes"),
     )

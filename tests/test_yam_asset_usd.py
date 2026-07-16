@@ -6,14 +6,16 @@ import yaml
 pxr = pytest.importorskip("pxr")
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade  # noqa: E402
 
-from robodojo.workflows.assets_yam import (  # noqa: E402
+from robodojo.workflows.asset_builders.yam.appearance import (  # noqa: E402
     _appearance_contract,
     _author_d405_visual_proxy,
     _author_preview_appearance,
-    _remove_empty_generated_visual_prims,
     _stage_physics_digest,
-    _validate_generated_visuals,
     _visual_proxy_contracts,
+)
+from robodojo.workflows.asset_builders.yam.geometry import (  # noqa: E402
+    _remove_empty_generated_visual_prims,
+    _validate_generated_visuals,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -187,7 +189,5 @@ def test_d405_proxy_is_deterministic_identity_optical_frame_without_physics(tmp_
         assert not prim.IsA(UsdPhysics.Joint)
 
     referenced = Usd.Stage.CreateInMemory()
-    referenced.DefinePrim("/Holder", "Xform").GetReferences().AddReference(
-        str(tmp_path / "D405_proxy_molmoact2.usd")
-    )
+    referenced.DefinePrim("/Holder", "Xform").GetReferences().AddReference(str(tmp_path / "D405_proxy_molmoact2.usd"))
     assert referenced.GetPrimAtPath("/Holder/OpticalFrame").IsValid()

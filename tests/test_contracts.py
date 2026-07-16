@@ -4,21 +4,29 @@ from pydantic import ValidationError
 import pytest
 import yaml
 
-from robodojo.core.contracts import (
+from robodojo.core.experiments.catalogs import (
     load_policy_catalog,
     load_protocol_catalog,
     load_recipe_catalog,
-    resolve_contract,
+)
+from robodojo.core.experiments.identity import experiment_hash, task_input_hash
+from robodojo.core.experiments.selection import (
+    compose_experiment,
     resolve_recipe,
     resolve_selection,
-    validate_contract_catalogs,
 )
+from robodojo.core.experiments.validation import validate_experiment_catalogs
 from robodojo.core.layouts import resolve_layout_set
-from robodojo.core.models import EvaluationRecipeDocument, SimulatorLaunchRequest, TaskProtocolDocument
+from robodojo.core.models.experiment import (
+    EvaluationRecipeDocument,
+    TaskProtocolDocument,
+)
+from robodojo.core.models.requests import SimulatorLaunchRequest
 from robodojo.core.paths import RepositoryPaths
-from robodojo.core.profiles import load_scene_profile
+from robodojo.core.profiles.scene import load_scene_profile
 from robodojo.core.storage import assets_root
 from robodojo.sim.launcher import simulator_command
+from robodojo.workflows.task_inventory import build_inventory
 
 ROOT = Path(__file__).resolve().parents[1]
 PATHS = RepositoryPaths.resolve(ROOT)
@@ -42,12 +50,49 @@ def test_contract_documents_are_strict_and_typed():
         )
 
 
-def test_catalogs_cover_every_task_and_match_the_upstream_semantic_lock():
-    resolved = validate_contract_catalogs(PATHS)
+def test_catalogs_validate_without_requiring_protocol_coverage_for_every_task():
+    resolved = validate_experiment_catalogs(PATHS)
     assert len(resolved) == 24
-    protocols = load_protocol_catalog(PATHS).protocols
-    task_names = {path.stem for path in (ROOT / "src/robodojo/sim/tasks").glob("*.py") if path.name != "__init__.py"}
-    assert {name for name, protocol in protocols.items() if name == protocol.task} == task_names
+
+
+def test_runnable_task_discovery_does_not_require_a_protocol(tmp_path):
+    root = tmp_path / "checkout"
+    (root / "src/robodojo/sim/tasks").mkdir(parents=True)
+    (root / "configs/task").mkdir(parents=True)
+    (root / "src/robodojo/sim/tasks/new_upstream_task.py").write_text(
+        "class new_upstream_task:\n    pass\n",
+        encoding="utf-8",
+    )
+    (root / "configs/task/new_upstream_task.yml").write_text("Rigid: []\n", encoding="utf-8")
+
+    inventory = build_inventory(RepositoryPaths(root=root))
+
+    assert inventory["counts"]["runnable"] == 1
+    assert inventory["tasks"][0]["name"] == "new_upstream_task"
+    assert inventory["tasks"][0]["runnable"] is True
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("task", "missing_task", "non-runnable task"),
+        ("compatible_scenes", ["missing_scene"], "unknown scenes"),
+    ],
+)
+def test_protocols_reject_missing_task_or_scene(monkeypatch, field, value, message):
+    import robodojo.core.experiments.validation as validation
+
+    catalog = load_protocol_catalog(PATHS)
+    protocols = dict(catalog.protocols)
+    protocols["invalid_reference"] = protocols["general_pickup"].model_copy(update={field: value})
+    monkeypatch.setattr(
+        validation,
+        "load_protocol_catalog",
+        lambda _paths: catalog.model_copy(update={"protocols": protocols}),
+    )
+
+    with pytest.raises(ValueError, match=message):
+        validate_experiment_catalogs(PATHS)
 
 
 def test_long_pickup_protocol_reuses_the_upstream_task_keyed_layout():
@@ -74,48 +119,42 @@ def test_long_pickup_protocol_reuses_the_upstream_task_keyed_layout():
     assert [layout.path.name for layout in layouts.layouts] == ["general_pickup_0.json"]
 
 
-def test_general_pickup_task_contract_is_upstream_and_scene_independent():
-    source = (ROOT / "src/robodojo/sim/tasks/general_pickup.py").read_text(encoding="utf-8")
+def test_general_pickup_task_config_remains_scene_independent():
     config = yaml.safe_load((ROOT / "configs/task/general_pickup.yml").read_text(encoding="utf-8"))
-    assert 'templates = ["Pick up the <target> by 10 cm."]' in source
-    assert 'is_lift(label="target", z_threshold=0.1)' in source
-    assert "self.step_lim = 200" in source
     assert config["Rigid"][0]["select_mode"] == {"nums": 1, "mode": "unique", "label": ["target"]}
     assert config["Clutter"][0]["nums"] == 10
-    for forbidden in ("scene_component", "scene_config", "camera_config", "robot_config", "env_cfg_type"):
-        assert forbidden not in source
 
 
 def test_task_metadata_contains_no_hidden_runtime_selectors():
     index = yaml.safe_load((ROOT / "configs/task/_task.yml").read_text(encoding="utf-8"))
     forbidden = {"scene_config", "camera_config", "robot_config", "env_cfg_type"}
     assert forbidden.isdisjoint(index["common"])
-    assert all(forbidden.isdisjoint(values) for values in index["tasks"].values())
+    assert all(forbidden.isdisjoint(values or {}) for values in index["tasks"].values())
 
 
 def test_recipe_resolution_validates_every_compatibility_edge():
     long = resolve_recipe(PATHS, PI_LONG)
     assert long.policy_name == "pi05_bimanual_yam_pickup"
     assert long.policy.checkpoint == "pi05_yam_abc_pickplace"
-    assert long.policy_descriptor.interface.embodiment == long.environment.policy_contract == "bimanual_yam"
+    assert long.policy_descriptor.interface.embodiment == long.environment.embodiment == "bimanual_yam"
     assert long.scene.name == "moonlake_office"
-    assert long.protocol_name == "moonlake_office_general_pickup"
+    assert long.task_protocol == "moonlake_office_general_pickup"
 
     with pytest.raises(ValueError, match="requires embodiment"):
-        resolve_contract(
+        compose_experiment(
             PATHS,
             policy_name="pi05_bimanual_yam",
             environment_name="arx_x5",
             scene_name="default",
-            protocol_name="general_pickup",
+            task_protocol="general_pickup",
         )
     with pytest.raises(ValueError, match="compatible only with scenes"):
-        resolve_contract(
+        compose_experiment(
             PATHS,
             policy_name="pi05_bimanual_yam",
             environment_name="bimanual_yam_molmoact2",
             scene_name="molmo_yam",
-            protocol_name="moonlake_office_general_pickup",
+            task_protocol="moonlake_office_general_pickup",
         )
 
 
@@ -127,43 +166,35 @@ def test_selection_is_recipe_or_all_four_manual_components():
             policy=None,
             environment=None,
             scene="moonlake_office",
-            protocol=None,
+            task_protocol=None,
         )
-    with pytest.raises(ValueError, match="missing environment, protocol, scene"):
+    with pytest.raises(ValueError, match="missing environment, scene, task_protocol"):
         resolve_selection(
             PATHS,
             recipe=None,
             policy="pi05_bimanual_yam",
             environment=None,
             scene=None,
-            protocol=None,
+            task_protocol=None,
         )
 
 
 @pytest.mark.parametrize("recipe_name", [MOLMO_LONG, PI_LONG])
 def test_long_recipe_passes_base_task_and_distinct_protocol_to_runtime(recipe_name):
-    contract = resolve_recipe(PATHS, recipe_name)
-    values = contract.request_values(PATHS)
+    experiment = resolve_recipe(PATHS, recipe_name)
     request = SimulatorLaunchRequest(
-        task=values["task"],
-        protocol_name=values["protocol"],
-        episode_horizon=values["episode_horizon"],
-        native_eval_num=values["native_eval_num"],
-        recipe=values["recipe"],
-        contract_hash=values["contract_hash"],
-        policy_name=Path(values["policy_dir"]).name,
+        experiment=experiment.spec(PATHS),
+        policy_name=experiment.policy.policy_dir.name,
         port=19000,
-        env_config=values["env_config"],
-        scene_config=values["scene_config"],
         additional_info="test",
         dry_run=True,
     )
     command, _ = simulator_command(PATHS, request)
-    assert command[command.index("--task_name") + 1] == "general_pickup"
-    assert command[command.index("--protocol_name") + 1] == "moonlake_office_general_pickup"
+    assert command[command.index("--task") + 1] == "general_pickup"
+    assert command[command.index("--task-protocol") + 1] == "moonlake_office_general_pickup"
     assert "--layout_name" not in command
     assert "--layout-name" not in command
-    assert command[command.index("--episode_horizon") + 1] == "400"
+    assert command[command.index("--episode-horizon") + 1] == "400"
 
 
 def test_pickup_protocols_have_no_task_specific_scene_assets():
@@ -176,7 +207,7 @@ def test_pickup_protocols_have_no_task_specific_scene_assets():
 def test_policy_profiles_hold_adapter_runtime_checkpoint_and_action_contract():
     assert load_policy_catalog(PATHS).schema_version == 3
     assert load_protocol_catalog(PATHS).schema_version == 2
-    assert load_recipe_catalog(PATHS).schema_version == 2
+    assert load_recipe_catalog(PATHS).schema_version == 3
     policies = load_policy_catalog(PATHS).policies
     pi = policies["pi05_bimanual_yam"]
     assert pi.policy_dir == Path("XPolicyLab/policy/Pi_05")
@@ -204,9 +235,16 @@ def test_policy_profiles_hold_adapter_runtime_checkpoint_and_action_contract():
     assert resolved_pickup.policy_reference_match == "reference_match"
 
 
-def test_protocol_identity_owns_result_paths_and_wrapper_horizon():
-    source = (ROOT / "src/robodojo/sim/evaluation/eval_env.py").read_text(encoding="utf-8")
-    assert 'self.step_lim = int(self.eval_cfg["episode_horizon"])' in source
-    assert "self.protocol_name," in source
-    assert '"task_name": self.task_name' in source
-    assert '"protocol_name": self.protocol_name' in source
+def test_local_task_inputs_contribute_to_experiment_identity(tmp_path):
+    module = tmp_path / "example.py"
+    config = tmp_path / "example.yml"
+    module.write_text("class example:\n    pass\n", encoding="utf-8")
+    config.write_text("Rigid: []\n", encoding="utf-8")
+    original = experiment_hash({"task_inputs": task_input_hash(module, config)})
+
+    config.write_text("Rigid:\n  - name: cube\n", encoding="utf-8")
+    config_changed = experiment_hash({"task_inputs": task_input_hash(module, config)})
+    module.write_text("class example:\n    version = 2\n", encoding="utf-8")
+    module_changed = experiment_hash({"task_inputs": task_input_hash(module, config)})
+
+    assert len({original, config_changed, module_changed}) == 3

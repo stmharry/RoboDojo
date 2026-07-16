@@ -1,7 +1,7 @@
 from omegaconf import OmegaConf
 import pytest
 
-from robodojo.core.scene_identity import (
+from robodojo.core.artifacts.results import (
     ARTIFACT_SCHEMA_VERSION,
     SCENE_IDENTITY_FIELDS,
     ArtifactSchemaError,
@@ -15,12 +15,12 @@ from robodojo.core.scene_identity import (
 def _identity():
     return {
         "artifact_schema_version": ARTIFACT_SCHEMA_VERSION,
-        "recipe_name": "pi05-bimanual_yam-molmo_yam-general_pickup",
-        "contract_hash": "d" * 64,
-        "protocol_name": "general_pickup",
-        "task_name": "general_pickup",
+        "recipe": "pi05-bimanual_yam-molmo_yam-general_pickup",
+        "experiment_hash": "d" * 64,
+        "task_protocol": "general_pickup",
+        "task": "general_pickup",
         "episode_horizon": 200,
-        "native_eval_num": 50,
+        "evaluation_episodes": 50,
         "robodojo_revision": "r" * 40,
         "xpolicylab_revision": "x" * 40,
         "policy_name": "Pi_05",
@@ -36,17 +36,17 @@ def _identity():
         },
         "policy_training": {"dataset_id": "example", "setup_id": "yam"},
         "policy_adapter": {"state_transform": "yam", "action_transform": "yam", "image_transform": "identity"},
-        "environment_profile": "bimanual_yam_molmoact2",
+        "environment": "bimanual_yam_molmoact2",
         "environment_profile_hash": "e" * 64,
         "environment_variant": {"kind": "reference"},
         "environment_asset_hash": "f" * 64,
         "environment_asset_builds": ["yam"],
         "environment_asset_identities": [],
-        "policy_contract": "bimanual_yam",
-        "scene_config": "molmo_yam",
+        "embodiment": "bimanual_yam",
+        "scene": "molmo_yam",
         "scene_component": "molmo_yam",
         "scene_profile_hash": "a" * 64,
-        "layout_config_name": "molmo_yam",
+        "layout_set": "molmo_yam",
         "layout_source": "bundled",
         "layout_set_hash": "b" * 64,
         "scene_asset_hash": "c" * 64,
@@ -89,7 +89,7 @@ def test_scene_identity_rejects_runtime_drift(field):
     ("legacy", "message"),
     [
         ({}, "artifact_schema_version mismatch"),
-        ({"artifact_schema_version": 1}, "artifact_schema_version mismatch"),
+        ({"artifact_schema_version": 2}, "artifact_schema_version mismatch"),
         (
             {"artifact_schema_version": ARTIFACT_SCHEMA_VERSION, "layout_name": "general_pickup"},
             "removed layout_name selector",
@@ -102,6 +102,28 @@ def test_resume_artifacts_strictly_reject_legacy_schemas_and_layout_selectors(le
 
     with pytest.raises(ArtifactSchemaError, match=message):
         require_matching_scene_identity(_identity(), legacy, context="resume manifest")
+
+
+def test_v3_result_and_resume_vocabulary_is_normalized_in_memory():
+    legacy = _identity()
+    legacy["artifact_schema_version"] = 3
+    for current, old in {
+        "recipe": "recipe_name",
+        "experiment_hash": "contract_hash",
+        "task_protocol": "protocol_name",
+        "task": "task_name",
+        "evaluation_episodes": "native_eval_num",
+        "environment": "environment_profile",
+        "embodiment": "policy_contract",
+        "scene": "scene_config",
+        "layout_set": "layout_config_name",
+    }.items():
+        legacy[old] = legacy.pop(current)
+
+    assert scene_identity(legacy) == _identity()
+    require_matching_scene_identity(_identity(), legacy, context="resume manifest")
+    assert legacy["artifact_schema_version"] == 3
+    assert "contract_hash" in legacy
 
 
 def test_current_result_artifact_requires_task_keyed_layout_file_and_hash():

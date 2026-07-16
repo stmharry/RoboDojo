@@ -11,9 +11,9 @@ def _manager(layout_source="bundled", expected_hash=None):
     return SeedManager(
         {
             "num_envs": 1,
-            "task_name": "general_pickup",
-            "config_name": "bimanual_yam",
-            "layout_config_name": "molmo_yam",
+            "task": "general_pickup",
+            "environment": "bimanual_yam",
+            "layout_set": "molmo_yam",
             "layout_source": layout_source,
             "layout_set_hash": expected_hash,
             "seed": 0,

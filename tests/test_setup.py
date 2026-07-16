@@ -9,7 +9,12 @@ from types import SimpleNamespace
 from pydantic import ValidationError
 import pytest
 
-from robodojo.core.models import SetupRequest, SetupStage, SetupStageResult
+from robodojo.core.models.experiment import ExperimentSpec
+from robodojo.core.models.reports import SetupStageResult
+from robodojo.core.models.requests import (
+    SetupRequest,
+    SetupStage,
+)
 from robodojo.core.paths import RepositoryPaths
 from robodojo.workflows import assets, setup
 
@@ -17,25 +22,28 @@ from robodojo.workflows import assets, setup
 def _request(tmp_path: Path, *stages: SetupStage) -> SetupRequest:
     return SetupRequest(
         stages=stages,
-        policy_dir=tmp_path / "Policy",
-        task="general_pickup",
-        checkpoint="release",
-        policy_env="uv",
-        env_config="bimanual_yam_molmoact2",
-        policy_contract="bimanual_yam",
-        scene_config="molmo_yam",
-        action_type="joint",
-        protocol="general_pickup",
-        episode_horizon=200,
-        native_eval_num=50,
+        experiment=ExperimentSpec(
+            policy_dir=tmp_path / "Policy",
+            task="general_pickup",
+            checkpoint="release",
+            policy_profile="test-policy",
+            policy_runtime="uv",
+            environment="bimanual_yam_molmoact2",
+            embodiment="bimanual_yam",
+            scene="molmo_yam",
+            action_type="joint",
+            task_protocol="general_pickup",
+            episode_horizon=200,
+            evaluation_episodes=50,
+        ),
     )
 
 
 def test_setup_stage_arguments_are_conditional(tmp_path):
     assert SetupRequest(stages=(SetupStage.ROOT,)).selected_stages() == (SetupStage.ROOT,)
-    with pytest.raises(ValidationError, match="episode_horizon.*protocol.*scene_config.*task"):
+    with pytest.raises(ValidationError, match="require a resolved experiment"):
         SetupRequest(stages=(SetupStage.ASSETS,))
-    with pytest.raises(ValidationError, match="policy_dir"):
+    with pytest.raises(ValidationError, match="require a resolved experiment"):
         SetupRequest(stages=(SetupStage.POLICY,))
 
 
@@ -118,7 +126,8 @@ def test_setup_failure_stops_before_mutation(monkeypatch, tmp_path):
 
 
 def test_invalid_task_selection_stops_before_submodule_or_asset_mutation(monkeypatch, tmp_path):
-    request = _request(tmp_path).model_copy(update={"task": "missing_task"})
+    request = _request(tmp_path)
+    request = request.model_copy(update={"experiment": request.experiment.model_copy(update={"task": "missing_task"})})
     monkeypatch.setattr(
         setup,
         "_prerequisite_stage",

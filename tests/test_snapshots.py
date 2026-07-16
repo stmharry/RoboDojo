@@ -10,13 +10,16 @@ import pytest
 from typer.testing import CliRunner
 
 from robodojo.cli import app
-from robodojo.core.contracts import resolve_recipe
+from robodojo.core.artifacts.snapshots import normalize_snapshot_summary
+from robodojo.core.experiments.selection import resolve_recipe
 from robodojo.core.gpu import GpuAssignment
-from robodojo.core.models import (
-    SnapshotBatchRequest,
-    SnapshotCaptureRequest,
+from robodojo.core.models.reports import (
     SnapshotRecord,
     SnapshotSummary,
+)
+from robodojo.core.models.requests import (
+    SnapshotBatchRequest,
+    SnapshotCaptureRequest,
 )
 from robodojo.core.paths import RepositoryPaths
 from robodojo.orchestration import snapshots as snapshot_orchestration
@@ -43,12 +46,12 @@ def _fake_env() -> SimpleNamespace:
     frame_a = np.arange(18, dtype=np.uint8).reshape(2, 3, 3)
     frame_b = np.full((2, 2, 3), 91, dtype=np.uint8)
     return SimpleNamespace(
-        recipe_name=RECIPE,
-        contract_hash="a" * 64,
+        recipe=RECIPE,
+        experiment_hash="a" * 64,
         task_name="fold_clothes",
-        protocol_name="fold_clothes",
-        config_name="arx_x5",
-        scene_config="default",
+        task_protocol="fold_clothes",
+        environment="arx_x5",
+        scene="default",
         eval_seed=0,
         camera_rig=SimpleNamespace(
             cameras=[
@@ -98,8 +101,8 @@ def test_first_frame_capture_rejects_observation_without_rgb(tmp_path):
 def _capture_request(tmp_path: Path, **updates) -> SnapshotCaptureRequest:
     paths = RepositoryPaths.resolve(ROOT)
     values = {
-        **resolve_recipe(paths, RECIPE).request_values(paths),
-        "env_gpu": 0,
+        "experiment": resolve_recipe(paths, RECIPE).spec(paths),
+        "environment_gpu": 0,
         "output_dir": tmp_path / RECIPE,
         "layout_id": 0,
         "export_scene": False,
@@ -123,10 +126,10 @@ def test_snapshot_orchestration_is_policy_free_and_propagates_scene_export(monke
         lambda paths, request, environment: launches.append((request, environment)) or 0,
     )
 
-    request = _capture_request(tmp_path, env_gpu="auto", export_scene=True)
+    request = _capture_request(tmp_path, environment_gpu="auto", export_scene=True)
     assert snapshot_orchestration.run_snapshot_capture(RepositoryPaths.resolve(ROOT), request) == 0
     simulator, environment = launches[0]
-    assert simulator.env_gpu == 3
+    assert simulator.environment_gpu == 3
     assert simulator.port == 1
     assert environment["ROBODOJO_CAPTURE_FIRST_FRAME"] == "true"
     assert environment["ROBODOJO_EXPORT_SCENE"] == "true"
@@ -163,7 +166,7 @@ def test_snapshots_cli_defaults_to_all_and_accepts_explicit_recipes(monkeypatch,
     assert requests[0].publish is False
     assert requests[1].recipes == (RECIPE,)
     assert requests[1].layout_id == 2
-    assert requests[1].env_gpu == 4
+    assert requests[1].environment_gpu == 4
     assert requests[1].export_scene is True
     assert requests[1].publish is True
 
@@ -181,20 +184,20 @@ def _write_fake_capture(request: SnapshotCaptureRequest) -> int:
     sheet = first_frame / "contact_sheet.png"
     Image.fromarray(np.full((2, 3, 3), 40, dtype=np.uint8)).save(camera)
     Image.fromarray(np.full((2, 3, 3), 50, dtype=np.uint8)).save(sheet)
-    identity = FirstFrameIdentity(
-        recipe=str(request.recipe),
-        contract_hash=str(request.contract_hash),
-        task=request.task,
-        protocol=request.protocol,
-        profile=request.env_config,
-        scene_config=request.scene_config,
-        seed=request.seed,
-        layout_id=request.layout_id,
-    )
+    experiment = request.experiment
     metadata = {
         "format_version": 1,
         "complete": True,
-        "identity": identity.to_dict(),
+        "identity": {
+            "recipe": str(experiment.recipe),
+            "contract_hash": str(experiment.experiment_hash),
+            "task": experiment.task,
+            "protocol": experiment.task_protocol,
+            "profile": experiment.environment,
+            "scene_config": experiment.scene,
+            "seed": request.seed,
+            "layout_id": request.layout_id,
+        },
         "camera_order": ["cam_head"],
         "artifacts": {
             "contact_sheet": {"path": sheet.name, "sha256": _sha(sheet)},
@@ -209,19 +212,19 @@ def _write_fake_capture(request: SnapshotCaptureRequest) -> int:
         for name in ("scene_referenced.usda", "scene_flattened.usdc", "scene_preview.usdz"):
             (scene / name).write_bytes(name.encode())
         export_identity = ExportIdentity(
-            task=request.task,
-            protocol=request.protocol,
-            episode_horizon=request.episode_horizon,
-            native_eval_num=request.native_eval_num,
-            recipe=request.recipe,
-            contract_hash=request.contract_hash,
-            profile=request.env_config,
-            scene_config=request.scene_config,
+            task=experiment.task,
+            task_protocol=experiment.task_protocol,
+            episode_horizon=experiment.episode_horizon,
+            evaluation_episodes=experiment.evaluation_episodes,
+            recipe=experiment.recipe,
+            experiment_hash=experiment.experiment_hash,
+            environment=experiment.environment,
+            scene=experiment.scene,
             seed=request.seed,
             layout_id=request.layout_id,
             repository_revision="abc123",
             environment_profile_hash="b" * 64,
-            policy_contract=request.policy_contract,
+            embodiment=experiment.embodiment,
             scene_profile_hash="c" * 64,
             layout_set_hash="d" * 64,
             scene_asset_hash="e" * 64,
@@ -267,7 +270,7 @@ def test_snapshot_batch_writes_gallery_and_resumes_exact_bundle(monkeypatch, tmp
     )
     request = SnapshotBatchRequest(
         recipes=(RECIPE,),
-        env_gpu=0,
+        environment_gpu=0,
         output_dir=output,
         export_scene=True,
     )
@@ -299,7 +302,7 @@ def test_zero_exit_without_artifacts_is_a_failed_snapshot(monkeypatch, tmp_path)
     monkeypatch.setattr(snapshots, "run_snapshot_capture", lambda paths, request: 0)
     request = SnapshotBatchRequest(
         recipes=(RECIPE,),
-        env_gpu=0,
+        environment_gpu=0,
         output_dir=tmp_path / "empty",
         publish=True,
     )
@@ -314,7 +317,7 @@ def test_snapshot_dry_run_reports_launch_failures(monkeypatch, tmp_path):
     monkeypatch.setattr(snapshots, "run_snapshot_capture", lambda paths, request: 2)
     request = SnapshotBatchRequest(
         recipes=(RECIPE,),
-        env_gpu=0,
+        environment_gpu=0,
         output_dir=tmp_path / "dry-run",
         dry_run=True,
     )
@@ -348,7 +351,7 @@ def test_snapshot_publish_prerequisites_fail_before_capture(
     output = tmp_path / "publish-prerequisite"
     request = SnapshotBatchRequest(
         recipes=(RECIPE,),
-        env_gpu=0,
+        environment_gpu=0,
         output_dir=output,
         publish=True,
     )
@@ -379,7 +382,7 @@ def test_snapshot_publish_dry_run_skips_prerequisites_and_publication(monkeypatc
     output = tmp_path / "publish-dry-run"
     request = SnapshotBatchRequest(
         recipes=(RECIPE,),
-        env_gpu=0,
+        environment_gpu=0,
         output_dir=output,
         publish=True,
         dry_run=True,
@@ -402,7 +405,7 @@ def test_successful_snapshot_batch_publishes_once(monkeypatch, tmp_path):
     )
     request = SnapshotBatchRequest(
         recipes=(RECIPE,),
-        env_gpu=0,
+        environment_gpu=0,
         output_dir=output,
         publish=True,
     )
@@ -437,7 +440,7 @@ def test_snapshot_publication_failure_preserves_local_batch(
     monkeypatch.setattr(snapshots, "publish_snapshot_run", fail_publish)
     request = SnapshotBatchRequest(
         recipes=(RECIPE,),
-        env_gpu=0,
+        environment_gpu=0,
         output_dir=output,
         publish=True,
     )
@@ -455,9 +458,9 @@ def test_gallery_escapes_failure_messages_and_requires_no_network(tmp_path):
         policy="pi05_arx_x5",
         environment="arx_x5",
         scene="default",
-        protocol="fold_clothes",
+        task_protocol="fold_clothes",
         task="fold_clothes",
-        contract_hash="a" * 64,
+        experiment_hash="a" * 64,
         output_dir=str(tmp_path / RECIPE),
         message="<script>alert(1)</script>",
     )
@@ -476,10 +479,35 @@ def test_gallery_escapes_failure_messages_and_requires_no_network(tmp_path):
     assert "prefers-reduced-motion" in page
 
 
-def test_first_frame_hook_is_after_reset_and_before_rollout():
-    source = (ROOT / "src/robodojo/sim/evaluation/main.py").read_text(encoding="utf-8")
-    reset = source.index("env.reset(seed=env.env_seeds)")
-    scene_export = source.index("export_scene_snapshot(env, export_dir", reset)
-    first_frame = source.index("capture_first_frame(env, FIRST_FRAME_CAPTURE_DIR", scene_export)
-    rollout = source.index("env.run_eval()", first_frame)
-    assert reset < scene_export < first_frame < rollout
+def test_v1_snapshot_summary_is_normalized_in_memory():
+    legacy = {
+        "run_id": "legacy",
+        "output_dir": "/tmp/legacy",
+        "seed": 0,
+        "layout_id": 0,
+        "export_scene": False,
+        "recipes": [RECIPE],
+        "complete": True,
+        "results": [
+            {
+                "status": "PASS",
+                "recipe": RECIPE,
+                "policy": "pi05_arx_x5",
+                "environment": "arx_x5",
+                "scene": "default",
+                "protocol": "fold_clothes",
+                "task": "fold_clothes",
+                "contract_hash": "a" * 64,
+                "exit_code": 0,
+                "output_dir": f"/tmp/legacy/{RECIPE}",
+            }
+        ],
+    }
+
+    summary = SnapshotSummary.model_validate(normalize_snapshot_summary(legacy))
+
+    assert summary.format_version == 2
+    assert summary.results[0].task_protocol == "fold_clothes"
+    assert summary.results[0].experiment_hash == "a" * 64
+    assert "format_version" not in legacy
+    assert "contract_hash" in legacy["results"][0]

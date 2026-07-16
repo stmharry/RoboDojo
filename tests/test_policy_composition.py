@@ -5,10 +5,11 @@ from pydantic import ValidationError
 import pytest
 import yaml
 
-from robodojo.core.contracts import resolve_recipe
-from robodojo.core.models import EnvironmentVariant, PreflightRequest
+from robodojo.core.experiments.selection import resolve_recipe
+from robodojo.core.models.environment import EnvironmentVariant
+from robodojo.core.models.requests import PreflightRequest
 from robodojo.core.paths import RepositoryPaths
-from robodojo.core.profiles import load_environment_profile
+from robodojo.core.profiles.environment import load_environment_profile
 from robodojo.workflows.preflight import _configuration_checks
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -38,8 +39,8 @@ def test_policy_descriptor_owns_execution_and_reference_setup():
 
 
 def test_domain_shift_warns_without_blocking_composition():
-    contract = resolve_recipe(PATHS, SHIFTED)
-    request = PreflightRequest(**contract.request_values(PATHS))
+    experiment = resolve_recipe(PATHS, SHIFTED)
+    request = PreflightRequest(experiment=experiment.spec(PATHS))
 
     checks, environment, scene = _configuration_checks(PATHS, request)
 
@@ -61,7 +62,7 @@ def test_environment_variants_are_advisory_but_tuned_variants_require_provenance
             "derived_for": {
                 "policy": "pi05_bimanual_yam_pickup",
                 "scene": "moonlake_office",
-                "protocol": "moonlake_office_general_pickup",
+                "task_protocol": "moonlake_office_general_pickup",
             },
         }
     )
@@ -90,7 +91,7 @@ def _copy_contract_tree(target: Path) -> RepositoryPaths:
     return RepositoryPaths(root=target)
 
 
-def test_contract_hash_ignores_unrelated_catalog_entries_but_tracks_selected_descriptor(tmp_path):
+def test_experiment_hash_ignores_unrelated_catalog_entries_but_tracks_selected_descriptor(tmp_path):
     paths = _copy_contract_tree(tmp_path)
     original = resolve_recipe(paths, PICKUP).identity_hash
 

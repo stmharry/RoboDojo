@@ -5,10 +5,13 @@ from pathlib import Path
 import pytest
 import yaml
 
-from robodojo.core.models import SceneConfigDocument, SimulatorLaunchRequest
+from robodojo.core.models.experiment import ExperimentSpec
+from robodojo.core.models.requests import SimulatorLaunchRequest
+from robodojo.core.models.scene import SceneConfigDocument
 from robodojo.core.paths import RepositoryPaths
-from robodojo.core.profiles import load_environment_profile, load_scene_profile
-from robodojo.sim.launcher import resolve_scene_config
+from robodojo.core.profiles.environment import load_environment_profile
+from robodojo.core.profiles.scene import load_scene_profile
+from robodojo.sim.launcher import resolve_scene_name
 
 ROOT = Path(__file__).resolve().parents[1]
 PATHS = RepositoryPaths.resolve(ROOT)
@@ -18,14 +21,22 @@ PACKING_LAYOUTS = tuple(f"pack_item_into_container_{index}.json" for index in ra
 
 def _request(environment: str) -> SimulatorLaunchRequest:
     return SimulatorLaunchRequest(
-        task="general_pickup",
-        protocol_name="moonlake_office_general_pickup",
-        episode_horizon=400,
-        native_eval_num=50,
+        experiment=ExperimentSpec(
+            policy_dir=ROOT / "XPolicyLab/policy/Pi_05",
+            task="general_pickup",
+            checkpoint="test",
+            policy_profile="test",
+            policy_runtime="uv",
+            environment=environment,
+            embodiment="bimanual_yam",
+            scene="moonlake_office",
+            action_type="joint",
+            task_protocol="moonlake_office_general_pickup",
+            episode_horizon=400,
+            evaluation_episodes=50,
+        ),
         policy_name="PI05",
         port=9999,
-        env_config=environment,
-        scene_config="moonlake_office",
         additional_info="contract-test",
     )
 
@@ -59,9 +70,9 @@ def test_moonlake_office_profile_pins_fixture_and_adapts_molmo_yam_start():
 
 
 def test_moonlake_office_is_rejected_for_other_embodiments_before_isaac():
-    assert resolve_scene_config(PATHS, _request("bimanual_yam_moonlake_office")) == "moonlake_office"
+    assert resolve_scene_name(PATHS, _request("bimanual_yam_moonlake_office")) == "moonlake_office"
     with pytest.raises(ValueError, match="compatible only with environment profiles"):
-        resolve_scene_config(PATHS, _request("arx_x5"))
+        resolve_scene_name(PATHS, _request("arx_x5"))
 
 
 @pytest.mark.parametrize(

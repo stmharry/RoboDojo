@@ -9,7 +9,7 @@ pxr = pytest.importorskip("pxr")
 from pxr import Gf, Usd, UsdGeom, UsdPhysics  # noqa: E402
 
 from robodojo.core.paths import RepositoryPaths  # noqa: E402
-from robodojo.workflows.assets_moonlake_office import author_fixture  # noqa: E402
+from robodojo.workflows.asset_builders.moonlake_office.publication import author_fixture  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 PATHS = RepositoryPaths.resolve(ROOT)

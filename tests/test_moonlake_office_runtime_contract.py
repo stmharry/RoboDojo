@@ -6,7 +6,7 @@ import pytest
 import yaml
 
 from robodojo.core.paths import RepositoryPaths
-from robodojo.core.profiles import load_environment_profile
+from robodojo.core.profiles.environment import load_environment_profile
 from robodojo.sim.environment.camera_manager.mount_registry import CameraMountRegistry
 from robodojo.sim.environment.camera_manager.rig_spec import normalize_camera_rig
 
@@ -99,9 +99,5 @@ def test_moonlake_pickup_preserves_table_local_robot_and_target_offsets():
     office_table = office_layout["Table"]["default_pos"]
 
     assert translation == pytest.approx([0.0, 0.05, -0.015])
-    assert office_target == pytest.approx(
-        [classic_target[axis] + translation[axis] for axis in range(3)]
-    )
-    assert office_table == pytest.approx(
-        [classic_table[axis] + translation[axis] for axis in range(3)]
-    )
+    assert office_target == pytest.approx([classic_target[axis] + translation[axis] for axis in range(3)])
+    assert office_table == pytest.approx([classic_table[axis] + translation[axis] for axis in range(3)])

@@ -2,6 +2,7 @@ import ast
 import json
 import logging
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from typer.testing import CliRunner
@@ -116,19 +117,38 @@ def test_package_has_no_print_calls():
     assert unexpected == []
 
 
-def test_simulator_step_progress_uses_debug_logging():
-    path = PACKAGE / "sim/evaluation/eval_env.py"
-    tree = ast.parse(path.read_text(encoding="utf-8"))
-    calls = [
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Attribute)
-        and isinstance(node.func.value, ast.Name)
-        and node.func.value.id == "logger"
-        and node.func.attr == "debug"
-        and node.args
-        and isinstance(node.args[0], ast.Constant)
-        and node.args[0].value == "env%s step: %s / %s"
-    ]
-    assert len(calls) == 2
+def test_simulator_step_progress_uses_debug_logging(caplog):
+    from robodojo.sim.evaluation.services.actions import ActionsService
+
+    class Environment(ActionsService):
+        num_envs = 1
+        step_lim = 3
+        take_action_cnt = [0]
+        end_flag = [False]
+        physx_monitor_enabled = False
+        interact = False
+        robot_manager = SimpleNamespace(
+            robot_list=[],
+            control_manager=SimpleNamespace(push=lambda *_args: None),
+        )
+        reward_manager = SimpleNamespace(step=lambda **_kwargs: None)
+
+        def validate_action_dict(self, _action):
+            return None
+
+        def get_action_type(self, _action):
+            return "joint"
+
+        def process_control_info(self, control_info, _env_idx):
+            return [control_info]
+
+        def have_empty(self, _env_idx_list):
+            return True
+
+        def is_episode_end(self):
+            return None
+
+    with caplog.at_level("DEBUG", logger="robodojo.sim.evaluation.services.actions"):
+        Environment().take_action_batch([{}])
+
+    assert "env0 step: 1 / 3" in caplog.messages

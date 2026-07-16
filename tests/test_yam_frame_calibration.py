@@ -6,7 +6,8 @@ import pytest
 import yaml
 
 from robodojo.core.paths import RepositoryPaths
-from robodojo.core.profiles import load_environment_profile, load_scene_profile
+from robodojo.core.profiles.environment import load_environment_profile
+from robodojo.core.profiles.scene import load_scene_profile
 from robodojo.sim.environment.camera_manager.mount_registry import (
     align_hardware_frame_pose,
     apply_mount_calibration,
@@ -123,9 +124,7 @@ def test_final_wrist_camera_values_are_embodiment_owned():
 
 
 def test_d405_proxy_is_wrist_only_and_preserves_normalized_optical_pose():
-    rig = normalize_camera_rig(
-        yaml.safe_load((ROOT / "configs/camera/bimanual_yam_molmoact2.yml").read_text())
-    )
+    rig = normalize_camera_rig(yaml.safe_load((ROOT / "configs/camera/bimanual_yam_molmoact2.yml").read_text()))
     top, left, right = rig.cameras
     assert "hardware" not in top.mount
     for wrist in (left, right):

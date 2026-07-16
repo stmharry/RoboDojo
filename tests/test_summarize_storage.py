@@ -4,8 +4,6 @@ from pathlib import Path
 import subprocess
 import sys
 
-from robodojo.core.scene_identity import ARTIFACT_SCHEMA_VERSION
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -19,7 +17,7 @@ def _completed_result(storage_root: Path) -> Path:
     (run / "_result.json").write_text(
         json.dumps(
             {
-                "artifact_schema_version": ARTIFACT_SCHEMA_VERSION,
+                "artifact_schema_version": 3,
                 "task_name": "stack_bowls",
                 "protocol_name": "stack_bowls",
                 "episode_horizon": 800,
@@ -99,7 +97,7 @@ def test_cli_output_overrides_environment_and_creates_parents(tmp_path):
     assert not (local / "runs/reports/_summary.md").exists()
 
 
-def test_summarize_strictly_rejects_legacy_results(tmp_path):
+def test_summarize_rejects_removed_layout_selector(tmp_path):
     local = tmp_path / "local"
     run = _completed_result(local)
     result_path = run / "_result.json"

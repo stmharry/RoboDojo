@@ -6,11 +6,13 @@ from types import SimpleNamespace
 import pytest
 import yaml
 
+from robodojo.core.experiments.catalogs import load_protocol_catalog
 from robodojo.core.paths import RepositoryPaths
-from robodojo.core.profiles import load_scene_profile
+from robodojo.core.profiles.scene import load_scene_profile
 from robodojo.core.workspace import task_placement_rules
+from robodojo.sim.environment.reward_manager.reward_manager import RewardManager
+from robodojo.workflows.asset_builders.moonlake_packing.publication import _publish_paths, build
 from robodojo.workflows.assets import generated_fixture_error, required_fixture_builds
-from robodojo.workflows.assets_moonlake_packing import _publish_paths, build
 
 ROOT = Path(__file__).resolve().parents[1]
 PATHS = RepositoryPaths.resolve(ROOT)
@@ -23,6 +25,7 @@ VARIANTS = (
     ("moonlake_anker_cable", "Articulation"),
     ("moonlake_abc_block", "Rigid"),
 )
+RUN_ISAAC_USD_TESTS = os.environ.get("ROBODOJO_RUN_ISAAC_USD_TESTS") == "1"
 
 
 @pytest.fixture(scope="module")
@@ -31,9 +34,7 @@ def isaac_app():
     os.environ.setdefault("ACCEPT_EULA", "Y")
     from isaacsim import SimulationApp
 
-    app = SimulationApp({"headless": True})
-    yield app
-    app.close()
+    return SimulationApp({"headless": True})
 
 
 def test_moonlake_packing_profile_declares_generated_scene_asset_build():
@@ -51,14 +52,18 @@ def test_moonlake_packing_profile_declares_generated_scene_asset_build():
 
 
 def test_container_behavior_remains_owned_by_pack_item_into_container():
-    source = (ROOT / "src/robodojo/sim/tasks/pack_item_into_container.py").read_text(encoding="utf-8")
     task_config = yaml.safe_load((ROOT / "configs/task/pack_item_into_container.yml").read_text(encoding="utf-8"))
+    protocol = load_protocol_catalog(PATHS).protocols["pack_item_into_container"]
+    reward_manager = RewardManager(1)
 
     assert set(task_placement_rules(task_config)) == {"item", "container"}
-    assert 'Put the <item> into the black box, then close the lid.' in source
-    assert 'label_A="item"' in source
-    assert 'label_B="container"' in source
-    assert 'B_volume_tag="packing_cavity"' in source
+    assert protocol.task == "pack_item_into_container"
+    assert protocol.episode_horizon == 1300
+    assert protocol.evaluation_episodes == 6
+    assert reward_manager.is_object_in_functional_volume("item", "container", "packing_cavity") == (
+        "is_object_in_functional_volume",
+        {"label_A": "item", "label_B": "container", "B_volume_tag": "packing_cavity", "margin": 0.0},
+    )
 
 
 def test_asset_publication_restores_previous_directory_when_replace_fails(tmp_path, monkeypatch):
@@ -136,6 +141,7 @@ def test_six_packing_layouts_are_deterministic_labelled_and_reachable():
         assert item["rotate_rand"] is False
 
 
+@pytest.mark.skipif(not RUN_ISAAC_USD_TESTS, reason="run in an isolated Isaac USD test process")
 def test_builder_authors_valid_internal_assets_and_provenance(tmp_path, isaac_app, monkeypatch):
     result = build(tmp_path, PATHS.moonlake_packing_manifest)
     manifest = yaml.safe_load(PATHS.moonlake_packing_manifest.read_text(encoding="utf-8"))

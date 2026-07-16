@@ -4,7 +4,12 @@ import subprocess
 import pytest
 
 from robodojo.core.gpu import GpuAssignment
-from robodojo.core.models import EvaluationRequest, ServerRequest, SimulatorLaunchRequest
+from robodojo.core.models.experiment import ExperimentSpec
+from robodojo.core.models.requests import (
+    EvaluationRequest,
+    ServerRequest,
+    SimulatorLaunchRequest,
+)
 from robodojo.core.paths import RepositoryPaths
 from robodojo.orchestration import evaluation, split
 from robodojo.workflows import storage as storage_workflow
@@ -13,20 +18,28 @@ from robodojo.workflows.errors import StorageError
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def _request(policy_dir: Path) -> EvaluationRequest:
-    return EvaluationRequest(
+def _experiment(policy_dir: Path) -> ExperimentSpec:
+    return ExperimentSpec(
         policy_dir=policy_dir,
         task="stack_bowls",
         checkpoint="test-checkpoint",
-        policy_env="test-policy-env",
-        env_config="arx_x5",
-        policy_contract="arx_x5",
-        protocol="stack_bowls",
+        policy_profile="test-policy",
+        policy_runtime="test-policy-env",
+        environment="arx_x5",
+        embodiment="arx_x5",
+        scene="default",
+        action_type="joint",
+        task_protocol="stack_bowls",
         episode_horizon=800,
-        native_eval_num=25,
-        scene_config="default",
+        evaluation_episodes=25,
+    )
+
+
+def _request(policy_dir: Path) -> EvaluationRequest:
+    return EvaluationRequest(
+        experiment=_experiment(policy_dir),
         policy_gpu=0,
-        env_gpu=1,
+        environment_gpu=1,
     )
 
 
@@ -114,12 +127,12 @@ def test_evaluation_resolves_auto_once_before_building_launch_requests(monkeypat
         "simulator_command",
         lambda paths, request: simulator_requests.append(request) or (["simulator"], {}),
     )
-    request = _request(policy_dir).model_copy(update={"policy_gpu": "auto", "env_gpu": "auto", "dry_run": True})
+    request = _request(policy_dir).model_copy(update={"policy_gpu": "auto", "environment_gpu": "auto", "dry_run": True})
 
     assert evaluation.run_evaluation(RepositoryPaths.resolve(ROOT), request, preflight=False) == 0
     assert selections == [{"policy_gpu": "auto", "env_gpu": "auto"}]
     assert policy_requests[0].policy_gpu == 6
-    assert simulator_requests[0].env_gpu == 2
+    assert simulator_requests[0].environment_gpu == 2
 
 
 def test_split_server_resolves_auto_before_policy_launch(monkeypatch, tmp_path):
@@ -134,16 +147,7 @@ def test_split_server_resolves_auto_before_policy_launch(monkeypatch, tmp_path):
     )
     monkeypatch.setattr(adapter, "run_policy_server", lambda request: launched.append(request) or 0)
     request = ServerRequest(
-        policy_dir=policy_dir,
-        task="stack_bowls",
-        checkpoint="test-checkpoint",
-        policy_env="test-policy-env",
-        env_config="arx_x5",
-        policy_contract="arx_x5",
-        protocol="stack_bowls",
-        episode_horizon=800,
-        native_eval_num=25,
-        scene_config="default",
+        experiment=_experiment(policy_dir),
         dry_run=True,
     )
 
@@ -193,13 +197,9 @@ def test_publish_dry_run_skips_s3_prerequisites(monkeypatch, tmp_path, capsys):
 
 def test_simulator_session_never_performs_publication(monkeypatch):
     request = SimulatorLaunchRequest(
-        task="stack_bowls",
-        protocol_name="stack_bowls",
-        episode_horizon=800,
-        native_eval_num=25,
+        experiment=_experiment(Path("TestPolicy")),
         policy_name="TestPolicy",
         port=19000,
-        scene_config="default",
         additional_info="test",
     )
     monkeypatch.setattr(evaluation, "run_simulator", lambda paths, request, environment: 0)
@@ -214,14 +214,10 @@ def test_simulator_session_never_performs_publication(monkeypatch):
 @pytest.mark.parametrize("dry_run", [False, True])
 def test_client_reachability_is_owned_by_orchestration(monkeypatch, caplog, dry_run):
     request = SimulatorLaunchRequest(
-        task="stack_bowls",
-        protocol_name="stack_bowls",
-        episode_horizon=800,
-        native_eval_num=25,
+        experiment=_experiment(Path("TestPolicy")),
         policy_name="TestPolicy",
         host="policy.example",
         port=19000,
-        scene_config="default",
         additional_info="test",
         dry_run=dry_run,
     )

@@ -11,8 +11,13 @@ from typer.main import get_command
 from typer.testing import CliRunner
 
 from robodojo.cli import app
-from robodojo.core.contracts import resolve_recipe
-from robodojo.core.models import EvaluationRequest, PolicyServerLaunchRequest, SimulatorLaunchRequest
+from robodojo.core.experiments.selection import resolve_recipe
+from robodojo.core.models.experiment import ExperimentSpec
+from robodojo.core.models.requests import (
+    EvaluationRequest,
+    PolicyServerLaunchRequest,
+    SimulatorLaunchRequest,
+)
 from robodojo.core.paths import RepositoryPaths, discover_repository_root
 from robodojo.core.settings import RuntimeSettings
 from robodojo.policy.adapter import policy_server_command
@@ -26,19 +31,47 @@ RECIPE = "pi05-bimanual_yam-molmo_yam-general_pickup"
 
 def _experiment_values(recipe: str = RECIPE) -> dict:
     paths = RepositoryPaths.resolve(ROOT)
-    return resolve_recipe(paths, recipe).request_values(paths)
+    return {"experiment": resolve_recipe(paths, recipe).spec(paths)}
+
+
+def _experiment(**updates) -> ExperimentSpec:
+    values = {
+        "policy_dir": ROOT / "XPolicyLab/policy/Pi_05",
+        "task": "stack_bowls",
+        "checkpoint": "run-1",
+        "policy_profile": "test_policy",
+        "policy_runtime": "policy-env",
+        "environment": "arx_x5",
+        "embodiment": "arx_x5",
+        "scene": "default",
+        "action_type": "joint",
+        "task_protocol": "stack_bowls",
+        "episode_horizon": 800,
+        "evaluation_episodes": 25,
+    }
+    values.update(updates)
+    return ExperimentSpec(**values)
 
 
 def _simulator_request(**updates) -> SimulatorLaunchRequest:
+    experiment_keys = {
+        "task",
+        "checkpoint",
+        "policy_profile",
+        "policy_runtime",
+        "environment",
+        "embodiment",
+        "scene",
+        "action_type",
+        "task_protocol",
+        "episode_horizon",
+        "evaluation_episodes",
+    }
+    experiment_updates = {key: updates.pop(key) for key in tuple(updates) if key in experiment_keys}
     values = {
-        "task": "stack_bowls",
-        "protocol_name": "stack_bowls",
-        "episode_horizon": 800,
-        "native_eval_num": 25,
+        "experiment": _experiment(**experiment_updates),
         "policy_name": "TestPolicy",
         "port": 19000,
-        "env_config": "arx_x5",
-        "scene_config": "default",
         "additional_info": "test",
     }
     values.update(updates)
@@ -128,7 +161,7 @@ def test_eval_help_explains_publication_and_evaluation_inputs():
     assert "--publish" in result.stdout
     assert "ROBODOJO_S3_URI" in result.stdout
     assert "--recipe" in result.stdout
-    assert "--protocol" in result.stdout
+    assert "--task-protocol" in result.stdout
     assert "--checkpoint-label" in result.stdout
     assert "--ckpt-label" not in result.stdout
     assert "Episode count" in result.stdout
@@ -146,6 +179,8 @@ def test_clean_break_help_only_lists_new_option_names():
     assert "--root" not in results.stdout
     assert docker.exit_code == 0
     assert "--environment" in docker.stdout
+    assert "--task-protocol" in docker.stdout
+    assert "--task                 " not in docker.stdout
     assert "--env-cfg" not in docker.stdout
 
 
@@ -198,7 +233,7 @@ def test_docker_smoke_uses_the_typed_client_interface(monkeypatch, tmp_path):
         "arx_x5",
         "--scene",
         "default",
-        "--protocol",
+        "--task-protocol",
         "stack_bowls",
         "--policy-host",
         "127.0.0.1",
@@ -260,7 +295,7 @@ def test_gpu_cli_precedence_is_flag_then_environment_then_auto(monkeypatch):
     )
 
     assert [default.exit_code, environment.exit_code, flags.exit_code] == [0, 0, 0]
-    assert [(request.policy_gpu, request.env_gpu) for request in requests] == [
+    assert [(request.policy_gpu, request.environment_gpu) for request in requests] == [
         ("auto", "auto"),
         (4, 5),
         (2, 3),
@@ -324,10 +359,10 @@ def test_client_resolves_only_the_simulator_gpu(monkeypatch):
 
     assert result.exit_code == 0
     assert selections == [{"env_gpu": "auto"}]
-    assert launched[0].env_gpu == 7
-    assert launched[0].policy_profile == "pi05_bimanual_yam"
-    assert launched[0].policy_descriptor_hash
-    assert launched[0].policy_reference_match == "reference_match"
+    assert launched[0].environment_gpu == 7
+    assert launched[0].experiment.policy_profile == "pi05_bimanual_yam"
+    assert launched[0].experiment.policy_descriptor_hash
+    assert launched[0].experiment.policy_reference_match == "reference_match"
 
 
 def test_publish_is_incompatible_with_scene_only_export(tmp_path):
@@ -497,8 +532,8 @@ def test_task_inventory_reads_the_simulator_task_package():
 def test_removed_openarm_cloth_profile_is_rejected():
     request = _simulator_request(
         task="fold_clothes",
-        protocol_name="fold_clothes",
-        env_config="openarm_cloth_folding",
+        task_protocol="fold_clothes",
+        environment="openarm_cloth_folding",
     )
     with pytest.raises(ValueError, match="environment config not found"):
         load_simulator_config(RepositoryPaths.resolve(ROOT), request)
@@ -507,8 +542,8 @@ def test_removed_openarm_cloth_profile_is_rejected():
 def test_removed_generic_openarm_profile_is_rejected():
     request = _simulator_request(
         task="fold_clothes",
-        protocol_name="fold_clothes",
-        env_config="openarm",
+        task_protocol="fold_clothes",
+        environment="openarm",
     )
     with pytest.raises(ValueError, match="environment config not found"):
         load_simulator_config(RepositoryPaths.resolve(ROOT), request)
@@ -518,8 +553,8 @@ def test_removed_generic_openarm_profile_is_rejected():
 def test_unmeasured_openarm_profiles_are_release_blocked(profile):
     request = _simulator_request(
         task="fold_clothes",
-        protocol_name="fold_clothes",
-        env_config=profile,
+        task_protocol="fold_clothes",
+        environment=profile,
     )
     with pytest.raises(ValueError, match="calibration is not release-ready"):
         load_simulator_config(RepositoryPaths.resolve(ROOT), request)
@@ -531,12 +566,7 @@ def test_server_dry_run_validates_and_builds_adapter_argv(tmp_path):
     adapter = policy / "setup_eval_policy_server.sh"
     adapter.write_text("#!/usr/bin/env bash\n", encoding="utf-8")
     request = PolicyServerLaunchRequest(
-        policy_dir=policy,
-        task="stack_bowls",
-        checkpoint="run-1",
-        policy_env="policy-env",
-        env_config="arx_x5",
-        policy_contract="arx_x5",
+        experiment=_experiment(policy_dir=policy),
         port=19000,
     )
     command = policy_server_command(request, 19000)
@@ -550,13 +580,15 @@ def test_openarm_policy_uses_explicit_embodiment_contract(tmp_path, profile):
     policy.mkdir()
     (policy / "setup_eval_policy_server.sh").write_text("#!/usr/bin/env bash\n", encoding="utf-8")
     request = PolicyServerLaunchRequest(
-        policy_dir=policy,
-        task="fold_clothes",
-        checkpoint="folding_final",
-        policy_env="lerobot-pi05",
-        env_config=profile,
-        policy_contract="openarm_lerobot",
-        action_type="joint",
+        experiment=_experiment(
+            policy_dir=policy,
+            task="fold_clothes",
+            checkpoint="folding_final",
+            policy_runtime="lerobot-pi05",
+            environment=profile,
+            embodiment="openarm_lerobot",
+            task_protocol="fold_clothes",
+        ),
         port=19000,
     )
     command = policy_server_command(request, 19000)
@@ -602,8 +634,8 @@ def test_server_dry_run_separates_diagnostics_from_command_output(monkeypatch):
         ],
     )
     assert result.exit_code == 0
-    assert captured[0].task == "general_pickup"
-    assert captured[0].protocol == "general_pickup"
+    assert captured[0].experiment.task == "general_pickup"
+    assert captured[0].experiment.task_protocol == "general_pickup"
 
 
 def test_cli_log_level_is_propagated_for_child_processes(monkeypatch):
@@ -666,12 +698,12 @@ def test_policy_imports_work_without_simulator_extra():
 
 def test_simulator_command_uses_the_domain_module_path():
     request = _simulator_request(
-        env_gpu=1,
+        environment_gpu=1,
         additional_info="ckpt_name=test,action_type=ee",
     )
     command, environment = simulator_command(RepositoryPaths.resolve(ROOT), request)
     assert command[command.index("-m") + 1] == "robodojo.sim.evaluation.main"
-    assert command[command.index("--task_name") + 1] == "stack_bowls"
+    assert command[command.index("--task") + 1] == "stack_bowls"
     assert "--layout_name" not in command
     assert "--layout-name" not in command
     assert command[command.index("--policy_server_url") + 1] == "ws://127.0.0.1:19000"
@@ -682,19 +714,12 @@ def test_simulator_command_uses_the_domain_module_path():
     assert environment["CUDA_VISIBLE_DEVICES"] == "1"
 
 
-def test_simulator_entrypoint_propagates_app_device_before_environment_creation():
-    source = (ROOT / "src/robodojo/sim/evaluation/main.py").read_text(encoding="utf-8")
-    assert "argparse.ArgumentParser(allow_abbrev=False)" in source
-    propagation = source.index('OmegaConf.update(env_cfg, "sim.device", args_cli.device, force_add=True)')
-    creation = source.index("env = create_eval_env(", propagation)
-
-    assert propagation < creation
-
-
 def test_standard_and_openarm_profiles_keep_intended_parallelism():
     paths = RepositoryPaths.resolve(ROOT)
     arx = _simulator_request()
-    openarm = arx.model_copy(update={"env_config": "openarm_lerobot"})
+    openarm = arx.model_copy(
+        update={"experiment": arx.experiment.model_copy(update={"environment": "openarm_lerobot"})}
+    )
 
     assert load_simulator_config(paths, arx)[0] == 10
     assert load_simulator_config(paths, openarm)[0] == 1

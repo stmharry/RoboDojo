@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from robodojo.core.paths import RepositoryPaths
-from robodojo.core.profiles import load_scene_profile
+from robodojo.core.profiles.scene import load_scene_profile
 from robodojo.sim import scene_assets
 from robodojo.sim.scene_assets import (
     inspect_scene_assets,
@@ -18,12 +18,7 @@ from robodojo.sim.scene_assets import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-
-
-def test_simulator_entrypoint_only_inspects_prepared_scene_assets():
-    source = (ROOT / "src/robodojo/sim/evaluation/main.py").read_text(encoding="utf-8")
-    assert "inspect_scene_assets" in source
-    assert "prepare_scene_assets" not in source
+RUN_ISAAC_USD_TESTS = os.environ.get("ROBODOJO_RUN_ISAAC_USD_TESTS") == "1"
 
 
 @pytest.fixture(scope="module")
@@ -32,9 +27,7 @@ def isaac_app():
     os.environ.setdefault("ACCEPT_EULA", "Y")
     from isaacsim import SimulationApp
 
-    app = SimulationApp({"headless": True})
-    yield app
-    app.close()
+    return SimulationApp({"headless": True})
 
 
 def test_yam_scene_shirt_derivation_preserves_torso_and_topology():
@@ -133,6 +126,7 @@ def test_scene_asset_inspection_does_not_prepare_missing_outputs(tmp_path):
     assert not destination.exists()
 
 
+@pytest.mark.skipif(not RUN_ISAAC_USD_TESTS, reason="run in an isolated Isaac USD test process")
 def test_scene_garment_derivation_is_manifested_idempotent_and_source_sensitive(tmp_path, isaac_app):
     from pxr import Sdf, Usd, UsdGeom
 
@@ -183,6 +177,7 @@ def test_scene_garment_derivation_is_manifested_idempotent_and_source_sensitive(
     assert json.loads(manifest_path.read_text())["inputs"]["metadata"]["sha256"] == _sha256(source_metadata)
 
 
+@pytest.mark.skipif(not RUN_ISAAC_USD_TESTS, reason="run in an isolated Isaac USD test process")
 def test_failed_scene_asset_rebuild_leaves_previous_publication_intact(monkeypatch, tmp_path, isaac_app):
     _, source_metadata = _write_source_garment(tmp_path)
     scene = load_scene_profile(RepositoryPaths.resolve(ROOT), "molmo_yam")

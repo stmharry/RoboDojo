@@ -6,7 +6,7 @@ from rich.console import Console
 from typer.testing import CliRunner
 
 from robodojo.cli import app
-from robodojo.core.contracts import recipe_rows
+from robodojo.core.experiments.presentation import recipe_rows
 from robodojo.core.paths import RepositoryPaths
 from robodojo.workflows.recipe_inventory import print_recipe_table
 
@@ -68,7 +68,7 @@ def test_narrow_recipe_table_folds_without_truncating_recipe_names():
     stream = io.StringIO()
     console = Console(file=stream, width=48, color_system=None, force_terminal=False)
     row = next(row for row in _rows() if row["recipe"] == LONG_RECIPE)
-    isolated_row = {**row, "protocol": "", "task": ""}
+    isolated_row = {**row, "task_protocol": "", "task": ""}
 
     print_recipe_table([isolated_row], console=console)
 
@@ -85,7 +85,7 @@ def test_plain_and_json_recipe_formats_remain_machine_compatible():
     checked = RUNNER.invoke(app, ["recipes", "--format", "json", "--check", "--root", str(ROOT)])
 
     expected_plain = [
-        "\t".join(row[field] for field in ("recipe", "policy", "environment", "scene", "protocol", "task"))
+        "\t".join(row[field] for field in ("recipe", "policy", "environment", "scene", "task_protocol", "task"))
         for row in rows
     ]
     assert all("layout" not in row for row in rows)

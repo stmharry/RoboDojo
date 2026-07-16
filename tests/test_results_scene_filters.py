@@ -5,7 +5,7 @@ import pytest
 from typer.testing import CliRunner
 
 from robodojo.cli import app
-from robodojo.core.scene_identity import ARTIFACT_SCHEMA_VERSION, ArtifactSchemaError
+from robodojo.core.artifacts.results import ArtifactSchemaError
 from robodojo.workflows import results_stats, results_summary
 from robodojo.workflows.errors import ResultsError
 
@@ -29,7 +29,7 @@ def _write_result(
     run = root / task / policy / embodiment / f"{seed}_ckpt_name=test,action_type=joint" / timestamp
     run.mkdir(parents=True)
     payload = {
-        "artifact_schema_version": ARTIFACT_SCHEMA_VERSION,
+        "artifact_schema_version": 3,
         "task_name": base_task,
         "protocol_name": task,
         "episode_horizon": 200,
@@ -42,7 +42,7 @@ def _write_result(
         "environment_profile_hash": "e" * 64,
         "environment_asset_hash": "f" * 64,
         "policy_contract": embodiment,
-        "scene_config": scene,
+        "scene": scene,
         "layout_config_name": scene,
         "layout_source": "bundled",
         "layout_set_hash": "a" * 64,
@@ -147,8 +147,8 @@ def test_stats_filters_preserve_unambiguous_output_schema(tmp_path):
         str(tmp_path),
         ["TestPolicy"],
         tasks=["fasten_screws"],
-        env_config="arx_x5",
-        scene_config="default",
+        environment="arx_x5",
+        scene="default",
     )
     assert result == {
         "root": str(tmp_path),
@@ -185,8 +185,8 @@ def test_paired_results_require_the_same_environment_and_scene(tmp_path):
         str(tmp_path),
         ["TestPolicy"],
         tasks=["fold_clothes"],
-        env_config="arx_x5",
-        scene_config="default",
+        environment="arx_x5",
+        scene="default",
     )
     assert filtered["aggregated"] == {}
 
@@ -202,8 +202,8 @@ def test_paired_results_require_the_same_environment_and_scene(tmp_path):
         str(tmp_path),
         ["TestPolicy"],
         tasks=["fold_clothes"],
-        env_config="arx_x5",
-        scene_config="default",
+        environment="arx_x5",
+        scene="default",
     )
     assert matched["aggregated"] == {"fold_clothes": {"TestPolicy": {"1": 50}}}
 
@@ -213,11 +213,11 @@ def test_paired_results_require_the_same_environment_and_scene(tmp_path):
     ("mutation", "message"),
     [
         (lambda payload: payload.pop("artifact_schema_version"), "artifact_schema_version mismatch"),
-        (lambda payload: payload.update(artifact_schema_version=1), "artifact_schema_version mismatch"),
+        (lambda payload: payload.update(artifact_schema_version=2), "artifact_schema_version mismatch"),
         (lambda payload: payload.update(layout_name="fold_clothes"), "removed layout_name selector"),
     ],
 )
-def test_result_loaders_strictly_reject_legacy_artifacts(tmp_path, loader, mutation, message):
+def test_result_loaders_reject_unsupported_artifacts(tmp_path, loader, mutation, message):
     run = _write_result(
         tmp_path,
         task="fold_clothes",

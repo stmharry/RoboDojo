@@ -12,38 +12,84 @@ import yaml
 
 from robodojo.cli import app
 from robodojo.core import gpu
-from robodojo.core.models import EvaluationRequest, PreflightCheck, PreflightRequest, SetupRequest, SetupStage
+from robodojo.core.models.experiment import ExperimentSpec
+from robodojo.core.models.reports import PreflightCheck
+from robodojo.core.models.requests import (
+    EvaluationRequest,
+    PreflightRequest,
+    SetupRequest,
+    SetupStage,
+)
 from robodojo.core.paths import RepositoryPaths
-from robodojo.core.profiles import load_environment_profile, load_scene_profile
+from robodojo.core.profiles.environment import load_environment_profile
+from robodojo.core.profiles.scene import load_scene_profile
 from robodojo.orchestration import evaluation
 from robodojo.workflows import assets, preflight, sweeps
+from robodojo.workflows.preflight_checks import (
+    assets as asset_checks,
+    configuration as configuration_checks,
+    policy as policy_checks,
+    runtime as runtime_checks,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNNER = CliRunner()
 
 
-def _request(tmp_path: Path, **updates) -> PreflightRequest:
+def _experiment(tmp_path: Path, **updates) -> ExperimentSpec:
+    aliases = {
+        "policy_env": "policy_runtime",
+        "env_config": "environment",
+        "policy_contract": "embodiment",
+        "protocol": "task_protocol",
+        "native_eval_num": "evaluation_episodes",
+        "scene_config": "scene",
+    }
+    updates = {aliases.get(key, key): value for key, value in updates.items()}
     values = {
         "policy_dir": tmp_path / "Policy",
         "task": "stack_bowls",
         "checkpoint": "alias",
-        "policy_env": "uv",
-        "env_config": "arx_x5",
-        "policy_contract": "arx_x5",
-        "protocol": "stack_bowls",
+        "policy_profile": "test-policy",
+        "policy_runtime": "uv",
+        "environment": "arx_x5",
+        "embodiment": "arx_x5",
+        "scene": "default",
+        "task_protocol": "stack_bowls",
         "episode_horizon": 800,
-        "native_eval_num": 25,
-        "scene_config": "default",
+        "evaluation_episodes": 25,
         "action_type": "joint",
+    }
+    values.update(updates)
+    return ExperimentSpec(**values)
+
+
+def _request(tmp_path: Path, **updates) -> PreflightRequest:
+    experiment_fields = set(ExperimentSpec.model_fields) | {
+        "policy_env",
+        "env_config",
+        "policy_contract",
+        "protocol",
+        "native_eval_num",
+        "scene_config",
+    }
+    experiment_updates = {key: updates.pop(key) for key in tuple(updates) if key in experiment_fields}
+    values = {
+        "experiment": _experiment(tmp_path, **experiment_updates),
         "policy_gpu": 0,
-        "env_gpu": 1,
+        "environment_gpu": 1,
     }
     values.update(updates)
     return PreflightRequest(**values)
 
 
 def _evaluation(tmp_path: Path, **updates) -> EvaluationRequest:
-    values = _request(tmp_path).model_dump(exclude={"publish", "deep", "timeout"})
+    experiment_fields = set(ExperimentSpec.model_fields)
+    experiment_updates = {key: updates.pop(key) for key in tuple(updates) if key in experiment_fields}
+    base = _request(tmp_path)
+    values = base.model_dump(exclude={"publish", "deep", "timeout"})
+    if experiment_updates:
+        values["experiment"] = base.experiment.model_copy(update=experiment_updates)
     values.update(updates)
     return EvaluationRequest(**values)
 
@@ -87,17 +133,12 @@ def test_setup_policy_stage_invokes_eight_argument_hook_and_reports(tmp_path, ou
     hook.write_text('#!/usr/bin/env bash\nprintf "%s\\n" "$*" > hook_args.txt\n', encoding="utf-8")
     request = SetupRequest(
         stages=(SetupStage.POLICY,),
-        policy_dir=policy,
-        task="stack_bowls",
-        checkpoint="release",
-        policy_env="runtime",
-        dataset="RoboDojo",
-        env_config="arx_x5",
-        policy_contract="arx_x5",
-        action_type="joint",
-        protocol="stack_bowls",
-        episode_horizon=800,
-        native_eval_num=25,
+        experiment=_experiment(
+            tmp_path,
+            policy_dir=policy,
+            checkpoint="release",
+            policy_runtime="runtime",
+        ),
         seed=4,
         policy_gpu=2,
     )
@@ -137,16 +178,12 @@ def test_setup_policy_stage_resolves_only_the_policy_gpu(monkeypatch, tmp_path):
     monkeypatch.setattr(setup_workflow, "resolve_gpus", resolve)
     request = SetupRequest(
         stages=(SetupStage.POLICY,),
-        policy_dir=policy,
-        task="stack_bowls",
-        checkpoint="release",
-        policy_env="runtime",
-        env_config="arx_x5",
-        policy_contract="arx_x5",
-        action_type="joint",
-        protocol="stack_bowls",
-        episode_horizon=800,
-        native_eval_num=25,
+        experiment=_experiment(
+            tmp_path,
+            policy_dir=policy,
+            checkpoint="release",
+            policy_runtime="runtime",
+        ),
     )
 
     result = setup_workflow._policy_stage(RepositoryPaths(root=ROOT), request)
@@ -166,7 +203,7 @@ def test_missing_and_stale_uv_environments_are_actionable(monkeypatch, tmp_path)
     (policy / "deploy.yml").write_text("policy_uv_env_path: project\n", encoding="utf-8")
     request = _request(tmp_path)
 
-    python, project, error = preflight._resolve_policy_python(request)
+    python, project, error = policy_checks._resolve_policy_python(request)
     assert python is None
     assert project == policy / "project"
     assert "Python is missing" in error
@@ -175,14 +212,14 @@ def test_missing_and_stale_uv_environments_are_actionable(monkeypatch, tmp_path)
     (project / ".venv/bin/python").touch()
     (project / "pyproject.toml").touch()
     (project / "uv.lock").touch()
-    monkeypatch.setattr(preflight.shutil, "which", lambda name: "/usr/bin/uv" if name == "uv" else None)
+    monkeypatch.setattr(policy_checks.shutil, "which", lambda name: "/usr/bin/uv" if name == "uv" else None)
     monkeypatch.setattr(
-        preflight.subprocess,
+        policy_checks.subprocess,
         "run",
-        lambda *args, **kwargs: preflight.subprocess.CompletedProcess(args[0], 1, "", "stale lock"),
+        lambda *args, **kwargs: policy_checks.subprocess.CompletedProcess(args[0], 1, "", "stale lock"),
     )
 
-    checks = preflight._policy_runtime_checks(RepositoryPaths(root=ROOT), request)
+    checks = policy_checks._policy_runtime_checks(RepositoryPaths(root=ROOT), request)
 
     assert checks[0].status == "FAIL"
     assert "stale" in checks[0].detail
@@ -193,13 +230,13 @@ def test_missing_conda_environment_and_failed_xpolicylab_import(monkeypatch, tmp
     policy = tmp_path / "Policy"
     policy.mkdir()
     conda_request = _request(tmp_path, policy_env="missing-conda")
-    monkeypatch.setattr(preflight.shutil, "which", lambda name: "/usr/bin/conda" if name == "conda" else None)
+    monkeypatch.setattr(policy_checks.shutil, "which", lambda name: "/usr/bin/conda" if name == "conda" else None)
     monkeypatch.setattr(
-        preflight.subprocess,
+        policy_checks.subprocess,
         "run",
-        lambda *args, **kwargs: preflight.subprocess.CompletedProcess(args[0], 0, '{"envs": []}', ""),
+        lambda *args, **kwargs: policy_checks.subprocess.CompletedProcess(args[0], 0, '{"envs": []}', ""),
     )
-    assert "does not exist" in preflight._resolve_policy_python(conda_request)[2]
+    assert "does not exist" in policy_checks._resolve_policy_python(conda_request)[2]
 
     project = policy / "project"
     (project / ".venv/bin").mkdir(parents=True)
@@ -211,11 +248,11 @@ def test_missing_conda_environment_and_failed_xpolicylab_import(monkeypatch, tmp
     def command(*args, **kwargs):
         nonlocal calls
         calls += 1
-        return preflight.subprocess.CompletedProcess(args[0], 0 if calls == 1 else 1, "", "import failed")
+        return policy_checks.subprocess.CompletedProcess(args[0], 0 if calls == 1 else 1, "", "import failed")
 
-    monkeypatch.setattr(preflight.shutil, "which", lambda name: "/usr/bin/uv" if name == "uv" else None)
-    monkeypatch.setattr(preflight.subprocess, "run", command)
-    checks = preflight._policy_runtime_checks(
+    monkeypatch.setattr(policy_checks.shutil, "which", lambda name: "/usr/bin/uv" if name == "uv" else None)
+    monkeypatch.setattr(policy_checks.subprocess, "run", command)
+    checks = policy_checks._policy_runtime_checks(
         RepositoryPaths(root=ROOT),
         _request(tmp_path, policy_env=str(project)),
     )
@@ -225,8 +262,8 @@ def test_missing_conda_environment_and_failed_xpolicylab_import(monkeypatch, tmp
 
 
 def test_explicit_checkpoint_must_exist_and_opaque_alias_warns(tmp_path):
-    missing = preflight._checkpoint_check(_request(tmp_path, checkpoint="./missing"))
-    opaque = preflight._checkpoint_check(_request(tmp_path, checkpoint="release-alias"))
+    missing = policy_checks._checkpoint_check(_request(tmp_path, checkpoint="./missing"))
+    opaque = policy_checks._checkpoint_check(_request(tmp_path, checkpoint="release-alias"))
 
     assert missing.status == "FAIL"
     assert "does not exist" in missing.detail
@@ -238,10 +275,10 @@ def test_gpu_indices_are_validated(monkeypatch, tmp_path):
     monkeypatch.setattr(
         gpu.subprocess,
         "run",
-        lambda *args, **kwargs: preflight.subprocess.CompletedProcess(args[0], 0, "0, 100\n2, 100\n", ""),
+        lambda *args, **kwargs: policy_checks.subprocess.CompletedProcess(args[0], 0, "0, 100\n2, 100\n", ""),
     )
 
-    result = preflight._gpu_check(_request(tmp_path, policy_gpu=1, env_gpu=2))
+    result = runtime_checks._gpu_check(_request(tmp_path, policy_gpu=1, environment_gpu=2))
 
     assert result.status == "FAIL"
     assert "[1]" in result.detail
@@ -257,7 +294,7 @@ def test_scene_only_preflight_skips_every_policy_side_check(monkeypatch, tmp_pat
         selections.append(selectors)
         return GpuAssignment(env_gpu=4, env_source="auto")
 
-    monkeypatch.setattr(preflight, "resolve_gpus", resolve)
+    monkeypatch.setattr(runtime_checks, "resolve_gpus", resolve)
     monkeypatch.setattr(
         preflight,
         "_root_runtime_check",
@@ -292,7 +329,7 @@ def test_scene_only_preflight_skips_every_policy_side_check(monkeypatch, tmp_pat
     ):
         monkeypatch.setattr(preflight, name, lambda *args, name=name: pytest.fail(f"scene-only ran {name}"))
 
-    request = _request(tmp_path).model_copy(update={"policy_gpu": "auto", "env_gpu": "auto"})
+    request = _request(tmp_path).model_copy(update={"policy_gpu": "auto", "environment_gpu": "auto"})
     report = preflight.run_simulator_preflight(RepositoryPaths(root=ROOT), request)
 
     assert report.status == "PASS"
@@ -314,7 +351,7 @@ def test_yam_manifest_requires_asset_and_matching_checksums(monkeypatch, tmp_pat
     asset_root = tmp_path / "assets"
     monkeypatch.setattr(assets, "assets_root", lambda: asset_root)
 
-    missing = preflight._robot_asset_check(profile)
+    missing = asset_checks._robot_asset_check(profile)
     assert missing.status == "FAIL"
     assert missing.remediation == "make setup"
 
@@ -326,7 +363,7 @@ def test_yam_manifest_requires_asset_and_matching_checksums(monkeypatch, tmp_pat
         json.dumps({"outputs": {"YAM.usd": hashlib.sha256(b"other").hexdigest()}}),
         encoding="utf-8",
     )
-    mismatch = preflight._robot_asset_check(profile)
+    mismatch = asset_checks._robot_asset_check(profile)
     assert mismatch.status == "FAIL"
     assert "checksum mismatch" in mismatch.detail
 
@@ -334,15 +371,15 @@ def test_yam_manifest_requires_asset_and_matching_checksums(monkeypatch, tmp_pat
         json.dumps({"outputs": {"YAM.usd": hashlib.sha256(b"valid").hexdigest()}}),
         encoding="utf-8",
     )
-    assert preflight._robot_asset_check(profile).status == "PASS"
+    assert asset_checks._robot_asset_check(profile).status == "PASS"
 
 
 def test_layout_check_fails_when_selected_task_seed_is_missing(monkeypatch, tmp_path):
-    monkeypatch.setattr(preflight, "assets_root", lambda: tmp_path / "assets")
+    monkeypatch.setattr(configuration_checks, "assets_root", lambda: tmp_path / "assets")
     paths = RepositoryPaths(root=tmp_path)
     scene = SimpleNamespace(document=SimpleNamespace(layout_set="molmo_yam", layout_source="bundled"))
 
-    result = preflight._layout_check(
+    result = configuration_checks._layout_check(
         paths,
         _request(tmp_path, task="general_pickup", protocol="general_pickup"),
         scene,
@@ -377,7 +414,7 @@ def test_general_pickup_preflight_validates_the_same_role_and_workspace_contract
         seed=0,
     )
 
-    result = preflight._layout_check(paths, request, scene, profile)
+    result = configuration_checks._layout_check(paths, request, scene, profile)
 
     assert result.status == "PASS"
     assert result.detail.startswith("1 ")
@@ -435,7 +472,7 @@ def test_eval_dry_run_does_not_preflight(monkeypatch, tmp_path, capsys):
 
 def test_sweep_preflights_each_explicit_recipe(monkeypatch, tmp_path):
     from robodojo.core.gpu import GpuAssignment
-    from robodojo.core.models import SweepRequest
+    from robodojo.core.models.requests import SweepRequest
 
     children = []
     gpu_calls = 0
@@ -451,7 +488,16 @@ def test_sweep_preflights_each_explicit_recipe(monkeypatch, tmp_path):
         sweeps,
         "run_evaluation",
         lambda paths, request, *, preflight: (
-            children.append((request.recipe, request.task, preflight, request.policy_gpu, request.env_gpu)) or 0
+            children.append(
+                (
+                    request.experiment.recipe,
+                    request.experiment.task,
+                    preflight,
+                    request.policy_gpu,
+                    request.environment_gpu,
+                )
+            )
+            or 0
         ),
     )
     request = SweepRequest(

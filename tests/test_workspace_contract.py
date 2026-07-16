@@ -5,9 +5,10 @@ from pathlib import Path
 import pytest
 import yaml
 
-from robodojo.core.models import EnvironmentConfigDocument
+from robodojo.core.models.environment import EnvironmentConfigDocument
 from robodojo.core.paths import RepositoryPaths
-from robodojo.core.profiles import load_environment_profile, load_scene_profile
+from robodojo.core.profiles.environment import load_environment_profile
+from robodojo.core.profiles.scene import load_scene_profile
 from robodojo.core.workspace import task_placement_rules, validate_layout_contract
 
 ROOT = Path(__file__).resolve().parents[1]
