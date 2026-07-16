@@ -2,7 +2,9 @@ default_frequency: 30
 annotator:
   common:
     enabled: true
-    rgb_capture: {type: rgb, device: cpu}
+    rgb_capture:
+      type: rgb
+      device: cpu
 
 camera_rig:
   profile_id: bimanual_yam

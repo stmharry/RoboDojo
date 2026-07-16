@@ -1,5 +1,6 @@
 config_name: openarm_anvil_v2
-variant: {kind: diagnostic}
+variant:
+  kind: diagnostic
 asset_builds: [openarm]
 hardware_calibration: openarm_anvil_v2
 
@@ -10,7 +11,9 @@ config:
 
 observation:
   collect_freq: 30
-  robot: {joint_states: true, world_ee_state: true}
+  robot:
+    joint_states: true
+    world_ee_state: true
   vision:
     approximate_depth: false
     depth: false

@@ -27,4 +27,6 @@ initial_state:
   units: degrees
   values: [-6.546153, -2.065481, 28.796516, 20.818735, -23.813135, 20.294168, -0.666637, -11.551393, 3.945178, -0.972634, -4.163747, 2.983472, 7.507858, -7.048863, -8.338422, -26.567110]
   simulator_max_abs_tolerance_deg: 0.01
-  physical_gripper_joint_seed_m: {right: 0.00782, left: 0.01798}
+  physical_gripper_joint_seed_m:
+    right: 0.00782
+    left: 0.01798

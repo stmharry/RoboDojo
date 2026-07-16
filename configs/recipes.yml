@@ -1,26 +1,122 @@
 schema_version: 3
 recipes:
-  molmoact2-bimanual_yam-default-deposit_coin: {policy: molmoact2_bimanual_yam, environment: bimanual_yam_molmoact2, scene: default, task_protocol: deposit_coin}
-  molmoact2-bimanual_yam-default-fasten_screws: {policy: molmoact2_bimanual_yam, environment: bimanual_yam_molmoact2, scene: default, task_protocol: fasten_screws}
-  molmoact2-bimanual_yam-default-fold_clothes: {policy: molmoact2_bimanual_yam, environment: bimanual_yam_molmoact2, scene: default, task_protocol: fold_clothes}
-  molmoact2-bimanual_yam-default-general_pickup: {policy: molmoact2_bimanual_yam, environment: bimanual_yam_molmoact2, scene: default, task_protocol: general_pickup}
-  molmoact2-bimanual_yam-default-insert_key: {policy: molmoact2_bimanual_yam, environment: bimanual_yam_molmoact2, scene: default, task_protocol: insert_key}
-  molmoact2-bimanual_yam-default-play_Xylophone: {policy: molmoact2_bimanual_yam, environment: bimanual_yam_molmoact2, scene: default, task_protocol: play_Xylophone}
-  molmoact2-bimanual_yam-default-plug_in_charger: {policy: molmoact2_bimanual_yam, environment: bimanual_yam_molmoact2, scene: default, task_protocol: plug_in_charger}
-  molmoact2-bimanual_yam-default-push_T: {policy: molmoact2_bimanual_yam, environment: bimanual_yam_molmoact2, scene: default, task_protocol: push_T}
-  molmoact2-bimanual_yam-default-push_T_random: {policy: molmoact2_bimanual_yam, environment: bimanual_yam_molmoact2, scene: default, task_protocol: push_T_random}
-  molmoact2-bimanual_yam-default-swap_T: {policy: molmoact2_bimanual_yam, environment: bimanual_yam_molmoact2, scene: default, task_protocol: swap_T}
-  molmoact2-bimanual_yam-molmo_yam-fold_clothes: {policy: molmoact2_bimanual_yam, environment: bimanual_yam_molmoact2, scene: molmo_yam, task_protocol: fold_clothes}
-  molmoact2-bimanual_yam-molmo_yam-general_pickup: {policy: molmoact2_bimanual_yam, environment: bimanual_yam_molmoact2, scene: molmo_yam, task_protocol: general_pickup}
-  molmoact2-bimanual_yam-moonlake_office-general_pickup: {policy: molmoact2_bimanual_yam, environment: bimanual_yam_moonlake_office, scene: moonlake_office, task_protocol: general_pickup}
-  molmoact2-bimanual_yam-moonlake_office-moonlake_office_general_pickup: {policy: molmoact2_bimanual_yam, environment: bimanual_yam_moonlake_office, scene: moonlake_office, task_protocol: moonlake_office_general_pickup}
-  molmoact2-bimanual_yam-moonlake_office-pack_item_into_container: {policy: molmoact2_bimanual_yam, environment: bimanual_yam_moonlake_office, scene: moonlake_office, task_protocol: pack_item_into_container}
-  pi05-arx_x5-default-fold_clothes: {policy: pi05_arx_x5, environment: arx_x5, scene: default, task_protocol: fold_clothes}
-  pi05-bimanual_yam-molmo_yam-general_pickup: {policy: pi05_bimanual_yam, environment: bimanual_yam_molmoact2, scene: molmo_yam, task_protocol: general_pickup}
-  pi05-bimanual_yam-moonlake_office-general_pickup: {policy: pi05_bimanual_yam, environment: bimanual_yam_moonlake_office, scene: moonlake_office, task_protocol: general_pickup}
-  pi05-bimanual_yam-moonlake_office-moonlake_office_general_pickup: {policy: pi05_bimanual_yam_pickup, environment: bimanual_yam_moonlake_office, scene: moonlake_office, task_protocol: moonlake_office_general_pickup}
-  pi05-bimanual_yam-moonlake_office-pack_item_into_container: {policy: pi05_bimanual_yam, environment: bimanual_yam_moonlake_office, scene: moonlake_office, task_protocol: pack_item_into_container}
-  pi05-bimanual_yam-moonlake_office-stack_blocks: {policy: pi05_bimanual_yam, environment: bimanual_yam_moonlake_office, scene: moonlake_office, task_protocol: stack_blocks}
-  pi05-bimanual_yam-moonlake_office-stack_bowls: {policy: pi05_bimanual_yam, environment: bimanual_yam_moonlake_office, scene: moonlake_office, task_protocol: stack_bowls}
-  lerobot_pi05_openarm-openarm_lerobot-default-fold_clothes: {policy: lerobot_pi05_openarm, environment: openarm_lerobot, scene: default, task_protocol: fold_clothes}
-  smolvla-arx_x5-default-fold_clothes: {policy: smolvla_arx_x5, environment: arx_x5, scene: default, task_protocol: fold_clothes}
+  molmoact2-bimanual_yam-default-deposit_coin:
+    policy: molmoact2_bimanual_yam
+    environment: bimanual_yam_molmoact2
+    scene: default
+    task_protocol: deposit_coin
+  molmoact2-bimanual_yam-default-fasten_screws:
+    policy: molmoact2_bimanual_yam
+    environment: bimanual_yam_molmoact2
+    scene: default
+    task_protocol: fasten_screws
+  molmoact2-bimanual_yam-default-fold_clothes:
+    policy: molmoact2_bimanual_yam
+    environment: bimanual_yam_molmoact2
+    scene: default
+    task_protocol: fold_clothes
+  molmoact2-bimanual_yam-default-general_pickup:
+    policy: molmoact2_bimanual_yam
+    environment: bimanual_yam_molmoact2
+    scene: default
+    task_protocol: general_pickup
+  molmoact2-bimanual_yam-default-insert_key:
+    policy: molmoact2_bimanual_yam
+    environment: bimanual_yam_molmoact2
+    scene: default
+    task_protocol: insert_key
+  molmoact2-bimanual_yam-default-play_Xylophone:
+    policy: molmoact2_bimanual_yam
+    environment: bimanual_yam_molmoact2
+    scene: default
+    task_protocol: play_Xylophone
+  molmoact2-bimanual_yam-default-plug_in_charger:
+    policy: molmoact2_bimanual_yam
+    environment: bimanual_yam_molmoact2
+    scene: default
+    task_protocol: plug_in_charger
+  molmoact2-bimanual_yam-default-push_T:
+    policy: molmoact2_bimanual_yam
+    environment: bimanual_yam_molmoact2
+    scene: default
+    task_protocol: push_T
+  molmoact2-bimanual_yam-default-push_T_random:
+    policy: molmoact2_bimanual_yam
+    environment: bimanual_yam_molmoact2
+    scene: default
+    task_protocol: push_T_random
+  molmoact2-bimanual_yam-default-swap_T:
+    policy: molmoact2_bimanual_yam
+    environment: bimanual_yam_molmoact2
+    scene: default
+    task_protocol: swap_T
+  molmoact2-bimanual_yam-molmo_yam-fold_clothes:
+    policy: molmoact2_bimanual_yam
+    environment: bimanual_yam_molmoact2
+    scene: molmo_yam
+    task_protocol: fold_clothes
+  molmoact2-bimanual_yam-molmo_yam-general_pickup:
+    policy: molmoact2_bimanual_yam
+    environment: bimanual_yam_molmoact2
+    scene: molmo_yam
+    task_protocol: general_pickup
+  molmoact2-bimanual_yam-moonlake_office-general_pickup:
+    policy: molmoact2_bimanual_yam
+    environment: bimanual_yam_moonlake_office
+    scene: moonlake_office
+    task_protocol: general_pickup
+  molmoact2-bimanual_yam-moonlake_office-moonlake_office_general_pickup:
+    policy: molmoact2_bimanual_yam
+    environment: bimanual_yam_moonlake_office
+    scene: moonlake_office
+    task_protocol: moonlake_office_general_pickup
+  molmoact2-bimanual_yam-moonlake_office-pack_item_into_container:
+    policy: molmoact2_bimanual_yam
+    environment: bimanual_yam_moonlake_office
+    scene: moonlake_office
+    task_protocol: pack_item_into_container
+  pi05-arx_x5-default-fold_clothes:
+    policy: pi05_arx_x5
+    environment: arx_x5
+    scene: default
+    task_protocol: fold_clothes
+  pi05-bimanual_yam-molmo_yam-general_pickup:
+    policy: pi05_bimanual_yam
+    environment: bimanual_yam_molmoact2
+    scene: molmo_yam
+    task_protocol: general_pickup
+  pi05-bimanual_yam-moonlake_office-general_pickup:
+    policy: pi05_bimanual_yam
+    environment: bimanual_yam_moonlake_office
+    scene: moonlake_office
+    task_protocol: general_pickup
+  pi05-bimanual_yam-moonlake_office-moonlake_office_general_pickup:
+    policy: pi05_bimanual_yam_pickup
+    environment: bimanual_yam_moonlake_office
+    scene: moonlake_office
+    task_protocol: moonlake_office_general_pickup
+  pi05-bimanual_yam-moonlake_office-pack_item_into_container:
+    policy: pi05_bimanual_yam
+    environment: bimanual_yam_moonlake_office
+    scene: moonlake_office
+    task_protocol: pack_item_into_container
+  pi05-bimanual_yam-moonlake_office-stack_blocks:
+    policy: pi05_bimanual_yam
+    environment: bimanual_yam_moonlake_office
+    scene: moonlake_office
+    task_protocol: stack_blocks
+  pi05-bimanual_yam-moonlake_office-stack_bowls:
+    policy: pi05_bimanual_yam
+    environment: bimanual_yam_moonlake_office
+    scene: moonlake_office
+    task_protocol: stack_bowls
+  lerobot_pi05_openarm-openarm_lerobot-default-fold_clothes:
+    policy: lerobot_pi05_openarm
+    environment: openarm_lerobot
+    scene: default
+    task_protocol: fold_clothes
+  smolvla-arx_x5-default-fold_clothes:
+    policy: smolvla_arx_x5
+    environment: arx_x5
+    scene: default
+    task_protocol: fold_clothes

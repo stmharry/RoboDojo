@@ -9,11 +9,16 @@ Rigid:
       rotate_rand: false
       relative_plane: Table
     category:
-      - {name: moonlake_measuring_spoon, index: [0]}
-      - {name: moonlake_phone15_dummy, index: [0]}
-      - {name: moonlake_fake_apple, index: [0]}
-      - {name: moonlake_phillips_screwdriver, index: [0]}
-      - {name: moonlake_abc_block, index: [0]}
+      - name: moonlake_measuring_spoon
+        index: [0]
+      - name: moonlake_phone15_dummy
+        index: [0]
+      - name: moonlake_fake_apple
+        index: [0]
+      - name: moonlake_phillips_screwdriver
+        index: [0]
+      - name: moonlake_abc_block
+        index: [0]
     select_mode:
       nums: 1
       mode: unique
@@ -27,7 +32,8 @@ Articulation:
       rotate_rand: false
       relative_plane: Table
     category:
-      - {name: moonlake_magnetic_gift_box, index: [0]}
+      - name: moonlake_magnetic_gift_box
+        index: [0]
     select_mode:
       nums: 1
       mode: unique
@@ -39,7 +45,8 @@ Articulation:
       rotate_rand: false
       relative_plane: Table
     category:
-      - {name: moonlake_anker_cable, index: [0]}
+      - name: moonlake_anker_cable
+        index: [0]
     select_mode:
       nums: 1
       mode: unique

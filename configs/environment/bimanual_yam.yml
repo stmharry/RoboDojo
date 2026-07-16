@@ -16,7 +16,9 @@ config:
 
 observation:
   collect_freq: 30
-  robot: {joint_states: true, world_ee_state: true}
+  robot:
+    joint_states: true
+    world_ee_state: true
   vision:
     approximate_depth: false
     depth: false
