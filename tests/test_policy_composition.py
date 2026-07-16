@@ -14,7 +14,7 @@ from robodojo.workflows.preflight import _configuration_checks
 
 ROOT = Path(__file__).resolve().parents[1]
 PATHS = RepositoryPaths.resolve(ROOT)
-PICKUP = "pi05-bimanual_yam-moonlake_office-moonlake_office_general_pickup"
+PICKUP = "pi05_pickup-bimanual_yam-moonlake_office-moonlake_office_general_pickup"
 SHIFTED = "pi05-bimanual_yam-moonlake_office-general_pickup"
 
 

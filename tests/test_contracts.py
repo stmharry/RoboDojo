@@ -32,6 +32,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PATHS = RepositoryPaths.resolve(ROOT)
 MOLMO_LONG = "molmoact2-bimanual_yam-moonlake_office-moonlake_office_general_pickup"
 PI_LONG = "pi05-bimanual_yam-moonlake_office-moonlake_office_general_pickup"
+PI_PICKUP_LONG = "pi05_pickup-bimanual_yam-moonlake_office-moonlake_office_general_pickup"
 
 
 def test_contract_documents_are_strict_and_typed():
@@ -52,7 +53,7 @@ def test_contract_documents_are_strict_and_typed():
 
 def test_catalogs_validate_without_requiring_protocol_coverage_for_every_task():
     resolved = validate_experiment_catalogs(PATHS)
-    assert len(resolved) == 24
+    assert len(resolved) == 25
 
 
 def test_runnable_task_discovery_does_not_require_a_protocol(tmp_path):
@@ -133,12 +134,22 @@ def test_task_metadata_contains_no_hidden_runtime_selectors():
 
 
 def test_recipe_resolution_validates_every_compatibility_edge():
-    long = resolve_recipe(PATHS, PI_LONG)
-    assert long.policy_name == "pi05_bimanual_yam_pickup"
-    assert long.policy.checkpoint == "pi05_yam_abc_pickplace"
-    assert long.policy_descriptor.interface.embodiment == long.environment.embodiment == "bimanual_yam"
-    assert long.scene.name == "moonlake_office"
-    assert long.task_protocol == "moonlake_office_general_pickup"
+    base = resolve_recipe(PATHS, PI_LONG)
+    assert base.policy_name == "pi05_bimanual_yam"
+    assert base.policy.checkpoint == "pi05_yam_molmoact2"
+    assert base.policy_descriptor.execution.strategy == "fixed_prefix"
+    assert base.policy_reference_match == "domain_shift"
+
+    pickup = resolve_recipe(PATHS, PI_PICKUP_LONG)
+    assert pickup.policy_name == "pi05_bimanual_yam_pickup"
+    assert pickup.policy.checkpoint == "pi05_yam_abc_pickplace"
+    assert pickup.policy_descriptor.execution.strategy == "adaptive"
+    assert pickup.policy_reference_match == "reference_match"
+
+    for experiment in (base, pickup):
+        assert experiment.policy_descriptor.interface.embodiment == experiment.environment.embodiment == "bimanual_yam"
+        assert experiment.scene.name == "moonlake_office"
+        assert experiment.task_protocol == "moonlake_office_general_pickup"
 
     with pytest.raises(ValueError, match="requires embodiment"):
         compose_experiment(
@@ -179,7 +190,7 @@ def test_selection_is_recipe_or_all_four_manual_components():
         )
 
 
-@pytest.mark.parametrize("recipe_name", [MOLMO_LONG, PI_LONG])
+@pytest.mark.parametrize("recipe_name", [MOLMO_LONG, PI_LONG, PI_PICKUP_LONG])
 def test_long_recipe_passes_base_task_and_distinct_protocol_to_runtime(recipe_name):
     experiment = resolve_recipe(PATHS, recipe_name)
     request = SimulatorLaunchRequest(
@@ -228,7 +239,7 @@ def test_policy_profiles_hold_adapter_runtime_checkpoint_and_action_contract():
     assert pickup.policy_dir == Path("XPolicyLab/policy/Pi_05")
     assert pickup.runtime == "uv"
     assert pickup.checkpoint == "pi05_yam_abc_pickplace"
-    resolved_pickup = resolve_recipe(PATHS, PI_LONG)
+    resolved_pickup = resolve_recipe(PATHS, PI_PICKUP_LONG)
     assert resolved_pickup.policy_descriptor.interface.embodiment == "bimanual_yam"
     assert resolved_pickup.policy_descriptor.execution.strategy == "adaptive"
     assert resolved_pickup.policy_descriptor.execution.maximum_execution_horizon == 50

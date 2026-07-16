@@ -91,7 +91,7 @@ recipes:
     scene: moonlake_office
     task_protocol: general_pickup
   pi05-bimanual_yam-moonlake_office-moonlake_office_general_pickup:
-    policy: pi05_bimanual_yam_pickup
+    policy: pi05_bimanual_yam
     environment: bimanual_yam_moonlake_office
     scene: moonlake_office
     task_protocol: moonlake_office_general_pickup
@@ -110,6 +110,11 @@ recipes:
     environment: bimanual_yam_moonlake_office
     scene: moonlake_office
     task_protocol: stack_bowls
+  pi05_pickup-bimanual_yam-moonlake_office-moonlake_office_general_pickup:
+    policy: pi05_bimanual_yam_pickup
+    environment: bimanual_yam_moonlake_office
+    scene: moonlake_office
+    task_protocol: moonlake_office_general_pickup
   lerobot_pi05_openarm-openarm_lerobot-default-fold_clothes:
     policy: lerobot_pi05_openarm
     environment: openarm_lerobot
