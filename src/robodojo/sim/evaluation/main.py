@@ -7,6 +7,20 @@ import os
 from pathlib import Path
 import sys
 
+import warp as _project_warp
+
+EXPECTED_WARP_VERSION = "1.11.0"
+_loaded_warp_version = getattr(_project_warp, "__version__", None)
+if _loaded_warp_version != EXPECTED_WARP_VERSION:
+    raise RuntimeError(
+        "RoboDojo must preload the project-pinned Warp "
+        f"{EXPECTED_WARP_VERSION} before Isaac Sim; loaded {_loaded_warp_version!r} "
+        f"from {getattr(_project_warp, '__file__', '<unknown>')}. "
+        "Run the simulator through the locked robodojo entrypoint."
+    )
+
+# Import only after the version guard. AppLauncher otherwise prepends Isaac
+# Sim's bundled Warp 1.8.2 before cuRobo is imported.
 from isaaclab.app import AppLauncher
 
 from robodojo.core.layouts import resolve_layout_set
@@ -21,6 +35,7 @@ from robodojo.core.workspace import validate_resolved_layout_set
 logger = logging.getLogger(__name__)
 
 configure_logging()
+logger.info("Using project-pinned Warp %s from %s", _loaded_warp_version, _project_warp.__file__)
 
 MAX_INPROC_RESTARTS = 3
 

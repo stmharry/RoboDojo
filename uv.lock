@@ -1905,7 +1905,8 @@ wheels = [
 
 [[package]]
 name = "nvidia-curobo"
-source = { editable = "third_party/curobo" }
+version = "0.8.0.post1.dev41"
+source = { git = "https://github.com/NVlabs/curobo.git?rev=3fd54dc782a82e5500a771cfd47856ea499d5fef#3fd54dc782a82e5500a771cfd47856ea499d5fef" }
 dependencies = [
     { name = "importlib-resources", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "matplotlib", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
@@ -1928,57 +1929,6 @@ cu12 = [
     { name = "cuda-core", extra = ["cu12"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "nvidia-cuda-runtime-cu12", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "anybadge", marker = "extra == 'doc'" },
-    { name = "build", marker = "extra == 'dev'" },
-    { name = "cuda-core", extras = ["cu12"], marker = "extra == 'cu12'", specifier = ">=0.7" },
-    { name = "cuda-core", extras = ["cu12"], marker = "extra == 'cu12-torch'", specifier = ">=0.6" },
-    { name = "cuda-core", extras = ["cu13"], marker = "extra == 'cu13'", specifier = ">=0.7" },
-    { name = "cuda-core", extras = ["cu13"], marker = "extra == 'cu13-torch'", specifier = ">=0.6" },
-    { name = "furo", marker = "extra == 'doc'" },
-    { name = "graphviz", marker = "extra == 'doc'", specifier = ">=0.20.1" },
-    { name = "importlib-resources" },
-    { name = "matplotlib" },
-    { name = "myst-parser", marker = "extra == 'doc'" },
-    { name = "networkx" },
-    { name = "numpy" },
-    { name = "numpy-quaternion" },
-    { name = "nvidia-cuda-runtime", marker = "extra == 'cu13'", specifier = ">=13" },
-    { name = "nvidia-cuda-runtime", marker = "extra == 'cu13-torch'", specifier = ">=13" },
-    { name = "nvidia-cuda-runtime-cu12", marker = "extra == 'cu12'", specifier = ">=12" },
-    { name = "nvidia-cuda-runtime-cu12", marker = "extra == 'cu12-torch'", specifier = ">=12" },
-    { name = "pandas", marker = "extra == 'benchmark'" },
-    { name = "pin", marker = "extra == 'benchmark'" },
-    { name = "pybind11", marker = "extra == 'pybind'" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">6.2.5,<9.0" },
-    { name = "pytest-cov", marker = "extra == 'dev'" },
-    { name = "pytest-xdist", marker = "extra == 'dev'" },
-    { name = "pyyaml" },
-    { name = "robometrics", extras = ["evaluator"], marker = "extra == 'benchmark'", git = "https://github.com/fishbotics/robometrics.git" },
-    { name = "ruff", marker = "extra == 'dev'" },
-    { name = "scipy", specifier = ">=1.7.0" },
-    { name = "seaborn", marker = "extra == 'benchmark'" },
-    { name = "setuptools-scm", specifier = ">=6.2" },
-    { name = "sphinx", marker = "extra == 'doc'" },
-    { name = "sphinx-autodoc-typehints", marker = "extra == 'doc'" },
-    { name = "sphinx-copybutton", marker = "extra == 'doc'" },
-    { name = "sphinx-reredirects", marker = "extra == 'doc'" },
-    { name = "sphinx-rtd-theme", marker = "extra == 'doc'" },
-    { name = "tabulate", marker = "extra == 'benchmark'" },
-    { name = "torch", marker = "extra == 'cu12-torch'", specifier = ">=2.5", index = "https://download.pytorch.org/whl/cu128", conflict = { package = "nvidia-curobo", extra = "cu12-torch" } },
-    { name = "torch", marker = "extra == 'cu13-torch'", specifier = ">=2.9", index = "https://download.pytorch.org/whl/cu130", conflict = { package = "nvidia-curobo", extra = "cu13-torch" } },
-    { name = "tqdm" },
-    { name = "trimesh" },
-    { name = "ty", marker = "extra == 'dev'" },
-    { name = "usd-core", marker = "extra == 'usd'" },
-    { name = "viser" },
-    { name = "warp-lang", specifier = ">=0.10.0" },
-    { name = "wheel" },
-    { name = "yourdfpy", specifier = ">=0.0.53" },
-]
-provides-extras = ["cu12", "cu13", "cu12-torch", "cu13-torch", "pybind", "usd", "dev", "doc", "benchmark"]
 
 [[package]]
 name = "nvidia-cusolver-cu12"
@@ -2751,7 +2701,7 @@ requires-dist = [
     { name = "msgpack-numpy", marker = "extra == 'sim'", specifier = ">=0.4.8" },
     { name = "networkx", marker = "extra == 'sim'", specifier = "==3.3" },
     { name = "numpy", marker = "extra == 'sim'", specifier = "==1.26.0" },
-    { name = "nvidia-curobo", extras = ["cu12"], marker = "extra == 'sim'", editable = "third_party/curobo" },
+    { name = "nvidia-curobo", extras = ["cu12"], marker = "extra == 'sim'", git = "https://github.com/NVlabs/curobo.git?rev=3fd54dc782a82e5500a771cfd47856ea499d5fef" },
     { name = "onnx", marker = "extra == 'sim'", specifier = ">=1.18,<1.22" },
     { name = "open3d", marker = "extra == 'sim'" },
     { name = "opencv-python-headless", marker = "extra == 'sim'", specifier = "==4.11.0.86" },

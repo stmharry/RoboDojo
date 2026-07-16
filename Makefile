@@ -115,7 +115,7 @@ _eval-config-check: _config-check
 	@$(call boolean_flag,PUBLISH,true)
 	@$(call boolean_flag,EXPORT_SCENE,true)
 
-setup: _config-check ## Prepare submodules, locked env, assets, policy runtime, and checkpoint
+setup: _config-check ## Prepare XPolicyLab, locked env, assets, policy runtime, and checkpoint
 	$(ROBODOJO_SETUP) setup $(CONTRACT_ARGS) --seed "$(SEED)" --policy-gpu "$(POLICY_GPU)" $(ARGS)
 
 preflight: _config-check ## Validate the configured experiment; DEEP=true checks policy readiness

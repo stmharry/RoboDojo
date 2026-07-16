@@ -39,7 +39,6 @@ ENV DEBIAN_FRONTEND=noninteractive \
     UV_LINK_MODE=copy \
     UV_PROJECT_ENVIRONMENT=/workspace/RoboDojo/.venv \
     UV_PYTHON_INSTALL_DIR=/opt/uv/python \
-    SETUPTOOLS_SCM_PRETEND_VERSION_FOR_NVIDIA_CUROBO=0.0.post1.dev100 \
     FORCE_CUDA=1 \
     TORCH_CUDA_ARCH_LIST="7.0;7.5;8.0;8.6;8.9;9.0+PTX"
 
@@ -120,14 +119,10 @@ EOF
 WORKDIR /workspace/RoboDojo
 
 # ── Locked uv environment ─────────────────────────────────────────────────────
-# Copy dependency metadata, the root package, and the cuRobo compatibility fork
-# before application code so the simulator dependency layer remains cached.
+# Copy dependency metadata and the root package before application code so the
+# simulator dependency layer, including official cuRobo, remains cached.
 COPY pyproject.toml uv.lock README.md LICENSE /workspace/RoboDojo/
 COPY src/ /workspace/RoboDojo/src/
-COPY third_party/curobo/ /workspace/RoboDojo/third_party/curobo/
-# Submodule .git files point outside the Docker context. Remove them before uv
-# asks setuptools-scm to build the local editable cuRobo package.
-RUN find /workspace/RoboDojo/third_party/curobo -name .git -prune -exec rm -rf {} + 2>/dev/null; true
 RUN uv python install 3.11 && uv sync --extra sim --locked --no-dev --no-cache
 
 # ── RoboDojo source + XPolicyLab client/adapter code ─────────────────────────

@@ -82,9 +82,9 @@ override-dependencies = [
 torch = { index = "pytorch-cu128" }
 torchvision = { index = "pytorch-cu128" }
 torchaudio = { index = "pytorch-cu128" }
-# Isaac Sim bundles Warp 1.8, which requires the source-level overload
-# registration fixes carried by the configured cuRobo compatibility fork.
-nvidia-curobo = { path = "third_party/curobo", editable = true }
+# Pin the official NVlabs revision validated with the simulator. The simulator
+# preloads this project's Warp 1.11 before Isaac Sim starts its bundled extension.
+nvidia-curobo = { git = "https://github.com/NVlabs/curobo.git", rev = "3fd54dc782a82e5500a771cfd47856ea499d5fef" }
 
 [[tool.uv.index]]
 name = "nvidia"
@@ -103,7 +103,6 @@ extend-exclude = [
     ".git",
     ".vscode",
     ".robodojo",
-    "third_party",
     "XPolicyLab",
     "logs",
     "scripts/logs",

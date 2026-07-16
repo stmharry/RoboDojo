@@ -12,6 +12,7 @@
 .pre-commit-config.yaml
 .ruff_cache/
 .venv/
+**/.venv/
 Dev/
 Untitled
 
@@ -27,11 +28,6 @@ docker/smoke_logs/
 **/.ruff_cache/
 build/
 dist/
-
-# ── cuRobo compatibility submodule build artifacts ───────────────────
-third_party/curobo/**/*.so
-third_party/curobo/**/build/
-third_party/curobo/**/*.egg-info/
 
 # ── Policy model weights / checkpoints (policy runtime lives outside) ─
 **/checkpoints/

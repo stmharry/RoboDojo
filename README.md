@@ -53,7 +53,6 @@ src/robodojo/orchestration/ coordinated policy/simulator evaluation lifecycle
 src/robodojo/workflows/     setup, assets, storage, result, and Docker workflows
 configs/                    environment, task, simulator, scene, robot, and camera YAML
 XPolicyLab/                 policy implementations and server adapters (submodule)
-third_party/curobo/         cuRobo Warp compatibility fork (submodule)
 scripts/eval_policy.sh      private compatibility shim for XPolicyLab
 ```
 
@@ -65,10 +64,11 @@ task names, schemas, and XPolicyLab's `env_cfg_type` values remain unchanged.
 ## 🚀 Local Setup
 
 RoboDojo uses a locked [uv](https://docs.astral.sh/uv/) environment with Python
-3.11. IsaacLab is pinned to its official release by uv. XPolicyLab and the
-cuRobo Warp-compatibility fork remain submodules. Install the machine
-prerequisites first: Git, Git LFS, uv, compiler/runtime tools, and NVIDIA
-drivers. Then list the tracked evaluation recipes and run one end-to-end:
+3.11. IsaacLab and the official NVlabs cuRobo repository are pinned by uv;
+XPolicyLab remains the only submodule. The simulator preloads the locked Warp
+1.11 wheel before Isaac Sim starts. Install the machine prerequisites first:
+Git, Git LFS, uv, compiler/runtime tools, and NVIDIA drivers. Then list the
+tracked evaluation recipes and run one end-to-end:
 
 ```bash
 make recipes
@@ -95,10 +95,10 @@ For paired workflows, Python assigns the most-free GPU to the simulator and the
 next-most-free GPU to the policy, breaking ties by device index. Override either
 selector with a Make argument or exported `POLICY_GPU`/`ENV_GPU`; direct CLI
 flags take precedence over those variables. `make eval` first performs the
-idempotent setup workflow, which initializes pinned submodules, synchronizes the
-locked simulator environment, prepares inferred assets, and invokes the optional
-policy preparation hook. The managed evaluation then runs fast preflight before
-launching. Inspect the deliberately small Make surface with:
+idempotent setup workflow, which initializes the pinned XPolicyLab submodule,
+synchronizes the locked simulator environment, prepares inferred assets, and
+invokes the optional policy preparation hook. The managed evaluation then runs
+fast preflight before launching. Inspect the deliberately small Make surface with:
 
 ```bash
 make help
