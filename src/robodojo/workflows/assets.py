@@ -14,8 +14,10 @@ from urllib.request import urlopen
 import yaml
 
 from robodojo.core.paths import RepositoryPaths
-from robodojo.core.profiles import EnvironmentProfile, SceneProfile
+from robodojo.core.profiles.environment import EnvironmentProfile
+from robodojo.core.profiles.scene import SceneProfile
 from robodojo.core.storage import assets_root, storage_root
+from robodojo.workflows.asset_builders.registry import AssetBuilder, AssetBuilderRegistry
 
 
 def _sha256(path: Path) -> str:
@@ -67,8 +69,8 @@ def ensure_generated_robot(paths: RepositoryPaths, name: str) -> bool:
 
     if generated_robot_error(name) is None:
         return False
-    builders = {"yam": build_yam, "openarm": build_openarm}
-    code = builders[name](paths)
+    builder = _builder_registry().get("robot", name)
+    code = builder.build(paths)
     if code != 0:
         raise RuntimeError(f"{name} asset builder exited {code}")
     if error := generated_robot_error(name):
@@ -146,13 +148,8 @@ def ensure_generated_fixture(paths: RepositoryPaths, name: str) -> bool:
 
     if generated_fixture_error(paths, name) is None:
         return False
-    builders = {
-        "moonlake_office": build_moonlake_office,
-        "moonlake_packing": build_moonlake_packing,
-    }
-    if name not in builders:
-        raise ValueError(f"unsupported generated scene asset: {name}")
-    code = builders[name](paths)
+    builder = _builder_registry().get("fixture", name)
+    code = builder.build(paths)
     if code != 0:
         raise RuntimeError(f"{name} fixture builder exited {code}")
     if error := generated_fixture_error(paths, name):
@@ -323,3 +320,34 @@ def build_moonlake_packing(paths: RepositoryPaths) -> int:
     if code == 0 and not shared_manifest.is_file():
         raise RuntimeError("Moonlake packing build completed without its shared manifest")
     return code
+
+
+def _builder_registry() -> AssetBuilderRegistry:
+    return AssetBuilderRegistry(
+        (
+            AssetBuilder(
+                name="yam",
+                kind="robot",
+                build=build_yam,
+                validate=lambda paths: generated_robot_error("yam"),
+            ),
+            AssetBuilder(
+                name="openarm",
+                kind="robot",
+                build=build_openarm,
+                validate=lambda paths: generated_robot_error("openarm"),
+            ),
+            AssetBuilder(
+                name="moonlake_office",
+                kind="fixture",
+                build=build_moonlake_office,
+                validate=lambda paths: generated_fixture_error(paths, "moonlake_office"),
+            ),
+            AssetBuilder(
+                name="moonlake_packing",
+                kind="fixture",
+                build=build_moonlake_packing,
+                validate=lambda paths: generated_fixture_error(paths, "moonlake_packing"),
+            ),
+        )
+    )

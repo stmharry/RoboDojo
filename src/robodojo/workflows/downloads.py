@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import sys
 
-from robodojo.core.models import DataFormat
+from robodojo.core.models.common import DataFormat
 from robodojo.core.paths import RepositoryPaths
 from robodojo.core.storage import assets_root, data_root, storage_root
 

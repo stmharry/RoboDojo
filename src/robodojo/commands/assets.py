@@ -6,7 +6,7 @@ import typer
 
 from robodojo.commands.common import paths
 from robodojo.commands.options import RepositoryRootOption, RevisionOption
-from robodojo.core.models import DataFormat
+from robodojo.core.models.common import DataFormat
 
 assets_app = typer.Typer(no_args_is_help=True, help="Download and build benchmark assets.")
 data_app = typer.Typer(no_args_is_help=True, help="Download benchmark datasets.")

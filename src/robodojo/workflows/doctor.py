@@ -10,9 +10,10 @@ import sys
 
 from robodojo.core.calibration import load_hardware_calibration
 from robodojo.core.layouts import resolve_layout_set
-from robodojo.core.models import SimulatorLaunchRequest
+from robodojo.core.models.experiment import ExperimentSpec
+from robodojo.core.models.requests import SimulatorLaunchRequest
 from robodojo.core.paths import RepositoryPaths
-from robodojo.core.profiles import load_environment_profile
+from robodojo.core.profiles.environment import load_environment_profile
 from robodojo.core.storage import assets_root
 from robodojo.sim.launcher import resolve_scene_profile
 from robodojo.sim.scene_assets import validate_scene_assets
@@ -21,13 +22,8 @@ from robodojo.workflows.task_inventory import build_inventory
 
 def run_doctor(
     paths: RepositoryPaths,
-    task: str,
-    protocol_name: str,
-    episode_horizon: int,
-    native_eval_num: int,
-    env_config: str,
+    experiment: ExperimentSpec,
     policy_dir: Path | None = None,
-    scene_config: str = "",
 ) -> int:
     checks: list[tuple[str, bool, str]] = []
     selected_scene = None
@@ -41,19 +37,14 @@ def run_doctor(
     record("git-lfs", subprocess.run(["git", "lfs", "version"], capture_output=True).returncode == 0, "git lfs")
 
     try:
-        profile = load_environment_profile(paths, env_config, validate_calibration=False)
+        profile = load_environment_profile(paths, experiment.environment, validate_calibration=False)
         record("environment config", True, str(profile.path))
         selected_scene = resolve_scene_profile(
             paths,
             SimulatorLaunchRequest(
-                task=task,
-                protocol_name=protocol_name,
-                episode_horizon=episode_horizon,
-                native_eval_num=native_eval_num,
+                experiment=experiment,
                 policy_name="doctor",
                 port=1,
-                env_config=env_config,
-                scene_config=scene_config,
                 additional_info="doctor",
             ),
         )
@@ -72,7 +63,7 @@ def run_doctor(
                 benchmark="RoboDojo",
                 layout_set=selected_scene.document.layout_set,
                 layout_source=selected_scene.document.layout_source,
-                task=task,
+                task=experiment.task,
                 seed=0,
             )
             record(
@@ -83,7 +74,7 @@ def run_doctor(
         except (OSError, ValueError) as exc:
             record("layout set", False, str(exc))
         try:
-            recipes = validate_scene_assets(selected_scene, task)
+            recipes = validate_scene_assets(selected_scene, experiment.task)
             record("scene asset inputs", True, f"{len(recipes)} typed recipe(s)")
         except (OSError, ValueError) as exc:
             record("scene asset inputs", False, str(exc))
@@ -94,9 +85,9 @@ def run_doctor(
     except Exception as exc:
         record("environment config", False, str(exc))
 
-    task_path = paths.task_configs / f"{task}.yml"
+    task_path = paths.task_configs / f"{experiment.task}.yml"
     record("task config", task_path.is_file(), str(task_path))
-    inventory = build_inventory()
+    inventory = build_inventory(paths)
     broken = [item["name"] for item in inventory["tasks"] if not item["runnable"]]
     record("task inventory", not broken, ", ".join(broken) if broken else f"{inventory['counts']['runnable']} runnable")
 

@@ -13,12 +13,18 @@ from typing import Callable
 import yaml
 
 from robodojo.core.gpu import GpuSelectionError, resolve_gpus
-from robodojo.core.models import SetupReport, SetupRequest, SetupStage, SetupStageResult, SimulatorLaunchRequest
-from robodojo.core.paths import RepositoryPaths
-from robodojo.core.profiles import (
-    load_environment_profile,
-    validate_scene_environment_compatibility,
+from robodojo.core.models.reports import (
+    SetupReport,
+    SetupStageResult,
 )
+from robodojo.core.models.requests import (
+    SetupRequest,
+    SetupStage,
+    SimulatorLaunchRequest,
+)
+from robodojo.core.paths import RepositoryPaths
+from robodojo.core.profiles.environment import load_environment_profile
+from robodojo.core.profiles.scene import validate_scene_environment_compatibility
 from robodojo.core.storage import assets_root
 from robodojo.policy.adapter import policy_hook_command, policy_launch_environment
 from robodojo.sim.launcher import resolve_scene_profile
@@ -203,18 +209,12 @@ def _root_environment_stage(paths: RepositoryPaths) -> SetupStageResult:
 
 
 def _asset_context(paths: RepositoryPaths, request: SetupRequest):
-    profile = load_environment_profile(paths, request.env_config)
+    experiment = request.require_experiment()
+    profile = load_environment_profile(paths, experiment.environment)
     simulator = SimulatorLaunchRequest(
-        task=request.task,
-        protocol_name=request.protocol,
-        episode_horizon=request.episode_horizon,
-        native_eval_num=request.native_eval_num,
-        recipe=request.recipe,
-        contract_hash=request.contract_hash,
-        policy_name=request.policy_dir.name if request.policy_dir else "setup",
+        experiment=experiment,
+        policy_name=experiment.policy_dir.name,
         port=1,
-        env_config=request.env_config,
-        scene_config=request.scene_config,
         additional_info="setup",
     )
     scene = resolve_scene_profile(paths, simulator)
@@ -223,12 +223,13 @@ def _asset_context(paths: RepositoryPaths, request: SetupRequest):
 
 
 def _asset_selection_stage(paths: RepositoryPaths, request: SetupRequest) -> SetupStageResult:
+    experiment = request.require_experiment()
     tasks = {item["name"] for item in build_inventory()["tasks"] if item["runnable"]}
-    if request.task not in tasks:
+    if experiment.task not in tasks:
         return _stage(
             "experiment_selection",
             "FAIL",
-            f"unknown or unrunnable task: {request.task}",
+            f"unknown or unrunnable task: {experiment.task}",
             "run make tasks and select a valid TASK",
         )
     try:
@@ -243,7 +244,7 @@ def _asset_selection_stage(paths: RepositoryPaths, request: SetupRequest) -> Set
     return _stage(
         "experiment_selection",
         "READY",
-        f"{request.task} uses environment {profile.name} and scene {scene.name}",
+        f"{experiment.task} uses environment {profile.name} and scene {scene.name}",
     )
 
 
@@ -257,21 +258,24 @@ def _base_assets_stage(paths: RepositoryPaths) -> SetupStageResult:
 
 
 def _generated_assets_stages(paths: RepositoryPaths, request: SetupRequest) -> list[SetupStageResult]:
+    experiment = request.require_experiment()
     profile, scene = _asset_context(paths, request)
     stages: list[SetupStageResult] = []
     for name in required_robot_builds(profile):
         changed = ensure_generated_robot(paths, name)
         stages.append(_stage(f"robot_asset[{name}]", "CHANGED" if changed else "READY", "manifest verified"))
-    for name in required_fixture_builds(scene, request.task):
+    for name in required_fixture_builds(scene, experiment.task):
         changed = ensure_generated_fixture(paths, name)
         stages.append(_stage(f"scene_asset[{name}]", "CHANGED" if changed else "READY", "manifest verified"))
     try:
-        inspect_scene_assets(scene, request.task)
+        inspect_scene_assets(scene, experiment.task)
     except (FileNotFoundError, RuntimeError, ValueError):
-        prepare_scene_assets(scene, request.task)
-        stages.append(_stage("task_scene_assets", "CHANGED", f"prepared assets for {scene.name}/{request.task}"))
+        prepare_scene_assets(scene, experiment.task)
+        stages.append(_stage("task_scene_assets", "CHANGED", f"prepared assets for {scene.name}/{experiment.task}"))
     else:
-        stages.append(_stage("task_scene_assets", "READY", f"prepared assets verified for {scene.name}/{request.task}"))
+        stages.append(
+            _stage("task_scene_assets", "READY", f"prepared assets verified for {scene.name}/{experiment.task}")
+        )
     return stages
 
 
@@ -310,8 +314,8 @@ def _policy_stage(paths: RepositoryPaths, request: SetupRequest) -> SetupStageRe
     if check is not None:
         ready = subprocess.run(
             check,
-            cwd=policy.policy_dir.expanduser().resolve(),
-            env={**environment, **policy_launch_environment(policy.checkpoint)},
+            cwd=policy.experiment.policy_dir.expanduser().resolve(),
+            env={**environment, **policy_launch_environment(policy.experiment.checkpoint)},
             capture_output=True,
             text=True,
             check=False,
@@ -321,7 +325,7 @@ def _policy_stage(paths: RepositoryPaths, request: SetupRequest) -> SetupStageRe
             return _stage("policy", "READY", _command_detail(ready))
     result = subprocess.run(
         prepare,
-        cwd=policy.policy_dir.expanduser().resolve(),
+        cwd=policy.experiment.policy_dir.expanduser().resolve(),
         env=environment,
         capture_output=True,
         text=True,
@@ -332,8 +336,8 @@ def _policy_stage(paths: RepositoryPaths, request: SetupRequest) -> SetupStageRe
     if check is not None:
         verified = subprocess.run(
             check,
-            cwd=policy.policy_dir.expanduser().resolve(),
-            env={**environment, **policy_launch_environment(policy.checkpoint)},
+            cwd=policy.experiment.policy_dir.expanduser().resolve(),
+            env={**environment, **policy_launch_environment(policy.experiment.checkpoint)},
             capture_output=True,
             text=True,
             check=False,

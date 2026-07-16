@@ -10,7 +10,7 @@ import typer
 
 from robodojo.commands.common import workflow_error
 from robodojo.commands.options import ResultEnvironmentOption, ResultSceneOption, ResultsRootOption
-from robodojo.core.scene_identity import ArtifactSchemaError
+from robodojo.core.artifacts.results import ArtifactSchemaError
 from robodojo.workflows.errors import ResultsError
 
 results_app = typer.Typer(no_args_is_help=True, help="Analyze evaluation results.")

@@ -4,20 +4,23 @@ from __future__ import annotations
 
 import typer
 
-from robodojo.commands.common import contract_values, model, paths
+from robodojo.commands.common import experiment_spec, model, paths
 from robodojo.commands.options import (
     EnvironmentOption,
     PolicyGpuOption,
     PolicyProfileOption,
-    ProtocolOption,
     RecipeOption,
     ReportFormat,
     ReportFormatOption,
     RepositoryRootOption,
     SceneOption,
     SeedOption,
+    TaskProtocolOption,
 )
-from robodojo.core.models import SetupRequest, SetupStage
+from robodojo.core.models.requests import (
+    SetupRequest,
+    SetupStage,
+)
 
 
 def setup(
@@ -30,7 +33,7 @@ def setup(
     policy_profile: PolicyProfileOption = None,
     environment: EnvironmentOption = None,
     scene: SceneOption = None,
-    protocol: ProtocolOption = None,
+    task_protocol: TaskProtocolOption = None,
     seed: SeedOption = 0,
     policy_gpu: PolicyGpuOption = "auto",
     output_format: ReportFormatOption = ReportFormat.HUMAN,
@@ -41,19 +44,19 @@ def setup(
 
     repository = paths(root)
     selected = set(only or tuple(SetupStage))
-    contract = {}
+    experiment = None
     if selected != {SetupStage.ROOT}:
-        contract = contract_values(
+        experiment = experiment_spec(
             repository,
             recipe=recipe,
             policy_profile=policy_profile,
             environment=environment,
             scene=scene,
-            protocol=protocol,
+            task_protocol=task_protocol,
         )
     request = model(
         SetupRequest,
-        **contract,
+        experiment=experiment,
         stages=tuple(only or ()),
         seed=seed,
         policy_gpu=policy_gpu,
