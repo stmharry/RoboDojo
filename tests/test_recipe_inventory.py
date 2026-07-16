@@ -37,6 +37,7 @@ def test_recipe_table_groups_deterministically_without_tsv_output():
         "Policy: molmoact2_bimanual_yam",
         "Policy: pi05_arx_x5",
         "Policy: pi05_bimanual_yam",
+        "Policy: pi05_bimanual_yam_pickup",
         "Policy: smolvla_arx_x5",
     ]
     assert [result.stdout.index(heading) for heading in headings] == sorted(

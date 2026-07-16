@@ -95,6 +95,8 @@ def test_task_metadata_contains_no_hidden_runtime_selectors():
 
 def test_recipe_resolution_validates_every_compatibility_edge():
     long = resolve_recipe(PATHS, PI_LONG)
+    assert long.policy_name == "pi05_bimanual_yam_pickup"
+    assert long.policy.checkpoint == "pi05_yam_abc_pickplace"
     assert long.policy.embodiment == long.environment.policy_contract == "bimanual_yam"
     assert long.scene.name == "moonlake_office"
     assert long.protocol_name == "moonlake_office_general_pickup"
@@ -183,6 +185,14 @@ def test_policy_profiles_hold_adapter_runtime_checkpoint_and_action_contract():
     assert pi.embodiment == "bimanual_yam"
     assert pi.dataset == "RoboDojo"
     assert pi.action_type == "joint"
+
+    pickup = policies["pi05_bimanual_yam_pickup"]
+    assert pickup.policy_dir == Path("XPolicyLab/policy/Pi_05")
+    assert pickup.runtime == "uv"
+    assert pickup.checkpoint == "pi05_yam_abc_pickplace"
+    assert pickup.embodiment == "bimanual_yam"
+    assert pickup.dataset == "RoboDojo"
+    assert pickup.action_type == "joint"
 
 
 def test_protocol_identity_owns_result_paths_and_wrapper_horizon():
