@@ -48,6 +48,7 @@ root:
 ```bash
 uv run --extra sim --locked robodojo snapshots
 uv run --extra sim --locked robodojo snapshots --export-scene
+uv run --extra sim --locked robodojo snapshots --publish
 ```
 
 The batch root contains `summary.json`, `summary.md`, and an offline
@@ -60,7 +61,9 @@ Use repeated `--recipe` flags for a subset, `--seed` and `--layout-id` to choose
 the layout, and `--output-dir` to name a stable batch directory. An interrupted
 explicit batch can be continued with `--resume`; only exact completed bundles
 are reused. The snapshot workflow performs simulator-side preflight and never
-requires a policy runtime or checkpoint.
+requires a policy runtime or checkpoint. `--publish` validates remote storage
+before starting Isaac and uploads the complete batch only after every selected
+recipe succeeds.
 
 ## Optional S3 remote
 
@@ -78,11 +81,13 @@ requested:
 
 ```bash
 robodojo eval --publish <other-eval-options>
+robodojo snapshots --publish <other-snapshot-options>
 ```
 
 The Make workflow stays local by default. Opt in for one run with
-`make eval PUBLISH=true`, or keep the opt-in as a machine default in `.env`;
-only the `eval` target consumes this setting, not client or sweep commands.
+`make eval PUBLISH=true` or `make snapshots PUBLISH=true`, or keep the opt-in
+as a machine default in `.env`; only the `eval` and `snapshots` targets consume
+this setting, not client or sweep commands.
 
 Inspect the writable local root and optional remote access with:
 
@@ -99,12 +104,13 @@ robodojo storage publish-checkpoint SmolVLA run-10000 /local/checkpoints/run-100
 robodojo storage publish .robodojo/datasets/example datasets/example
 ```
 
-With `--publish`, a successful evaluation publishes its completed timestamped
-run exactly once through the typed storage API. Dry runs, failed evaluations,
-smoke runs, and benchmark sweeps never publish. RoboDojo validates the S3
-prefix and AWS CLI before starting the expensive evaluation; an upload failure
-returns nonzero but leaves the local result in place. Payload files are
-uploaded first, followed by `_MANIFEST.json`,
+With `--publish`, a successful evaluation or fully completed snapshot batch
+publishes its timestamped run exactly once through the typed storage API.
+Snapshot batches are stored below `runs/snapshots/<run-id>`. Dry runs, failed
+evaluations or snapshots, smoke runs, and benchmark sweeps never publish.
+RoboDojo validates the S3 prefix and AWS CLI before starting expensive work; an
+upload failure returns nonzero but leaves the local result in place. Payload
+files are uploaded first, followed by `_MANIFEST.json`,
 `_result.json` when present, and `_COMPLETE.json` last. Completed remote
 destinations are immutable unless `--replace` is explicit.
 

@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 
+from robodojo.core.models import SnapshotSummary
 from robodojo.core.scene_identity import ArtifactSchemaError, require_current_result_artifact
 from robodojo.core.storage import eval_work_root, s3_uri, storage_root
 
@@ -22,6 +23,7 @@ EXCLUDED_DIRS = {".cache", ".git"}
 EXCLUDED_SUFFIXES = (".lock", ".partial", ".part", ".tmp", ".incomplete")
 CANONICAL_TOP_LEVEL = {"assets", "datasets", "model_weights", "runs"}
 EVALUATION_PREFIX = Path("runs/eval_result/RoboDojo")
+SNAPSHOT_PREFIX = Path("runs/snapshots")
 
 
 def _aws(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -255,6 +257,35 @@ def publish_evaluation_run(run_id: str, *, replace: bool = False, dry_run: bool 
     source = _find_eval_run(run_id)
     relative = str(Path("runs/eval_result/RoboDojo") / source.resolve().relative_to(eval_work_root().resolve()))
     publish(source, relative, replace=replace, dry_run=dry_run)
+
+
+def publish_snapshot_run(
+    run_id: str,
+    source: Path,
+    *,
+    replace: bool = False,
+    dry_run: bool = False,
+) -> None:
+    """Publish one complete, successful first-frame snapshot batch."""
+    source = source.expanduser().resolve()
+    summary_path = source / "summary.json"
+    try:
+        summary = SnapshotSummary.model_validate_json(summary_path.read_text(encoding="utf-8"))
+    except (OSError, TypeError, ValueError) as exc:
+        raise SystemExit(f"snapshot summary is invalid: {summary_path}: {exc}") from exc
+    if summary.run_id != run_id:
+        raise SystemExit(f"snapshot summary run id {summary.run_id!r} does not match {run_id!r}")
+    if Path(summary.output_dir).expanduser().resolve() != source:
+        raise SystemExit(f"snapshot summary output does not match publication source: {source}")
+    if tuple(record.recipe for record in summary.results) != summary.recipes:
+        raise SystemExit("snapshot summary recipe results do not match the selected recipes")
+    if (
+        not summary.results
+        or not summary.complete
+        or any(record.status not in {"PASS", "SKIP"} for record in summary.results)
+    ):
+        raise SystemExit(f"snapshot batch is not complete and successful: {summary_path}")
+    publish(source, str(SNAPSHOT_PREFIX / run_id), replace=replace, dry_run=dry_run)
 
 
 def _verify_materialized(path: Path) -> None:

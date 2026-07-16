@@ -8,6 +8,7 @@ import sys
 
 import pytest
 
+from robodojo.core.models import SnapshotRecord, SnapshotSummary
 from robodojo.core.scene_identity import ARTIFACT_SCHEMA_VERSION
 from robodojo.workflows import storage as storage_cli
 
@@ -140,6 +141,48 @@ def test_publish_evaluation_run_requires_current_result_before_dry_run(monkeypat
 
     with pytest.raises(SystemExit, match="artifact_schema_version mismatch"):
         storage_cli.publish_evaluation_run("legacy-run", dry_run=True)
+
+
+def test_publish_snapshot_run_requires_success_and_uses_snapshot_destination(monkeypatch, tmp_path):
+    source = tmp_path / "snapshot-run"
+    source.mkdir()
+    record = SnapshotRecord(
+        status="PASS",
+        recipe="pi05-arx_x5-default-fold_clothes",
+        policy="pi05_arx_x5",
+        environment="arx_x5",
+        scene="default",
+        protocol="fold_clothes",
+        task="fold_clothes",
+        contract_hash="a" * 64,
+        exit_code=0,
+        output_dir=str(source / "pi05-arx_x5-default-fold_clothes"),
+    )
+    summary = SnapshotSummary(
+        run_id="snapshot-run",
+        output_dir=str(source.resolve()),
+        seed=0,
+        layout_id=0,
+        export_scene=False,
+        recipes=(record.recipe,),
+        complete=True,
+        results=[record],
+    )
+    (source / "summary.json").write_text(summary.model_dump_json(), encoding="utf-8")
+    published = []
+    monkeypatch.setattr(
+        storage_cli,
+        "publish",
+        lambda path, relative, **kwargs: published.append((path, relative, kwargs)),
+    )
+
+    storage_cli.publish_snapshot_run("snapshot-run", source)
+    assert published == [(source.resolve(), "runs/snapshots/snapshot-run", {"replace": False, "dry_run": False})]
+
+    failed = summary.model_copy(update={"results": [record.model_copy(update={"status": "FAIL", "exit_code": 1})]})
+    (source / "summary.json").write_text(failed.model_dump_json(), encoding="utf-8")
+    with pytest.raises(SystemExit, match="not complete and successful"):
+        storage_cli.publish_snapshot_run("snapshot-run", source)
 
 
 def test_publish_rejects_completed_destination(monkeypatch, tmp_path):

@@ -112,6 +112,7 @@ def test_make_snapshots_defaults_to_all_and_forwards_optional_scene_bundle():
     assert '--seed "0"' in default.stdout
     assert '--layout-id "0"' in default.stdout
     assert "--export-scene" not in default.stdout
+    assert "--publish" not in default.stdout
 
     selected = run_make(
         "-n",
@@ -120,18 +121,26 @@ def test_make_snapshots_defaults_to_all_and_forwards_optional_scene_bundle():
         "LAYOUT_ID=3",
         "SNAPSHOT_DIR=/tmp/frames",
         "EXPORT_SCENE=true",
+        "PUBLISH=true",
     )
     assert selected.returncode == 0, selected.stderr
     assert f'--recipe "{RECIPE}"' in selected.stdout
     assert '--layout-id "3"' in selected.stdout
     assert '--output-dir "/tmp/frames"' in selected.stdout
     assert "--export-scene" in selected.stdout
+    assert "--publish" in selected.stdout
 
 
 def test_make_snapshots_rejects_invalid_layout_id():
     result = run_make("snapshots", "LAYOUT_ID=-1")
     assert result.returncode != 0
     assert "LAYOUT_ID must be a nonnegative integer" in result.stderr
+
+
+def test_make_snapshots_rejects_invalid_publish_value():
+    result = run_make("snapshots", "PUBLISH=maybe")
+    assert result.returncode != 0
+    assert "PUBLISH must be true or false" in result.stderr
 
 
 def test_make_rejects_invalid_controls():

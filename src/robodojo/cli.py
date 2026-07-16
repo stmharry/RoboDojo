@@ -193,6 +193,11 @@ def snapshots(
         "--export-scene",
         help="Also create the existing referenced USDA, flattened USDC, and preview USDZ scene bundle.",
     ),
+    publish: bool = typer.Option(
+        False,
+        "--publish",
+        help="Publish the completed batch to immutable snapshot storage after every recipe succeeds.",
+    ),
     resume: bool = typer.Option(
         False,
         "--resume",
@@ -225,6 +230,7 @@ def snapshots(
         env_gpu=env_gpu,
         output_dir=output_dir,
         export_scene=export_scene,
+        publish=publish,
         resume=resume,
         fail_fast=fail_fast,
         dry_run=dry_run,

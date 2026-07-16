@@ -1,10 +1,12 @@
 from hashlib import sha256
 import json
 from pathlib import Path
+import subprocess
 from types import SimpleNamespace
 
 import numpy as np
 from PIL import Image
+import pytest
 from typer.testing import CliRunner
 
 from robodojo.cli import app
@@ -148,6 +150,7 @@ def test_snapshots_cli_defaults_to_all_and_accepts_explicit_recipes(monkeypatch,
             "--output-dir",
             str(tmp_path),
             "--export-scene",
+            "--publish",
             "--root",
             str(ROOT),
         ],
@@ -156,10 +159,12 @@ def test_snapshots_cli_defaults_to_all_and_accepts_explicit_recipes(monkeypatch,
     assert default.exit_code == selected.exit_code == 0
     assert requests[0].recipes == ()
     assert requests[0].dry_run is True
+    assert requests[0].publish is False
     assert requests[1].recipes == (RECIPE,)
     assert requests[1].layout_id == 2
     assert requests[1].env_gpu == 4
     assert requests[1].export_scene is True
+    assert requests[1].publish is True
 
 
 def test_snapshots_cli_rejects_duplicate_recipe_selection():
@@ -245,6 +250,7 @@ def _write_fake_capture(request: SnapshotCaptureRequest) -> int:
 
 def test_snapshot_batch_writes_gallery_and_resumes_exact_bundle(monkeypatch, tmp_path):
     calls = []
+    published = []
 
     def capture(paths, request):
         calls.append(request)
@@ -252,6 +258,12 @@ def test_snapshot_batch_writes_gallery_and_resumes_exact_bundle(monkeypatch, tmp
 
     output = tmp_path / "batch"
     monkeypatch.setattr(snapshots, "run_snapshot_capture", capture)
+    monkeypatch.setattr(snapshots, "_publication_prerequisites", lambda: 0)
+    monkeypatch.setattr(
+        snapshots,
+        "publish_snapshot_run",
+        lambda run_id, source: published.append((run_id, source)),
+    )
     request = SnapshotBatchRequest(
         recipes=(RECIPE,),
         env_gpu=0,
@@ -267,20 +279,34 @@ def test_snapshot_batch_writes_gallery_and_resumes_exact_bundle(monkeypatch, tmp
     assert "scene_preview.usdz" in page
     assert "cam_head.png" in page
 
-    resumed = request.model_copy(update={"resume": True})
+    resumed = request.model_copy(update={"resume": True, "publish": True})
     assert snapshots.run_snapshot_batch(paths, resumed) == 0
     assert len(calls) == 1
+    assert published == [("batch", output.resolve())]
     summary = SnapshotSummary.model_validate_json((output / "summary.json").read_text(encoding="utf-8"))
     assert summary.results[0].status == "SKIP"
 
 
 def test_zero_exit_without_artifacts_is_a_failed_snapshot(monkeypatch, tmp_path):
+    published = []
+    monkeypatch.setattr(snapshots, "_publication_prerequisites", lambda: 0)
+    monkeypatch.setattr(
+        snapshots,
+        "publish_snapshot_run",
+        lambda *args: published.append(args),
+    )
     monkeypatch.setattr(snapshots, "run_snapshot_capture", lambda paths, request: 0)
-    request = SnapshotBatchRequest(recipes=(RECIPE,), env_gpu=0, output_dir=tmp_path / "empty")
+    request = SnapshotBatchRequest(
+        recipes=(RECIPE,),
+        env_gpu=0,
+        output_dir=tmp_path / "empty",
+        publish=True,
+    )
     assert snapshots.run_snapshot_batch(RepositoryPaths.resolve(ROOT), request) == 1
     summary = SnapshotSummary.model_validate_json((tmp_path / "empty/summary.json").read_text(encoding="utf-8"))
     assert summary.results[0].status == "FAIL"
     assert "incomplete" in summary.results[0].message
+    assert published == []
 
 
 def test_snapshot_dry_run_reports_launch_failures(monkeypatch, tmp_path):
@@ -293,6 +319,132 @@ def test_snapshot_dry_run_reports_launch_failures(monkeypatch, tmp_path):
     )
     assert snapshots.run_snapshot_batch(RepositoryPaths.resolve(ROOT), request) == 2
     assert not request.output_dir.exists()
+
+
+@pytest.mark.parametrize(
+    ("remote", "aws_path", "message"),
+    [
+        (None, "/usr/bin/aws", "ROBODOJO_S3_URI"),
+        ("https://bucket/robodojo", "/usr/bin/aws", "ROBODOJO_S3_URI"),
+        ("s3://bucket/robodojo", None, "AWS CLI"),
+    ],
+)
+def test_snapshot_publish_prerequisites_fail_before_capture(
+    monkeypatch,
+    tmp_path,
+    caplog,
+    remote,
+    aws_path,
+    message,
+):
+    monkeypatch.setattr(snapshots, "s3_uri", lambda: remote)
+    monkeypatch.setattr(snapshots.shutil, "which", lambda name: aws_path)
+    monkeypatch.setattr(
+        snapshots,
+        "run_snapshot_capture",
+        lambda *args: pytest.fail("snapshot capture should not start"),
+    )
+    output = tmp_path / "publish-prerequisite"
+    request = SnapshotBatchRequest(
+        recipes=(RECIPE,),
+        env_gpu=0,
+        output_dir=output,
+        publish=True,
+    )
+
+    assert snapshots.run_snapshot_batch(RepositoryPaths.resolve(ROOT), request) == 2
+    assert message in caplog.text
+    assert not output.exists()
+
+
+def test_snapshot_publish_dry_run_skips_prerequisites_and_publication(monkeypatch, tmp_path):
+    captures = []
+    monkeypatch.setattr(snapshots, "s3_uri", lambda: pytest.fail("S3 should not be inspected"))
+    monkeypatch.setattr(
+        snapshots.shutil,
+        "which",
+        lambda name: pytest.fail("AWS CLI should not be inspected"),
+    )
+    monkeypatch.setattr(
+        snapshots,
+        "publish_snapshot_run",
+        lambda *args: pytest.fail("dry run should not publish"),
+    )
+    monkeypatch.setattr(
+        snapshots,
+        "run_snapshot_capture",
+        lambda paths, request: captures.append(request) or 0,
+    )
+    output = tmp_path / "publish-dry-run"
+    request = SnapshotBatchRequest(
+        recipes=(RECIPE,),
+        env_gpu=0,
+        output_dir=output,
+        publish=True,
+        dry_run=True,
+    )
+
+    assert snapshots.run_snapshot_batch(RepositoryPaths.resolve(ROOT), request) == 0
+    assert len(captures) == 1
+    assert not output.exists()
+
+
+def test_successful_snapshot_batch_publishes_once(monkeypatch, tmp_path):
+    published = []
+    output = tmp_path / "published-batch"
+    monkeypatch.setattr(snapshots, "_publication_prerequisites", lambda: 0)
+    monkeypatch.setattr(snapshots, "run_snapshot_capture", lambda paths, request: _write_fake_capture(request))
+    monkeypatch.setattr(
+        snapshots,
+        "publish_snapshot_run",
+        lambda run_id, source: published.append((run_id, source)),
+    )
+    request = SnapshotBatchRequest(
+        recipes=(RECIPE,),
+        env_gpu=0,
+        output_dir=output,
+        publish=True,
+    )
+
+    assert snapshots.run_snapshot_batch(RepositoryPaths.resolve(ROOT), request) == 0
+    assert published == [("published-batch", output.resolve())]
+
+
+@pytest.mark.parametrize(
+    ("failure", "expected_code", "message"),
+    [
+        (SystemExit("remote destination is already complete"), 1, "already complete"),
+        (subprocess.CalledProcessError(5, ["aws"], stderr="access denied"), 5, "access denied"),
+        (OSError("aws executable failed"), 1, "aws executable failed"),
+    ],
+)
+def test_snapshot_publication_failure_preserves_local_batch(
+    monkeypatch,
+    tmp_path,
+    caplog,
+    failure,
+    expected_code,
+    message,
+):
+    output = tmp_path / "publish-failure"
+    monkeypatch.setattr(snapshots, "_publication_prerequisites", lambda: 0)
+    monkeypatch.setattr(snapshots, "run_snapshot_capture", lambda paths, request: _write_fake_capture(request))
+
+    def fail_publish(run_id, source):
+        raise failure
+
+    monkeypatch.setattr(snapshots, "publish_snapshot_run", fail_publish)
+    request = SnapshotBatchRequest(
+        recipes=(RECIPE,),
+        env_gpu=0,
+        output_dir=output,
+        publish=True,
+    )
+
+    assert snapshots.run_snapshot_batch(RepositoryPaths.resolve(ROOT), request) == expected_code
+    assert message in caplog.text
+    assert (output / "summary.json").is_file()
+    assert (output / RECIPE / "first_frame/contact_sheet.png").is_file()
 
 
 def test_gallery_escapes_failure_messages_and_requires_no_network(tmp_path):

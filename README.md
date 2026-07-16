@@ -110,6 +110,7 @@ starting a policy server:
 ```bash
 make snapshots
 make snapshots EXPORT_SCENE=true
+make snapshots PUBLISH=true
 ```
 
 The first command writes every configured camera PNG, a per-recipe contact
@@ -118,7 +119,9 @@ sheet, structured summaries, and an offline `index.html` gallery below
 normal scene exporter to add referenced USDA, flattened USDC, and preview USDZ
 bundles. Use `RECIPES="<name> ..."`, `LAYOUT_ID=<n>`, or `SNAPSHOT_DIR=<path>`
 to narrow or relocate a batch. Completed explicit output directories can be
-continued with `ARGS=--resume`.
+continued with `ARGS=--resume`. Publication remains off by default;
+`PUBLISH=true` uploads a fully successful batch to the immutable
+`runs/snapshots/<run-id>` location below `ROBODOJO_S3_URI`.
 
 Make is the opinionated argument- and environment-driven interface. The CLI is
 explicit and reads runtime settings from the process environment only; support

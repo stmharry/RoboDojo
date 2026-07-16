@@ -312,6 +312,7 @@ class SnapshotBatchRequest(StrictModel):
     layout_id: NonNegativeInt = 0
     output_dir: Path | None = None
     export_scene: bool = False
+    publish: bool = False
     resume: bool = False
     fail_fast: bool = False
     dry_run: bool = False

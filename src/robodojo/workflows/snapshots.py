@@ -8,6 +8,8 @@ import json
 import logging
 import os
 from pathlib import Path
+import shutil
+import subprocess
 import time
 from typing import Any
 
@@ -19,13 +21,41 @@ from robodojo.core.models import (
     SnapshotSummary,
 )
 from robodojo.core.paths import RepositoryPaths
-from robodojo.core.storage import run_work_root
+from robodojo.core.storage import run_work_root, s3_uri
 from robodojo.orchestration.snapshots import run_snapshot_capture
 from robodojo.sim.scene_export.contracts import ExportIdentity, completed_export_matches
 from robodojo.sim.scene_export.first_frame import FirstFrameIdentity, completed_first_frame_matches
 from robodojo.workflows.snapshot_gallery import render_snapshot_gallery
+from robodojo.workflows.storage import publish_snapshot_run
 
 logger = logging.getLogger(__name__)
+
+
+def _publication_prerequisites() -> int:
+    remote = s3_uri()
+    if remote is None or not remote.startswith("s3://"):
+        logger.error("--publish requires ROBODOJO_S3_URI to name a dedicated s3:// prefix")
+        return 2
+    if shutil.which("aws") is None:
+        logger.error("--publish requires the AWS CLI to be installed and available on PATH")
+        return 2
+    return 0
+
+
+def _publish_snapshot(output: Path, run_id: str) -> int:
+    try:
+        publish_snapshot_run(run_id, output)
+    except SystemExit as exc:
+        logger.error("snapshot completed, but S3 publication failed: %s", exc)
+        return exc.code if isinstance(exc.code, int) and exc.code != 0 else 1
+    except subprocess.CalledProcessError as exc:
+        detail = (exc.stderr or exc.stdout or str(exc)).strip()
+        logger.error("snapshot completed, but S3 publication failed: %s", detail)
+        return exc.returncode or 1
+    except OSError as exc:
+        logger.error("snapshot completed, but S3 publication failed: %s", exc)
+        return 1
+    return 0
 
 
 def _sha256_file(path: Path) -> str:
@@ -244,6 +274,11 @@ def run_snapshot_batch(paths: RepositoryPaths, request: SnapshotBatchRequest) ->
         results=records,
     )
 
+    if request.publish and not request.dry_run:
+        prerequisite_code = _publication_prerequisites()
+        if prerequisite_code != 0:
+            return prerequisite_code
+
     if request.dry_run:
         result = 0
         for record in summary.results:
@@ -329,4 +364,6 @@ def run_snapshot_batch(paths: RepositoryPaths, request: SnapshotBatchRequest) ->
     summary.complete = not any(record.status == "PENDING" for record in summary.results)
     _write_reports(summary, output)
     logger.info("Snapshot gallery: %s", output / "index.html")
-    return 1 if any(record.status == "FAIL" for record in summary.results) else 0
+    if not summary.complete or any(record.status == "FAIL" for record in summary.results):
+        return 1
+    return _publish_snapshot(output, run_id) if request.publish else 0

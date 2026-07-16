@@ -132,10 +132,11 @@ _snapshot-config-check:
 	@case "$(LAYOUT_ID)" in ''|*[!0-9]*) printf 'LAYOUT_ID must be a nonnegative integer.\n' >&2; exit 2;; esac
 	@case "$(ENV_GPU)" in auto) ;; ''|*[!0-9]*) printf "ENV_GPU must be 'auto' or a nonnegative integer.\n" >&2; exit 2;; esac
 	@$(call boolean_flag,EXPORT_SCENE,true)
+	@$(call boolean_flag,PUBLISH,true)
 	@$(call boolean_flag,DRY_RUN,true)
 
 snapshots: _snapshot-config-check ## Capture first-frame RGB and optional USD bundles for selected or all recipes
-	$(ROBODOJO_SIM) snapshots $(SNAPSHOT_ARGS) $(EXPORT_SCENE_FLAG) $(DRY_RUN_FLAG) $(ARGS)
+	$(ROBODOJO_SIM) snapshots $(SNAPSHOT_ARGS) $(EXPORT_SCENE_FLAG) $(PUBLISH_FLAG) $(DRY_RUN_FLAG) $(ARGS)
 
 _sweep-config-check:
 	$(call require_recipes)
