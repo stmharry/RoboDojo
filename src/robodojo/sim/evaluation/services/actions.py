@@ -9,6 +9,11 @@ logger = logging.getLogger(__name__)
 
 
 class ActionsService:
+    def _update_task_metrics(self, env_idx_list):
+        hook = getattr(self, "update_task_metrics", None)
+        if callable(hook):
+            hook(env_idx_list=env_idx_list)
+
     def get_action_type(self, action):
         action_type = []
         for robot in self.robot_manager.robot_list:
@@ -100,6 +105,7 @@ class ActionsService:
                 self._check_physx_broken_envs()
                 self._check_endpose_finite([env_idx])
         self.reward_manager.step(env_idx_list=[env_idx])
+        self._update_task_metrics([env_idx])
         if getattr(self, "interact", False):
             if hasattr(self, "query_support_arm_traj"):
                 self.query_support_arm_traj(env_idx=env_idx)
@@ -174,6 +180,7 @@ class ActionsService:
                     self._check_endpose_finite(env_idx_list)
 
         self.reward_manager.step(env_idx_list=env_idx_list)
+        self._update_task_metrics(env_idx_list)
         if getattr(self, "interact", False):
             if hasattr(self, "query_support_arm_traj"):
                 for env_idx in env_idx_list:

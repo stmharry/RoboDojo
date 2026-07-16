@@ -31,6 +31,8 @@ Articulation:
       rotate_deg: 0
       rotate_rand: false
       relative_plane: Table
+      initial_joint_positions:
+        lid_hinge: 1.658062789
     category:
       - name: moonlake_magnetic_gift_box
         index: [0]

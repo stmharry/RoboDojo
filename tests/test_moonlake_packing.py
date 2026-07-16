@@ -129,6 +129,7 @@ def test_six_packing_layouts_are_deterministic_labelled_and_reachable():
         [container] = layout["Articulation"]["moonlake_magnetic_gift_box"]
         assert container["label"] == "container"
         assert container["default_pos"] == [-0.12, 0.08, 0.75]
+        assert container["initial_joint_positions"] == {"lid_hinge": 1.658062789}
         [item] = layout[item_type][item_category]
         assert item["label"] == "item"
         assert item["category_idx"] == 0

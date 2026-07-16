@@ -16,6 +16,42 @@ logger = logging.getLogger(__name__)
 
 
 class ObjectFactoryService:
+    def _preserved_object_collection(self, env_id: int, obj_type: str):
+        if obj_type == "rigid":
+            return self._rigid_and_dynamic_objects[env_id]
+        if obj_type == "articulation":
+            return self._articulation_objects[env_id]
+        raise ValueError(f"Unsupported preserved object type: {obj_type}")
+
+    def reconcile_preserved_scene_objects(self, env_id: int, object_types: List[str]):
+        """Reuse active GPU wrappers and spawn only missing layout identities."""
+        objects_cfg = self.config.get(f"env{env_id}")
+        if not objects_cfg:
+            return
+        preserved_types = set(object_types)
+        for physics_type, categories in objects_cfg.items():
+            if physics_type in ["Light", "Room", "Ground", "Background", "Table"]:
+                continue
+            for cat_name, records in categories.items():
+                if self.is_global_config_key(cat_name):
+                    continue
+                for inst_cfg in records:
+                    obj_type = inst_cfg.get("physics", {}).get("type", "rigid")
+                    if obj_type not in preserved_types or obj_type not in {"rigid", "articulation"}:
+                        continue
+                    inst_name = inst_cfg["inst_name"]
+                    collection = self._preserved_object_collection(env_id, obj_type)
+                    obj = collection.get(inst_name)
+                    if obj is None:
+                        self.spawn_category_objects(env_id, cat_name, [inst_cfg])
+                        continue
+                    obj.configure_saved_layout(
+                        inst_cfg,
+                        inst_cfg.get("default_pos", (0.0, 0.0, 0.0)),
+                        inst_cfg.get("default_ori", (1.0, 0.0, 0.0, 0.0)),
+                        inst_cfg.get("scale", (1, 1, 1)),
+                    )
+
     def spawn_category_objects(
         self,
         env_id: int,

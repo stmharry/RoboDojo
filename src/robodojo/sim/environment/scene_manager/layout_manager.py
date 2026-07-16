@@ -65,7 +65,7 @@ class LayoutManager(LayoutStateService, FixtureSelectionService, SpatialQueriesS
         self.layout_valid = [True] * self.num_envs
         self.env_roots = [f"/World/envs/env_{env_idx}" for env_idx in range(self.num_envs)]
         self.caption_info = dict()
-        self._object_id_counters = 0
+        self._object_id_counters: list[dict[tuple[str, str, int], int]] = [{} for _ in range(self.num_envs)]
         self.scene_config = scene_config
         self.task_config = task_config
         self.process_config()

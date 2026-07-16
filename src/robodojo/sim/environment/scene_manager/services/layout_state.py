@@ -77,6 +77,10 @@ class LayoutStateService:
                 merged = OmegaConf.merge(deepcopy(defaults), deepcopy(env_config.get(fixture) or {}))
                 env_config[fixture] = OmegaConf.to_container(merged, resolve=True)
         self.clear_layout_state([env_idx])
+        # Object identities are layout-local rather than process-global.  A
+        # saved object therefore resolves to the same prim and wrapper on every
+        # reload, while duplicate category instances receive stable ordinals.
+        self._object_id_counters[env_idx] = {}
         for key, value in env_config.items():
             if key in ["Rigid", "Dynamic", "Geometry", "Articulation", "Garment", "Fluid"]:
                 for cat, inst_list in value.items():
@@ -131,6 +135,14 @@ class LayoutStateService:
                 value = self.select_light(env_idx, light_cfg=value)
         self.cluttered_generator_init(env_idx)
         return env_config
+
+    def get_active_instance_names(self, env_idx: int) -> set[str]:
+        """Return the wrapper identities selected by the active saved layout."""
+        return {
+            record["inst_name"]
+            for records in self.object_records_by_type.values()
+            for record in records.layout_records_by_env[env_idx]
+        }
 
     def check_layout_stability(self, env, render=False):
         first_pose = []

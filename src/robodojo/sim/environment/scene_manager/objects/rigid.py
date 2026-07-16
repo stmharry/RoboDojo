@@ -239,6 +239,15 @@ class RigidObject(SingleRigidPrim, SingleGeometryPrim):
         if self.physics_material is not None:
             self.apply_physics_material(physics_material=self.physics_material)
 
+    def configure_saved_layout(self, inst_config, default_pos, default_ori, scale):
+        """Update reusable wrapper state from the active saved-layout record."""
+        self.instance_config = inst_config
+        self.visual_config = self.instance_config.get("visual", {})
+        self.physics_config = self.instance_config.get("physics", {})
+        self.default_pos = default_pos
+        self.default_ori = default_ori
+        self.scale = scale
+
     def apply_saved_pose(self):
         """Apply the saved eval-layout pose and clear velocities."""
         self.set_local_pose(translation=self.default_pos, orientation=self.default_ori)

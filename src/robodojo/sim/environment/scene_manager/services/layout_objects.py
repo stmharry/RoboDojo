@@ -4,7 +4,6 @@ import os
 import re
 from typing import List
 
-from isaacsim.core.utils.prims import is_prim_path_valid
 import numpy as np
 import torch
 
@@ -104,7 +103,7 @@ class LayoutObjectsService:
         return (prim_path, inst_name)
 
     def _get_next_object_id(self, env_idx: int, cat_name: str, model_idx: int, type: str) -> int:
-        """Get the next available ID for a category in the specified environment.
+        """Get the stable layout ordinal for an object category.
 
         Args:
             env_idx: Environment ID
@@ -113,11 +112,9 @@ class LayoutObjectsService:
             type: Object type
 
         Returns:
-            Next available integer ID for this category
+            Zero-based occurrence index for this category in the active layout.
         """
-        while is_prim_path_valid(
-            f"{self.env_roots[env_idx]}/{type}/{cat_name}/{cat_name}_{model_idx}_{self._object_id_counters}"
-        ):
-            self._object_id_counters += 1
-        self._object_id_counters += 1
-        return self._object_id_counters
+        key = (type, cat_name, int(model_idx))
+        obj_id = self._object_id_counters[env_idx].get(key, 0)
+        self._object_id_counters[env_idx][key] = obj_id + 1
+        return obj_id

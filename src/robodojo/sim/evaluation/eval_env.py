@@ -13,7 +13,7 @@ from robodojo.sim import task_discovery
 from robodojo.sim.environment.observation_manager.obs_manager import ObsManager
 from robodojo.sim.environment.seed_manager.seed_manager import SeedManager
 from robodojo.sim.evaluation.services.actions import ActionsService
-from robodojo.sim.evaluation.services.episodes import EpisodesService
+from robodojo.sim.evaluation.services.episodes import EpisodesService, summarize_task_metrics
 from robodojo.sim.evaluation.services.health import HealthService
 from robodojo.sim.evaluation.services.persistence import PersistenceService
 from robodojo.sim.evaluation.services.video import VideoService
@@ -174,6 +174,9 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
                     except (TypeError, ValueError):
                         normalised_details[k] = v
                 self.eval_result["details"] = normalised_details
+                task_metrics_summary = summarize_task_metrics(normalised_details)
+                if task_metrics_summary is not None:
+                    self.eval_result["task_metrics_summary"] = task_metrics_summary
                 self.abandoned_seeds = set(int(s) for s in resume_state.get("abandoned_layout_ids", []))
                 completed_layout_ids = [
                     int(v["layout_id"]) for v in normalised_details.values() if isinstance(v, dict) and "layout_id" in v
@@ -260,6 +263,10 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
             super().reset(seed=self.env_seeds, options=options)
             self.obs_manager.reset()  # Reset observation manager for the next episode
             self.setup_scene()
+            # Articulated layouts may settle while static scene stability is
+            # checked. Reassert their saved roots and configured joint values
+            # immediately before observations and reward baselines are created.
+            self.scene_manager.restore_active_articulations(range(self.num_envs))
             self.robot_manager.set_origin_endpose()
             self.robot_manager.set_robot_init_state()
             self.reward_manager.init_state()

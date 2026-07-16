@@ -7,6 +7,7 @@ from isaacsim.core.utils.prims import delete_prim, is_prim_path_valid
 import torch
 
 from robodojo.sim.environment.environment.isaac.isaac_rl_env import IsaacRLEnv
+from robodojo.sim.environment.scene_manager.active_pose import validate_active_pose
 from robodojo.sim.environment.scene_manager.objects.articulation import ArticulationObject
 from robodojo.sim.environment.scene_manager.objects.background import Background
 from robodojo.sim.environment.scene_manager.objects.fluid import FluidObject
@@ -125,17 +126,41 @@ class SceneLifecycleService:
         Tables settle first so support surfaces are in place before the
         remaining scene objects are restored as one batch.
         """
-        object_groups = [
-            [
-                self._rigid_and_dynamic_objects[env_idx],
-                self._articulation_objects[env_idx],
-                self._garment_objects[env_idx],
-                self._geometry_objects[env_idx],
-                self._fluid_objects[env_idx],
-            ]
-            for env_idx in range(self.num_envs)
-        ]
+        object_groups = []
+        for env_idx in range(self.num_envs):
+            active_names = self.layout_manager.get_active_instance_names(env_idx)
+            object_groups.append(
+                [
+                    {name: obj for name, obj in group.items() if name in active_names}
+                    for group in [
+                        self._rigid_and_dynamic_objects[env_idx],
+                        self._articulation_objects[env_idx],
+                        self._garment_objects[env_idx],
+                        self._geometry_objects[env_idx],
+                        self._fluid_objects[env_idx],
+                    ]
+                ]
+            )
         restore_saved_poses(env_idx_list, self._tables, object_groups, self.sim)
+        for env_idx in env_idx_list:
+            self.validate_active_object_poses(env_idx)
+
+    def validate_active_object_poses(self, env_idx: int):
+        """Reject missing, non-finite, or offscreen active reward identities."""
+        for object_type in ["Rigid", "Dynamic", "Geometry", "Articulation", "Garment"]:
+            for record in self.layout_manager.get_layout_records(env_idx, object_type):
+                inst_name = record["inst_name"]
+                pos, _ = self.layout_manager.get_instance_pose(env_idx=env_idx, inst_name=inst_name)
+                validate_active_pose(inst_name, pos)
+
+    def restore_active_articulations(self, env_idx_list: Sequence[int]):
+        """Reassert saved roots and joint values at the rollout boundary."""
+        for env_idx in env_idx_list:
+            active_names = self.layout_manager.get_active_instance_names(env_idx)
+            for inst_name, obj in self._articulation_objects[env_idx].items():
+                if inst_name in active_names:
+                    obj.apply_saved_pose()
+            self.validate_active_object_poses(env_idx)
 
     def reload_env_scene(self, env_id: int, object_types: List[str] = None):
         """Reload scene objects for the specified environment.
@@ -159,6 +184,7 @@ class SceneLifecycleService:
                 preserved_types.append("geometry")
             # Clear existing objects (based on exclude_types)
             self.clear_scene_objects(env_id, exclude_types=preserved_types)
+            self.reconcile_preserved_scene_objects(env_id, preserved_types)
             self.spawn_scene_objects(env_id, exclude_types=preserved_types)
         else:
             self.relocate_stale_objects(env_id, ["articulation"])
@@ -167,6 +193,7 @@ class SceneLifecycleService:
                 preserved_types.append("geometry")
             # Clear existing objects (based on exclude_types)
             self.clear_scene_objects(env_id, exclude_types=preserved_types)
+            self.reconcile_preserved_scene_objects(env_id, preserved_types)
             self.spawn_scene_objects(env_id, exclude_types=preserved_types)
 
     def _setup_background(self):

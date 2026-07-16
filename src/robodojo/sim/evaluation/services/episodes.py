@@ -11,6 +11,36 @@ from robodojo.sim.utils.save_file import save_json
 
 logger = logging.getLogger(__name__)
 
+_TASK_MILESTONES = (
+    "moved",
+    "approached",
+    "grasp_attempted",
+    "lifted",
+    "carried",
+    "placed",
+    "released_inside",
+)
+
+
+def summarize_task_metrics(details: dict) -> dict | None:
+    """Derive a deterministic rollout summary solely from episode details."""
+    metrics = [detail.get("task_metrics") for detail in details.values() if isinstance(detail, dict)]
+    metrics = [metric for metric in metrics if isinstance(metric, dict)]
+    if not metrics:
+        return None
+    milestone_counts = {milestone: 0 for milestone in _TASK_MILESTONES}
+    for metric in metrics:
+        items = metric.get("items", {})
+        for milestone in milestone_counts:
+            if any(bool(item.get(milestone)) for item in items.values() if isinstance(item, dict)):
+                milestone_counts[milestone] += 1
+    return {
+        "episodes_with_metrics": len(metrics),
+        "episodes_with_milestone": milestone_counts,
+        "max_items_inside": max(int(metric.get("max_items_inside", 0)) for metric in metrics),
+        "completed_episodes": sum(bool(metric.get("complete")) for metric in metrics),
+    }
+
 
 class EpisodesService:
     def eval_one_episode(self):
@@ -92,13 +122,15 @@ class EpisodesService:
             episode_score = 0.0
             tag = "fail"
             if self.success[env_idx]:
-                self.total_score += 1.0
                 episode_score = 1.0
                 success += 1
                 tag = "success"
             elif process_scores is not None:
                 episode_score = process_scores[env_idx] / 100.0
-                self.total_score += episode_score
+            score_hook = getattr(self, "get_episode_progress_score", None)
+            if callable(score_hook) and not self.success[env_idx]:
+                episode_score = float(score_hook(env_idx)) / 100.0
+            self.total_score += episode_score
 
             # seed_list was filtered by completed/abandoned ids on resume,
             # so seed_list.index(seed) no longer yields the original
@@ -119,6 +151,12 @@ class EpisodesService:
                 if task_metadata:
                     json.dumps(task_metadata)
                     detail["task_metadata"] = deepcopy(task_metadata)
+            metrics_hook = getattr(self, "get_task_metrics", None)
+            if callable(metrics_hook):
+                task_metrics = metrics_hook(env_idx)
+                if task_metrics:
+                    json.dumps(task_metrics)
+                    detail["task_metrics"] = deepcopy(task_metrics)
             self.eval_result["details"][index] = detail
             video_path = os.path.join(self.save_dir, f"episode_{index:07d}.mp4")
             self.save_video(env_idx, video_path, tag)
@@ -134,6 +172,9 @@ class EpisodesService:
             self.eval_result["success_rate"] = self.success_nums / eval_time
             self.eval_result["score"] = self.total_score / eval_time * 100
         self.eval_result["eval_time"] = eval_time
+        task_metrics_summary = summarize_task_metrics(self.eval_result["details"])
+        if task_metrics_summary is not None:
+            self.eval_result["task_metrics_summary"] = task_metrics_summary
         save_json(self.eval_result, os.path.join(self.save_dir, "_result.json"))
         # Refresh the resume manifest at the end of every batch so that a
         # downstream SIGABRT (which beats the in-process PhysXFatalError

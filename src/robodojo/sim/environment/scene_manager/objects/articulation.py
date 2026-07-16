@@ -18,6 +18,7 @@ from pxr import PhysxSchema, Usd, UsdGeom, UsdPhysics, UsdShade
 import torch
 
 from robodojo.sim.environment.scene_manager.appearance import normalize_rgb_color
+from robodojo.sim.environment.scene_manager.joint_layout import resolve_initial_joint_positions
 from robodojo.sim.utils.physics_pose import articulation_link_pose_wxyz
 
 logger = logging.getLogger(__name__)
@@ -75,6 +76,7 @@ class ArticulationObject(SingleArticulation):
         self._default_linear_velocity = [0.0, 0.0, 0.0]
         self._default_angular_velocity = [0.0, 0.0, 0.0]
         self.init_scale = scale
+        self._asset_initial_joint_positions = None
         if self.physics_cfg.get("fixed_base", False):
             self.fix_root_link()
         super().__init__(
@@ -253,10 +255,37 @@ class ArticulationObject(SingleArticulation):
             limits = np.asarray(limits)
         self.lower_joint_positions = limits[:, 0].copy()
         self.upper_joint_positions = limits[:, 1].copy()
-        self.initial_joint_positions = self.get_current_joint_positions()
+        current_positions = self.get_current_joint_positions()
+        if self._asset_initial_joint_positions is None:
+            if isinstance(current_positions, torch.Tensor):
+                self._asset_initial_joint_positions = current_positions.detach().cpu().numpy().copy()
+            else:
+                self._asset_initial_joint_positions = np.asarray(current_positions).copy()
+        self._refresh_initial_joint_positions()
         self.app = omni.kit.app.get_app()
         if hasattr(self, "app"):
             self.app.update()
+
+    def _refresh_initial_joint_positions(self):
+        if self._asset_initial_joint_positions is None:
+            return
+        self.initial_joint_positions = resolve_initial_joint_positions(
+            self._asset_initial_joint_positions,
+            self.dof_names,
+            self.lower_joint_positions,
+            self.upper_joint_positions,
+            self.instance_config.get("initial_joint_positions"),
+        )
+
+    def configure_saved_layout(self, inst_config, default_pos, default_ori, scale):
+        """Update reusable wrapper state from the active saved-layout record."""
+        self.instance_config = inst_config
+        self.visual_cfg = self.instance_config.get("visual", {})
+        self.physics_cfg = self.instance_config.get("physics", {})
+        self.default_pos = default_pos
+        self.default_ori = default_ori
+        self.init_scale = scale
+        self._refresh_initial_joint_positions()
 
     def get_current_joint_positions(self):
         return self.get_joint_positions()

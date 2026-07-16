@@ -239,6 +239,9 @@
           1,
           1
         ],
+        "initial_joint_positions": {
+          "lid_hinge": 1.658062789
+        },
         "physics": {
           "type": "articulation",
           "mass": 0.32
