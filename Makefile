@@ -11,7 +11,6 @@ ROOT_DIR := $(patsubst %/,%,$(dir $(abspath $(SELF))))
 
 SHELL := /bin/bash
 .SHELLFLAGS := -e -o pipefail -c
-.DEFAULT_GOAL := help
 
 UV ?= uv
 UV_RUN_SIM ?= $(UV) run --extra sim --locked
@@ -22,6 +21,7 @@ OMNI_KIT_ACCEPT_EULA ?= yes
 export ROBODOJO_STORAGE_ROOT ROBODOJO_S3_URI AWS_PROFILE ROBODOJO_LOG_LEVEL OMNI_KIT_ACCEPT_EULA
 
 # Stable benchmark default and Make-only workflow controls.
+TARGET ?=
 RECIPE ?=
 RECIPES ?= $(RECIPE)
 SEED ?= 0
@@ -37,6 +37,8 @@ DEEP ?= false
 DRY_RUN ?= false
 ONLY ?=
 ARGS ?=
+
+.DEFAULT_GOAL := $(if $(strip $(TARGET)),$(strip $(TARGET)),help)
 
 ifneq ($(strip $(PRESET)),)
 $(error PRESET has been removed; use RECIPE=<name> and run 'make recipes' to list valid names)

@@ -19,6 +19,28 @@ def run_make(*arguments: str, env: dict[str, str] | None = None) -> subprocess.C
     )
 
 
+def test_make_empty_target_defaults_to_help():
+    result = run_make("-n", "TARGET=")
+    assert result.returncode == 0, result.stderr
+    assert "RoboDojo local workflow" in result.stdout
+
+
+def test_make_target_selects_the_default_goal():
+    selected = run_make("-n", "TARGET=recipes")
+    explicit = run_make("-n", "recipes")
+
+    assert selected.returncode == 0, selected.stderr
+    assert explicit.returncode == 0, explicit.stderr
+    assert selected.stdout == explicit.stdout
+
+
+def test_explicit_make_goal_takes_precedence_over_target():
+    result = run_make("-n", "help", "TARGET=recipes")
+    assert result.returncode == 0, result.stderr
+    assert "RoboDojo local workflow" in result.stdout
+    assert " recipes --format table" not in result.stdout
+
+
 def test_make_requires_an_explicit_recipe():
     result = run_make("-n", "eval")
     assert result.returncode != 0
