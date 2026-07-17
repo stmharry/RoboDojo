@@ -75,7 +75,7 @@ def data_list() -> None:
 def data_download(
     data_format: DataFormat = typer.Argument(
         ...,
-        help="Dataset format to download; run `robodojo data list` to compare choices.",
+        help="Dataset format to download; run `robodojo workspace data list` to compare choices.",
     ),
     root: RepositoryRootOption = None,
     revision: RevisionOption = "main",

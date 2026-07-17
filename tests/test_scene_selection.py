@@ -98,17 +98,26 @@ def test_scene_is_not_passed_across_the_policy_adapter_boundary(tmp_path):
     assert "explicit_scene" not in command
 
 
-@pytest.mark.parametrize("command", ["eval", "client", "doctor", "preflight", "server"])
+@pytest.mark.parametrize(
+    "command",
+    [
+        ("eval", "run"),
+        ("eval", "client"),
+        ("workspace", "doctor"),
+        ("eval", "preflight"),
+        ("eval", "server"),
+    ],
+)
 def test_manual_commands_expose_all_four_contract_components(command):
-    result = RUNNER.invoke(app, [command, "--help"])
+    result = RUNNER.invoke(app, [*command, "--help"])
     assert result.exit_code == 0
     for option in ("--policy-profile", "--environment", "--scene", "--task-protocol"):
         assert option in result.stdout
 
 
-@pytest.mark.parametrize("command", ["smoke", "benchmark"])
+@pytest.mark.parametrize("command", [("eval", "smoke"), ("eval", "benchmark")])
 def test_sweeps_expose_recipes_without_component_cross_products(command):
-    result = RUNNER.invoke(app, [command, "--help"])
+    result = RUNNER.invoke(app, [*command, "--help"])
     assert result.exit_code == 0
     assert "--recipe" in result.stdout
     assert "--scene" not in result.stdout
@@ -118,7 +127,7 @@ def test_sweeps_expose_recipes_without_component_cross_products(command):
 def test_recipe_cannot_be_combined_with_component_override():
     result = RUNNER.invoke(
         app,
-        ["eval", "--recipe", PI_RECIPE, "--scene", "moonlake_office", "--root", str(ROOT)],
+        ["eval", "run", "--recipe", PI_RECIPE, "--scene", "moonlake_office", "--root", str(ROOT)],
     )
     assert result.exit_code == 2
     assert "--recipe cannot be combined" in result.output

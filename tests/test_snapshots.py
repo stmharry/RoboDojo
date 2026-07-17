@@ -141,10 +141,11 @@ def test_snapshots_cli_defaults_to_all_and_accepts_explicit_recipes(monkeypatch,
     requests = []
     monkeypatch.setattr(snapshots, "run_snapshot_batch", lambda paths, request: requests.append(request) or 0)
 
-    default = RUNNER.invoke(app, ["snapshots", "--root", str(ROOT), "--dry-run"])
+    default = RUNNER.invoke(app, ["eval", "snapshots", "--root", str(ROOT), "--dry-run"])
     selected = RUNNER.invoke(
         app,
         [
+            "eval",
             "snapshots",
             "--recipe",
             RECIPE,
@@ -173,7 +174,7 @@ def test_snapshots_cli_defaults_to_all_and_accepts_explicit_recipes(monkeypatch,
 
 
 def test_snapshots_cli_rejects_duplicate_recipe_selection():
-    result = RUNNER.invoke(app, ["snapshots", "--recipe", RECIPE, "--recipe", RECIPE])
+    result = RUNNER.invoke(app, ["eval", "snapshots", "--recipe", RECIPE, "--recipe", RECIPE])
     assert result.exit_code == 2
     assert "recipe selections must be unique" in result.output
 

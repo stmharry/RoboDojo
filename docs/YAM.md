@@ -28,7 +28,7 @@ make setup RECIPE=molmoact2-bimanual_yam-molmo_yam-general_pickup
 ```
 
 For a granular support operation, use
-`uv run --extra sim --locked robodojo assets build-yam`.
+`uv run --extra sim --locked robodojo workspace assets build-yam`.
 
 The build checks out I2RT at the revision pinned in
 `configs/tooling/yam.yml`, snapshots the original inputs and license, produces
@@ -134,14 +134,14 @@ A resumed run is rejected if any of those inputs changed.
 For example, a YAM evaluation may opt into that workspace explicitly:
 
 ```bash
-uv run --extra sim --locked robodojo eval \
+uv run --extra sim --locked robodojo eval run \
   --recipe molmoact2-bimanual_yam-molmo_yam-general_pickup
 ```
 
 The same scene remains independently composable with other policies:
 
 ```bash
-uv run --extra sim --locked robodojo eval \
+uv run --extra sim --locked robodojo eval run \
   --recipe molmoact2-bimanual_yam-molmo_yam-fold_clothes
 ```
 
@@ -151,7 +151,7 @@ selected independently:
 
 ```bash
 bash XPolicyLab/policy/Pi_05/prepare_checkpoint.sh pi05_yam_molmoact2
-uv run --extra sim --locked robodojo eval \
+uv run --extra sim --locked robodojo eval run \
   --recipe pi05-bimanual_yam-molmo_yam-general_pickup
 ```
 
@@ -192,7 +192,7 @@ removed. OpenArm's independent calibration and replay workflow is unchanged.
 Scene-only exports can opt into a two-second, no-policy visual audit:
 
 ```bash
-ROBODOJO_SCENE_VISUAL_AUDIT=1 uv run --extra sim --locked robodojo eval \
+ROBODOJO_SCENE_VISUAL_AUDIT=1 uv run --extra sim --locked robodojo eval run \
   --recipe molmoact2-bimanual_yam-molmo_yam-fold_clothes \
   --seed 0 \
   --layout-id 0 \

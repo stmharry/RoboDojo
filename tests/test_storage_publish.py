@@ -112,7 +112,7 @@ def _write_scene_only_export(
 def test_storage_cli_help_runs_through_typer():
     environment = os.environ.copy()
     result = subprocess.run(
-        [sys.executable, "-m", "robodojo.cli", "storage", "--help"],
+        [sys.executable, "-m", "robodojo.cli", "workspace", "storage", "--help"],
         check=False,
         text=True,
         capture_output=True,
@@ -457,7 +457,7 @@ def test_storage_domain_errors_are_rendered_without_tracebacks(tmp_path):
     missing = tmp_path / "missing"
     result = RUNNER.invoke(
         app,
-        ["storage", "publish", str(missing), "assets"],
+        ["workspace", "storage", "publish", str(missing), "assets"],
         env={"ROBODOJO_S3_URI": "s3://bucket/robodojo"},
     )
 
@@ -483,7 +483,7 @@ def test_aws_failures_are_storage_errors(monkeypatch, failure, message):
 def test_publish_evaluation_cli_rejects_conflicting_selectors(tmp_path):
     result = RUNNER.invoke(
         app,
-        ["storage", "publish-eval", "--source", str(tmp_path), "--run-id", "run"],
+        ["workspace", "storage", "publish-eval", "--source", str(tmp_path), "--run-id", "run"],
     )
 
     assert result.exit_code == 1

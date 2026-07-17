@@ -8,20 +8,20 @@ the client connects to an XPolicyLab server over WebSocket.
 
 - Linux with a CUDA 12.8-compatible NVIDIA driver.
 - `uv` installed on the host.
-- RoboDojo assets downloaded with `uv run --locked robodojo assets download`.
+- RoboDojo assets downloaded with `uv run --locked robodojo workspace assets download`.
 - A reachable policy server bound to a non-loopback interface for remote clients.
 
 Install Docker and the NVIDIA runtime when needed:
 
 ```bash
-uv run --locked robodojo docker install
+uv run --locked robodojo workspace docker install
 docker run --rm --gpus all nvidia/cuda:12.8.1-cudnn-devel-ubuntu22.04 nvidia-smi
 ```
 
 ## Build
 
 ```bash
-uv run --locked robodojo docker build --image robodojo:cuda12.8
+uv run --locked robodojo workspace docker build --image robodojo:cuda12.8
 ```
 
 The Dockerfile installs the committed lockfile with `--extra sim`, copies the
@@ -32,11 +32,11 @@ package and configuration tree, and uses `robodojo` as its entrypoint.
 Start a policy server on the host or another machine, then run:
 
 ```bash
-uv run --locked robodojo docker smoke \
+uv run --locked robodojo workspace docker smoke \
   --image robodojo:cuda12.8 \
   --policy-port 9999 \
   --policy pi05_arx_x5 \
-  --task stack_bowls \
+  --task-protocol stack_bowls \
   --environment arx_x5
 ```
 
@@ -56,10 +56,10 @@ Because `robodojo` is the image entrypoint, commands follow the normal CLI:
 docker run --rm --gpus all --network host --ipc host \
   -v "$PWD/.robodojo:/workspace/RoboDojo/.robodojo" \
   robodojo:cuda12.8 \
-  client --policy-profile pi05_arx_x5 --environment arx_x5 \
-  --scene default --protocol stack_bowls \
+  eval client --policy-profile pi05_arx_x5 --environment arx_x5 \
+  --scene default --task-protocol stack_bowls \
   --policy-host 127.0.0.1 --policy-port 9999 --eval-num 1
 ```
 
-Use `robodojo docker monitor` for an existing smoke log and
-`robodojo docker clean` to remove labeled leftover smoke containers.
+Use `robodojo workspace docker monitor` for an existing smoke log and
+`robodojo workspace docker clean` to remove labeled leftover smoke containers.

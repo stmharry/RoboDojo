@@ -20,7 +20,7 @@ def _rows():
 
 
 def test_recipe_table_groups_deterministically_without_tsv_output():
-    result = RUNNER.invoke(app, ["recipes", "--format", "table", "--root", str(ROOT)])
+    result = RUNNER.invoke(app, ["catalog", "recipes", "--format", "table", "--root", str(ROOT)])
 
     assert result.exit_code == 0
     assert "Tracked evaluation recipes (26)" in result.stdout
@@ -79,10 +79,13 @@ def test_narrow_recipe_table_folds_without_truncating_recipe_names():
 
 def test_plain_and_json_recipe_formats_remain_machine_compatible():
     rows = _rows()
-    default = RUNNER.invoke(app, ["recipes", "--root", str(ROOT)])
-    plain = RUNNER.invoke(app, ["recipes", "--format", "plain", "--root", str(ROOT)])
-    structured = RUNNER.invoke(app, ["recipes", "--format", "json", "--root", str(ROOT)])
-    checked = RUNNER.invoke(app, ["recipes", "--format", "json", "--check", "--root", str(ROOT)])
+    default = RUNNER.invoke(app, ["catalog", "recipes", "--root", str(ROOT)])
+    plain = RUNNER.invoke(app, ["catalog", "recipes", "--format", "plain", "--root", str(ROOT)])
+    structured = RUNNER.invoke(app, ["catalog", "recipes", "--format", "json", "--root", str(ROOT)])
+    checked = RUNNER.invoke(
+        app,
+        ["catalog", "recipes", "--format", "json", "--check", "--root", str(ROOT)],
+    )
 
     expected_plain = [
         "\t".join(row[field] for field in ("recipe", "policy", "environment", "scene", "task_protocol", "task"))

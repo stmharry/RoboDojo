@@ -78,57 +78,53 @@ def _simulator_request(**updates) -> SimulatorLaunchRequest:
     return SimulatorLaunchRequest(**values)
 
 
-def test_cli_exposes_the_unified_command_surface():
+def test_cli_exposes_the_grouped_command_surface():
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    for command in (
-        "setup",
-        "preflight",
-        "eval",
-        "server",
-        "client",
-        "snapshots",
-        "smoke",
-        "storage",
-        "assets",
-        "data",
-        "docker",
-        "results",
-    ):
+    for command in ("eval", "catalog", "workspace", "results"):
         assert command in result.stdout
     commands = get_command(app).commands
     assert set(commands) == {
-        "setup",
-        "doctor",
-        "tasks",
-        "recipes",
-        "snapshots",
-        "preflight",
         "eval",
+        "catalog",
+        "workspace",
+        "results",
+        "_adapter-client",
+    }
+    assert "upstream" not in result.stdout
+
+    assert set(commands["eval"].commands) == {
+        "run",
+        "preflight",
         "server",
         "client",
         "smoke",
         "benchmark",
-        "_adapter-client",
-        "assets",
-        "data",
-        "storage",
-        "results",
-        "docker",
+        "snapshots",
     }
-    assert "upstream" not in result.stdout
-
-    assert set(commands["assets"].commands) == {
+    assert set(commands["catalog"].commands) == {"tasks", "recipes"}
+    workspace = commands["workspace"].commands
+    assert set(workspace) == {"setup", "doctor", "assets", "data", "storage", "docker"}
+    assert set(workspace["assets"].commands) == {
         "download",
         "build-moonlake-office",
         "build-moonlake-packing",
         "build-yam",
         "build-openarm",
     }
-    assert set(commands["data"].commands) == {"list", "download"}
-    assert set(commands["storage"].commands) == {"doctor", "publish", "pull", "publish-eval"}
+    assert set(workspace["data"].commands) == {"list", "download"}
+    assert set(workspace["storage"].commands) == {"doctor", "publish", "pull", "publish-eval"}
     assert set(commands["results"].commands) == {"summarize", "stats"}
-    assert set(commands["docker"].commands) == {"install", "build", "smoke", "monitor", "clean"}
+    assert set(workspace["docker"].commands) == {"install", "build", "smoke", "monitor", "clean"}
+
+
+def test_eval_without_an_operation_shows_group_help():
+    result = runner.invoke(app, ["eval"])
+
+    assert result.exit_code == 2
+    assert "eval [OPTIONS] COMMAND" in result.stdout
+    for command in ("run", "preflight", "server", "client", "smoke", "benchmark", "snapshots"):
+        assert command in result.stdout
 
 
 def test_every_public_command_and_parameter_has_human_readable_help():
@@ -155,7 +151,7 @@ def test_every_public_command_and_parameter_has_human_readable_help():
 
 
 def test_eval_help_explains_publication_and_evaluation_inputs():
-    result = runner.invoke(app, ["eval", "--help"])
+    result = runner.invoke(app, ["eval", "run", "--help"])
 
     assert result.exit_code == 0
     assert "--publish" in result.stdout
@@ -171,7 +167,7 @@ def test_eval_help_explains_publication_and_evaluation_inputs():
 
 def test_clean_break_help_only_lists_new_option_names():
     results = runner.invoke(app, ["results", "stats", "--help"])
-    docker = runner.invoke(app, ["docker", "smoke", "--help"])
+    docker = runner.invoke(app, ["workspace", "docker", "smoke", "--help"])
 
     assert results.exit_code == 0
     assert "--results-root" in results.stdout
@@ -188,10 +184,10 @@ def test_clean_break_help_only_lists_new_option_names():
 @pytest.mark.parametrize(
     "arguments",
     [
-        ["eval", "--ckpt-label", "checkpoint"],
+        ["eval", "run", "--ckpt-label", "checkpoint"],
         ["results", "summarize", "--root", "/tmp/results"],
         ["results", "stats", "--env-cfg", "arx_x5"],
-        ["docker", "smoke", "--env-cfg", "arx_x5"],
+        ["workspace", "docker", "smoke", "--env-cfg", "arx_x5"],
     ],
 )
 def test_clean_break_rejects_removed_option_names(arguments):
@@ -199,6 +195,24 @@ def test_clean_break_rejects_removed_option_names(arguments):
 
     assert result.exit_code == 2
     assert "No such option" in result.output
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["setup", "--help"],
+        ["tasks", "--help"],
+        ["snapshots", "--help"],
+        ["client", "--help"],
+        ["assets", "--help"],
+        ["docker", "--help"],
+        ["eval", "--recipe", RECIPE],
+    ],
+)
+def test_clean_break_rejects_old_command_paths(arguments):
+    result = runner.invoke(app, arguments)
+
+    assert result.exit_code == 2
 
 
 def test_docker_smoke_uses_the_typed_client_interface(monkeypatch, tmp_path):
@@ -226,7 +240,8 @@ def test_docker_smoke_uses_the_typed_client_interface(monkeypatch, tmp_path):
     )
 
     command = calls[0][0]
-    assert command[command.index("client") :] == [
+    assert command[command.index("eval") :] == [
+        "eval",
         "client",
         "--policy-profile",
         "pi05_arx_x5",
@@ -259,10 +274,10 @@ def test_evaluation_count_has_one_validation_rule(value):
 @pytest.mark.parametrize(
     "arguments",
     [
-        ["eval", "--recipe", RECIPE],
-        ["client", "--recipe", RECIPE, "--policy-port", "19000"],
-        ["smoke", "--recipe", RECIPE],
-        ["benchmark", "--recipe", RECIPE],
+        ["eval", "run", "--recipe", RECIPE],
+        ["eval", "client", "--recipe", RECIPE, "--policy-port", "19000"],
+        ["eval", "smoke", "--recipe", RECIPE],
+        ["eval", "benchmark", "--recipe", RECIPE],
     ],
 )
 def test_evaluation_count_validation_is_shared_by_all_consumers(arguments):
@@ -281,6 +296,7 @@ def test_gpu_cli_precedence_is_flag_then_environment_then_auto(monkeypatch):
     monkeypatch.setattr(evaluation, "run_evaluation", lambda paths, request: requests.append(request) or 0)
     arguments = [
         "eval",
+        "run",
         "--recipe",
         RECIPE,
         "--root",
@@ -311,6 +327,7 @@ def test_gpu_cli_rejects_noncanonical_auto(monkeypatch):
         app,
         [
             "eval",
+            "run",
             "--recipe",
             RECIPE,
             "--policy-gpu",
@@ -348,6 +365,7 @@ def test_client_resolves_only_the_simulator_gpu(monkeypatch):
     result = runner.invoke(
         app,
         [
+            "eval",
             "client",
             "--recipe",
             RECIPE,
@@ -474,10 +492,10 @@ def test_make_setup_and_preflight_forward_experiment_contract():
     )
 
     assert "uv run --locked robodojo --log-level" in setup.stdout
-    assert " setup --recipe" in setup.stdout
+    assert " workspace setup --recipe" in setup.stdout
     assert f'--recipe "{RECIPE}"' in setup.stdout
     assert "--no-sync robodojo --log-level" in deep.stdout
-    assert " preflight --recipe" in deep.stdout
+    assert " eval preflight --recipe" in deep.stdout
     assert '--env-gpu "1"' in deep.stdout
     assert "--deep" in deep.stdout
     assert "--publish" not in deep.stdout
@@ -607,6 +625,7 @@ def test_server_cli_rejects_invalid_port():
     result = runner.invoke(
         app,
         [
+            "eval",
             "server",
             "--recipe",
             RECIPE,
@@ -620,7 +639,7 @@ def test_server_cli_rejects_invalid_port():
 
 
 def test_cli_rejects_invalid_log_level():
-    result = runner.invoke(app, ["--log-level", "verbose", "tasks"])
+    result = runner.invoke(app, ["--log-level", "verbose", "catalog", "tasks"])
     assert result.exit_code == 2
     assert "Invalid value for --log-level" in result.output
 
@@ -635,6 +654,7 @@ def test_server_dry_run_separates_diagnostics_from_command_output(monkeypatch):
         [
             "--log-level",
             "INFO",
+            "eval",
             "server",
             "--recipe",
             RECIPE,
@@ -661,6 +681,7 @@ def test_cli_log_level_is_propagated_for_child_processes(monkeypatch):
         [
             "--log-level",
             "debug",
+            "eval",
             "server",
             "--recipe",
             RECIPE,

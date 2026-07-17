@@ -92,14 +92,13 @@ their own dependency tooling.
 ## Evaluation Boundary And Flow
 
 Run native commands as `uv run --extra sim --locked robodojo <command>` when
-simulator dependencies are required. The main commands are `setup`, `doctor`,
-`eval`, `preflight`, `server`, `client`, `smoke`, `benchmark`, `results`, and
-`tasks`.
+simulator dependencies are required. The public command domains are `eval`,
+`catalog`, `workspace`, and `results`.
 
 Single-machine evaluation follows this boundary:
 
 ```text
-robodojo eval
+robodojo eval run
   -> robodojo.orchestration
     -> robodojo.policy -> (cwd: policy directory) setup_eval_policy_server.sh
     -> robodojo.sim.evaluation.main
@@ -112,8 +111,8 @@ robodojo eval
 - Run `setup_eval_*` scripts with the policy directory as their working
   directory so upstream-relative paths continue to work.
 - WebSocket is the default transport (`protocol: ws` in `deploy.yml`).
-- Split evaluation preserves the same boundary: `robodojo server` starts the
-  XPolicyLab adapter and `robodojo client` starts the simulator client.
+- Split evaluation preserves the same boundary: `robodojo eval server` starts
+  the XPolicyLab adapter and `robodojo eval client` starts the simulator client.
 - Full evaluation-infrastructure acceptance is sequential. A successful smoke
   or benchmark run must exit zero and write `_result.json` with
   `eval_time >= 1`; an exit code alone is insufficient.
@@ -156,14 +155,14 @@ Use the smallest validation loop that proves a change. Common fast checks are:
 
 ```bash
 bash -n scripts/eval_policy.sh
-uv run --locked robodojo tasks --format json --check
-uv run --extra sim --locked robodojo doctor --skip-policy
+uv run --locked robodojo catalog tasks --format json --check
+uv run --extra sim --locked robodojo workspace doctor --skip-policy
 uv run --locked ruff check .
 git diff --check
 ```
 
-For evaluation infrastructure, also run dry-run `robodojo eval` and
-`robodojo smoke` commands against a representative XPolicyLab policy before
+For evaluation infrastructure, also run dry-run `robodojo eval run` and
+`robodojo eval smoke` commands against a representative XPolicyLab policy before
 requesting review. Runtime changes require a one-episode evaluation when the
 simulator and policy are available.
 

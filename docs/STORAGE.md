@@ -40,15 +40,15 @@ is reserved for transactional storage operations.
 
 ## First-frame snapshot galleries
 
-`robodojo snapshots` starts the simulator without a policy and records the
+`robodojo eval snapshots` starts the simulator without a policy and records the
 first post-reset observation for every tracked recipe. With no explicit output
 path, each batch is written to `runs/snapshots/<timestamp>/` below the storage
 root:
 
 ```bash
-uv run --extra sim --locked robodojo snapshots
-uv run --extra sim --locked robodojo snapshots --export-scene
-uv run --extra sim --locked robodojo snapshots --publish
+uv run --extra sim --locked robodojo eval snapshots
+uv run --extra sim --locked robodojo eval snapshots --export-scene
+uv run --extra sim --locked robodojo eval snapshots --publish
 ```
 
 The batch root contains `summary.json`, `summary.md`, and an offline
@@ -80,9 +80,9 @@ sync. Direct CLI evaluations stay local unless publication is explicitly
 requested:
 
 ```bash
-robodojo eval --publish <other-eval-options>
-robodojo eval --export-scene-only --publish <other-eval-options>
-robodojo snapshots --publish <other-snapshot-options>
+robodojo eval run --publish <other-eval-options>
+robodojo eval run --export-scene-only --publish <other-eval-options>
+robodojo eval snapshots --publish <other-snapshot-options>
 ```
 
 The Make workflow stays local by default. Opt in for one run with
@@ -93,20 +93,20 @@ this setting, not client or sweep commands.
 Inspect the writable local root and optional remote access with:
 
 ```bash
-uv run --locked robodojo storage doctor
+uv run --locked robodojo workspace storage doctor
 ```
 
 Publish a completed local payload explicitly:
 
 ```bash
-robodojo storage publish .robodojo/assets assets
-robodojo storage publish .robodojo/datasets/example datasets/example
-robodojo storage publish /local/checkpoints/run-10000 model_weights/SmolVLA/run-10000
-robodojo storage publish-eval --run-id 2026-07-16_12-00-00
+robodojo workspace storage publish .robodojo/assets assets
+robodojo workspace storage publish .robodojo/datasets/example datasets/example
+robodojo workspace storage publish /local/checkpoints/run-10000 model_weights/SmolVLA/run-10000
+robodojo workspace storage publish-eval --run-id 2026-07-16_12-00-00
 ```
 
-`storage publish-eval` can instead take `--source` for a completed evaluation
-directory below canonical local evaluation storage. The two selectors are
+`workspace storage publish-eval` can instead take `--source` for a completed
+evaluation directory below canonical local evaluation storage. The two selectors are
 mutually exclusive; when neither is supplied, the current directory is used.
 
 With `--publish`, a successful evaluation, completed scene-only evaluation, or
@@ -131,9 +131,9 @@ automatically, and unknown future versions fail validation.
 Restore exactly one manifested payload into its canonical local location:
 
 ```bash
-robodojo storage pull assets
-robodojo storage pull datasets/demo
-robodojo storage pull model_weights/SmolVLA/run-10000
+robodojo workspace storage pull assets
+robodojo workspace storage pull datasets/demo
+robodojo workspace storage pull model_weights/SmolVLA/run-10000
 ```
 
 Pulls stage downloads below `.robodojo/.staging`, verify the completion marker,

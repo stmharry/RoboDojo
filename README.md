@@ -80,7 +80,7 @@ make eval RECIPE=pi05-bimanual_yam-molmo_yam-general_pickup
 ```
 
 `make recipes` renders a grouped terminal table for people. Automation can use
-`robodojo recipes --format plain` for TSV or `--format json` for structured
+`robodojo catalog recipes --format plain` for TSV or `--format json` for structured
 output.
 
 Each recipe explicitly selects a typed policy profile, environment profile,
@@ -134,13 +134,13 @@ continued with `ARGS=--resume`. Publication remains off by default;
 
 Make is the opinionated argument- and environment-driven interface. The CLI is
 explicit and reads runtime settings from the process environment only; support
-operations remain grouped under `assets`, `data`, `storage`, `results`, and
-`docker`. After setup, native commands run through the lockfile without
+operations remain grouped under the `eval`, `catalog`, `workspace`, and
+`results` domains. After setup, native commands run through the lockfile without
 synchronizing dependencies:
 
 ```bash
-uv run --extra sim --locked --no-sync robodojo doctor --skip-policy
-uv run --locked --no-sync robodojo tasks
+uv run --extra sim --locked --no-sync robodojo workspace doctor --skip-policy
+uv run --locked --no-sync robodojo catalog tasks
 ```
 
 Standalone preparation and deeper policy readiness checks remain available for
@@ -169,11 +169,11 @@ path, or policy-specific Conda environment.
 Large assets, datasets, model weights, and runs live below one writable local
 root, `.robodojo/` by default. S3 is an optional explicit publication and
 restore target; it is never mounted by the application. Direct CLI evaluations
-export with `robodojo eval --export-scene` or `--export-scene-only` and publish
-only with `--publish`; scene-only runs may combine the two latter flags. The
-Make workflow also stays local and skips scene export by default; opt in with
-`PUBLISH=true` and `EXPORT_SCENE=true` explicitly or as machine defaults in
-`.env`. `VERBOSITY` defaults to `INFO` and controls the global RoboDojo log
+export with `robodojo eval run --export-scene` or `--export-scene-only` and
+publish only with `--publish`; scene-only runs may combine the two latter flags.
+The Make workflow also stays local and skips scene export by default; opt in
+with `PUBLISH=true` and `EXPORT_SCENE=true` explicitly or as machine defaults
+in `.env`. `VERBOSITY` defaults to `INFO` and controls the global RoboDojo log
 level for Make-launched commands. See [Local storage and S3 publication](docs/STORAGE.md)
 for the contract.
 
@@ -196,12 +196,12 @@ XPolicyLab/policy/<POLICY_NAME>/deploy.yml
 Adapters may also provide standardized `prepare_eval_policy.sh` and
 `check_eval_policy.sh` hooks. Both receive the same eight-argument experiment
 prefix used by the server adapter. RoboDojo invokes preparation only through
-`robodojo setup --only policy` or the full `make setup` workflow; preflight
+`robodojo workspace setup --only policy` or the full `make setup` workflow; preflight
 invokes the check hook read-only. Legacy adapters
 remain launchable through generic runtime/import/checkpoint checks and report a
 warning when policy-specific validation is unavailable.
 
-`robodojo eval` starts the server adapter and simulator as managed process groups.
+`robodojo eval run` starts the server adapter and simulator as managed process groups.
 The remaining `scripts/eval_policy.sh` only supports unchanged XPolicyLab legacy
 callbacks and immediately delegates to the Python CLI.
 

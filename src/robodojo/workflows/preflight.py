@@ -29,7 +29,7 @@ from robodojo.workflows.preflight_checks.storage import _publication_check
 
 HOOK_WARNING_EXIT = 3
 ROOT_SETUP_REMEDIATION = "make setup; or " + shlex.join(
-    ["uv", "run", "--locked", "robodojo", "setup", "--only", "root"]
+    ["uv", "run", "--locked", "robodojo", "workspace", "setup", "--only", "root"]
 )
 
 

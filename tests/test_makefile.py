@@ -70,9 +70,9 @@ def test_make_lists_recipes_through_the_cli():
     result = run_make("-n", "recipes")
     assert result.returncode == 0
     assert "robodojo" in result.stdout
-    assert " recipes --format table" in result.stdout
+    assert " catalog recipes --format table" in result.stdout
     source = MAKEFILE.read_text(encoding="utf-8")
-    assert "\n\t@$(ROBODOJO_BASE) recipes --format table $(ARGS)" in source
+    assert "\n\t@$(ROBODOJO_BASE) catalog recipes --format table $(ARGS)" in source
 
 
 def test_every_recipe_renders_as_one_opaque_selection():
@@ -89,6 +89,7 @@ def test_every_recipe_renders_as_one_opaque_selection():
 def test_make_eval_defaults_to_protocol_native_count():
     result = run_make("-n", "eval", f"RECIPE={RECIPE}")
     assert result.returncode == 0, result.stderr
+    assert " eval run " in result.stdout
     assert '--eval-num "native"' in result.stdout
     assert "--publish" not in result.stdout
     assert "--export-scene" not in result.stdout
@@ -121,6 +122,7 @@ def test_make_sweeps_forward_only_explicit_recipe_lists():
         f"RECIPES={RECIPE} {second}",
     )
     assert result.returncode == 0, result.stderr
+    assert " eval smoke " in result.stdout
     assert result.stdout.count("--recipe") == 2
     assert f'--recipe "{RECIPE}"' in result.stdout
     assert f'--recipe "{second}"' in result.stdout
@@ -130,7 +132,7 @@ def test_make_sweeps_forward_only_explicit_recipe_lists():
 def test_make_snapshots_defaults_to_all_and_forwards_optional_scene_bundle():
     default = run_make("-n", "snapshots")
     assert default.returncode == 0, default.stderr
-    assert " snapshots " in default.stdout
+    assert " eval snapshots " in default.stdout
     assert "--recipe" not in default.stdout
     assert '--seed "0"' in default.stdout
     assert '--layout-id "0"' in default.stdout
@@ -184,5 +186,5 @@ def test_make_rejects_invalid_controls():
 def test_make_check_validates_tasks_and_recipes():
     result = run_make("-n", "check")
     assert result.returncode == 0, result.stderr
-    assert "tasks --format json --check" in result.stdout
-    assert "recipes --format json --check" in result.stdout
+    assert "catalog tasks --format json --check" in result.stdout
+    assert "catalog recipes --format json --check" in result.stdout

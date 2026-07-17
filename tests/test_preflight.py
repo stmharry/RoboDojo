@@ -446,6 +446,7 @@ def test_failed_server_preflight_stops_before_policy_runner(monkeypatch):
     result = RUNNER.invoke(
         app,
         [
+            "eval",
             "server",
             "--recipe",
             "pi05-bimanual_yam-molmo_yam-general_pickup",

@@ -9,7 +9,7 @@ make eval RECIPE=pi05-bimanual_yam-molmo_yam-general_pickup
 ```
 
 The Make target displays a grouped terminal table. Use the direct
-`robodojo recipes --format plain|json` formats for automation.
+`robodojo catalog recipes --format plain|json` formats for automation.
 
 The recipe resolves four typed components: policy, environment, scene, and task
 protocol. Recipe catalog schema v3 stores this edge as `task_protocol`. A
@@ -41,8 +41,8 @@ GPU selectors accept a nonnegative physical device index or lowercase `auto`.
 When both roles are automatic, Python ranks `nvidia-smi` devices by free memory,
 then by lowest index, assigns the simulator first, and assigns the policy a
 distinct second device. An explicit peer is validated and excluded when the
-other role is automatic. Single-role `setup`, `client`, and scene-only export
-use the most-free device and therefore support one-GPU hosts. CLI flags override
+other role is automatic. Single-role `workspace setup`, `eval client`, and
+scene-only export use the most-free device and therefore support one-GPU hosts. CLI flags override
 exported `POLICY_GPU` and `ENV_GPU`, which override the `auto` default:
 
 ```bash
@@ -107,7 +107,7 @@ Human reports use `PASS`, `WARN`, and `FAIL` with exact remediation. JSON is
 available from the CLI:
 
 ```bash
-uv run --extra sim --locked --no-sync robodojo preflight \
+uv run --extra sim --locked --no-sync robodojo eval preflight \
   --recipe pi05-bimanual_yam-molmo_yam-general_pickup \
   --policy-gpu auto \
   --env-gpu auto \
@@ -119,19 +119,20 @@ run every stage or repeat `--only` to select stages while preserving the same
 complete recipe:
 
 ```bash
-uv run --locked robodojo setup \
+uv run --locked robodojo workspace setup \
   --recipe pi05-bimanual_yam-molmo_yam-general_pickup --only root
-uv run --locked robodojo setup \
+uv run --locked robodojo workspace setup \
   --recipe pi05-bimanual_yam-molmo_yam-general_pickup --only assets
-uv run --locked robodojo setup \
+uv run --locked robodojo workspace setup \
   --recipe pi05-bimanual_yam-molmo_yam-general_pickup --only policy
 ```
 
 The preflight JSON object has a stable top-level `status` and a `checks` array whose
 records contain `name`, `status`, `detail`, and optional `remediation`.
 
-Real `eval`, `server`, `snapshots`, `smoke`, and `benchmark` commands run fast preflight
-before selecting a free port or starting policy/simulator processes. Sweeps
+Real `eval run`, `eval server`, `eval snapshots`, `eval smoke`, and `eval benchmark`
+commands run fast preflight before selecting a free port or starting
+policy/simulator processes. Sweeps
 accept explicit repeated recipes; they never synthesize arbitrary policy/task
 combinations. Dry runs intentionally skip
 preflight; automatic selectors still inspect `nvidia-smi` so the rendered

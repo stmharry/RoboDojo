@@ -99,7 +99,7 @@ def test_task_inventory_check_keeps_json_clean(monkeypatch):
     inventory = {"tasks": [{"name": "broken_task", "runnable": False}]}
     monkeypatch.setattr(task_inventory, "build_inventory", lambda: inventory)
 
-    result = CliRunner().invoke(app, ["tasks", "--format", "json", "--check"])
+    result = CliRunner().invoke(app, ["catalog", "tasks", "--format", "json", "--check"])
 
     assert result.exit_code == 1
     assert json.loads(result.stdout) == inventory

@@ -49,7 +49,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 #     --build-arg UBUNTU_MIRROR=mirrors.tuna.tsinghua.edu.cn \
 #     --build-arg PYPI_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
 #     -t robodojo:cuda12.8 .
-# (robodojo docker smoke sets all of these when ROBODOJO_CN_MIRRORS=1.)
+# (robodojo workspace docker smoke sets all of these when ROBODOJO_CN_MIRRORS=1.)
 ARG UBUNTU_MIRROR=""
 ARG PYPI_INDEX_URL="https://pypi.org/simple"
 ENV UV_DEFAULT_INDEX=${PYPI_INDEX_URL}

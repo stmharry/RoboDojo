@@ -369,7 +369,7 @@ def run_setup(paths: RepositoryPaths, request: SetupRequest) -> SetupReport:
     if SetupStage.ROOT in selected:
         actions.extend((lambda: _submodules_stage(paths), lambda: _root_environment_stage(paths)))
     elif SetupStage.ASSETS in selected and (error := root_environment_error(paths)):
-        records.append(_stage("root_environment", "FAIL", error, "robodojo setup --only root"))
+        records.append(_stage("root_environment", "FAIL", error, "robodojo workspace setup --only root"))
         return build_report(records)
     if SetupStage.ASSETS in selected:
         actions.extend((lambda: _base_assets_stage(paths), lambda: _generated_assets_stages(paths, request)))

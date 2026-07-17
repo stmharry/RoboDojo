@@ -240,7 +240,8 @@ def summarize_results(
     output_md = summary_path(output)
     if not root.is_dir():
         raise ResultsError(
-            f"Eval result directory not found: {root}\nPopulate the local storage root or use `robodojo storage pull`."
+            f"Eval result directory not found: {root}\n"
+            "Populate the local storage root or use `robodojo workspace storage pull`."
         )
 
     random_of = discover_random_tasks(root)

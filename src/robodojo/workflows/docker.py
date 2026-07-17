@@ -78,6 +78,7 @@ def smoke(
         "--ipc",
         "host",
         image,
+        "eval",
         "client",
         "--policy-profile",
         policy,

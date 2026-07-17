@@ -18,29 +18,37 @@ from robodojo.commands.sweeps import benchmark, smoke
 from robodojo.core.logging import LOG_LEVEL_ENV, configure_logging, parse_log_level
 
 app = typer.Typer(no_args_is_help=True, help="RoboDojo evaluation and operations CLI.")
+eval_app = typer.Typer(no_args_is_help=True, help="Run and validate RoboDojo evaluations.")
+catalog_app = typer.Typer(no_args_is_help=True, help="Inspect RoboDojo tasks and evaluation recipes.")
+workspace_app = typer.Typer(no_args_is_help=True, help="Prepare and operate the RoboDojo workspace.")
 
-app.command()(setup)
-app.command()(doctor)
-app.command()(tasks)
-app.command()(recipes)
-app.command()(snapshots)
-app.command()(preflight)
-app.command(name="eval")(evaluate)
-app.command()(server)
-app.command()(client)
-app.command()(smoke)
-app.command()(benchmark)
+eval_app.command(name="run")(evaluate)
+eval_app.command()(preflight)
+eval_app.command()(server)
+eval_app.command()(client)
+eval_app.command()(smoke)
+eval_app.command()(benchmark)
+eval_app.command()(snapshots)
+
+catalog_app.command()(tasks)
+catalog_app.command()(recipes)
+
+workspace_app.command()(setup)
+workspace_app.command()(doctor)
+workspace_app.add_typer(assets_app, name="assets")
+workspace_app.add_typer(data_app, name="data")
+workspace_app.add_typer(storage_app, name="storage")
+workspace_app.add_typer(docker_app, name="docker")
+
+app.add_typer(eval_app, name="eval")
+app.add_typer(catalog_app, name="catalog")
+app.add_typer(workspace_app, name="workspace")
+app.add_typer(results_app, name="results")
 app.command(
     "_adapter-client",
     hidden=True,
     context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
 )(adapter_client)
-
-app.add_typer(assets_app, name="assets")
-app.add_typer(data_app, name="data")
-app.add_typer(storage_app, name="storage")
-app.add_typer(results_app, name="results")
-app.add_typer(docker_app, name="docker")
 
 
 @app.callback()

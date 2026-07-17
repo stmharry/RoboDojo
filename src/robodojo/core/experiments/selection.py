@@ -185,7 +185,9 @@ def resolve_recipe(paths: RepositoryPaths, name: str) -> ResolvedExperiment:
     try:
         recipe = load_recipe_catalog(paths).recipes[name]
     except KeyError as exc:
-        raise ValueError(f"unknown evaluation recipe {name!r}; run 'robodojo recipes' to list valid names") from exc
+        raise ValueError(
+            f"unknown evaluation recipe {name!r}; run 'robodojo catalog recipes' to list valid names"
+        ) from exc
     return compose_experiment(
         paths,
         policy_name=recipe.policy,

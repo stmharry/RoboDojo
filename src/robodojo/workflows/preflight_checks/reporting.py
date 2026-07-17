@@ -17,12 +17,12 @@ from robodojo.core.models.requests import (
 
 HOOK_WARNING_EXIT = 3
 ROOT_SETUP_REMEDIATION = "make setup; or " + shlex.join(
-    ["uv", "run", "--locked", "robodojo", "setup", "--only", "root"]
+    ["uv", "run", "--locked", "robodojo", "workspace", "setup", "--only", "root"]
 )
 
 
 def _setup_remediation(request: PreflightRequest, stage: str) -> str:
-    arguments = ["uv", "run", "--locked", "robodojo", "setup", "--only", stage]
+    arguments = ["uv", "run", "--locked", "robodojo", "workspace", "setup", "--only", stage]
     if request.experiment.recipe:
         arguments += ["--recipe", request.experiment.recipe, "--seed", str(request.seed)]
         if stage == "policy":

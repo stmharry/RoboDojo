@@ -38,7 +38,7 @@ make setup RECIPE=lerobot_pi05_openarm-openarm_lerobot-default-fold_clothes
 The setup workflow infers this builder from the `openarm_lerobot` environment
 selected by the recipe. For a
 granular support operation, run
-`uv run --extra sim --locked robodojo assets build-openarm`.
+`uv run --extra sim --locked robodojo workspace assets build-openarm`.
 
 The asset manifest at `configs/tooling/openarm.yml` accepts `jaw: stock|enlarged`.
 `enlarged` is the default and replaces each stock finger's visual and collision
@@ -74,7 +74,7 @@ public launcher argument.
 
 ```bash
 ROBODOJO_MATCHED_REPLAY_DIR=/tmp/openarm-matched-replay \
-  OMNI_KIT_ACCEPT_EULA=YES uv run --extra sim --locked robodojo eval \
+  OMNI_KIT_ACCEPT_EULA=YES uv run --extra sim --locked robodojo eval run \
   --recipe lerobot_pi05_openarm-openarm_lerobot-default-fold_clothes \
   --seed 0 --layout-id 0 --env-gpu 0 --export-scene-only
 ```
@@ -91,7 +91,7 @@ PYTHONPATH=. conda run -n lerobot-pi05 python \
 Verify the installation with:
 
 ```bash
-uv run --extra sim --locked robodojo doctor \
+uv run --extra sim --locked robodojo workspace doctor \
   --recipe lerobot_pi05_openarm-openarm_lerobot-default-fold_clothes
 ```
 
@@ -100,7 +100,7 @@ uv run --extra sim --locked robodojo doctor \
 Run one recorded episode:
 
 ```bash
-OMNI_KIT_ACCEPT_EULA=YES uv run --extra sim --locked robodojo eval \
+OMNI_KIT_ACCEPT_EULA=YES uv run --extra sim --locked robodojo eval run \
   --recipe lerobot_pi05_openarm-openarm_lerobot-default-fold_clothes \
   --seed 0 --policy-gpu 0 --env-gpu 1 --eval-num 1
 ```
@@ -108,7 +108,7 @@ OMNI_KIT_ACCEPT_EULA=YES uv run --extra sim --locked robodojo eval \
 Export the composed pre-rollout scene without starting the policy:
 
 ```bash
-OMNI_KIT_ACCEPT_EULA=YES uv run --extra sim --locked robodojo eval \
+OMNI_KIT_ACCEPT_EULA=YES uv run --extra sim --locked robodojo eval run \
   --recipe lerobot_pi05_openarm-openarm_lerobot-default-fold_clothes \
   --seed 0 --layout-id 0 --env-gpu 0 \
   --export-scene-only
