@@ -459,9 +459,18 @@ def main():
             if export_pending:
                 from robodojo.sim.scene_export.exporter import export_scene_snapshot
 
-                export_dir = os.environ.get("ROBODOJO_EXPORT_SCENE_DIR") or os.path.join(env.save_dir, "scene_snapshot")
+                export_dir = (
+                    str(Path(FIRST_FRAME_CAPTURE_DIR).expanduser().resolve().parent / "scene_snapshot")
+                    if FIRST_FRAME_CAPTURE_REQUESTED
+                    else os.path.join(env.save_dir, "scene_snapshot")
+                )
                 try:
-                    exported_scene = export_scene_snapshot(env, export_dir, SCENE_EXPORT_LAYOUT_ID)
+                    exported_scene = export_scene_snapshot(
+                        env,
+                        export_dir,
+                        SCENE_EXPORT_LAYOUT_ID,
+                        scene_export_only=SCENE_EXPORT_ONLY,
+                    )
                     if SCENE_VISUAL_AUDIT_REQUESTED:
                         from robodojo.sim.scene_export.visual_audit import run_scene_visual_audit
 

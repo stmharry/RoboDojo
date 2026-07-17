@@ -133,7 +133,8 @@ def test_snapshot_orchestration_is_policy_free_and_propagates_scene_export(monke
     assert simulator.port == 1
     assert environment["ROBODOJO_CAPTURE_FIRST_FRAME"] == "true"
     assert environment["ROBODOJO_EXPORT_SCENE"] == "true"
-    assert environment["ROBODOJO_EXPORT_SCENE_DIR"].endswith(f"{RECIPE}/scene_snapshot")
+    assert environment["ROBODOJO_FIRST_FRAME_DIR"].endswith(f"{RECIPE}/first_frame")
+    assert "ROBODOJO_EXPORT_SCENE_DIR" not in environment
 
 
 def test_snapshots_cli_defaults_to_all_and_accepts_explicit_recipes(monkeypatch, tmp_path):

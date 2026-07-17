@@ -52,10 +52,4 @@ def run_snapshot_capture(paths: RepositoryPaths, request: SnapshotCaptureRequest
         "ROBODOJO_RUN_ID": request.run_id,
         "ROBODOJO_SCENE_VISUAL_AUDIT": "false",
     }
-    if request.export_scene:
-        simulator_env.update(
-            {
-                "ROBODOJO_EXPORT_SCENE_DIR": str((request.output_dir / "scene_snapshot").resolve()),
-            }
-        )
     return run_simulator_session(paths, simulator_request, simulator_env)

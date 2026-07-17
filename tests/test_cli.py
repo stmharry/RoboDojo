@@ -164,6 +164,7 @@ def test_eval_help_explains_publication_and_evaluation_inputs():
     assert "--task-protocol" in result.stdout
     assert "--checkpoint-label" in result.stdout
     assert "--ckpt-label" not in result.stdout
+    assert "--export-scene-dir" not in result.stdout
     assert "Episode count" in result.stdout
     assert "native" in result.stdout
 
@@ -365,12 +366,19 @@ def test_client_resolves_only_the_simulator_gpu(monkeypatch):
     assert launched[0].experiment.policy_reference_match == "reference_match"
 
 
-def test_publish_is_incompatible_with_scene_only_export(tmp_path):
-    with pytest.raises(ValidationError, match="--publish cannot be combined with --export-scene-only"):
+def test_scene_only_publication_is_valid_and_export_directory_override_is_removed(tmp_path):
+    request = EvaluationRequest(
+        **_experiment_values(),
+        publish=True,
+        export_scene_only=True,
+    )
+    assert request.publish is True
+    assert request.export_scene_only is True
+
+    with pytest.raises(ValidationError, match="extra_forbidden"):
         EvaluationRequest(
             **_experiment_values(),
-            publish=True,
-            export_scene_only=True,
+            export_scene_dir=tmp_path,
         )
 
 

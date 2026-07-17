@@ -570,7 +570,6 @@ def run_scene_visual_audit(env, scene_export_dir: str | os.PathLike[str], layout
                     "ROBODOJO_SCENE_VISUAL_AUDIT",
                     "ROBODOJO_EXPORT_SCENE",
                     "ROBODOJO_EXPORT_SCENE_ONLY",
-                    "ROBODOJO_EXPORT_SCENE_DIR",
                     "ROBODOJO_EXPORT_LAYOUT_ID",
                     "ROBODOJO_RUN_ID",
                     "CUDA_VISIBLE_DEVICES",

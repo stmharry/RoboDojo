@@ -134,8 +134,6 @@ def run_evaluation(paths: RepositoryPaths, request: EvaluationRequest, *, prefli
     )
     if visual_audit:
         simulator_env[SCENE_VISUAL_AUDIT_ENV] = "1"
-    if request.export_scene_dir:
-        simulator_env["ROBODOJO_EXPORT_SCENE_DIR"] = str(request.export_scene_dir.resolve())
     if not request.dry_run:
         simulator_env.setdefault("ROBODOJO_RUN_ID", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
 
@@ -143,7 +141,10 @@ def run_evaluation(paths: RepositoryPaths, request: EvaluationRequest, *, prefli
         if request.dry_run:
             sys.stdout.write(f"{format_command(simulator_argv, simulator_env)}\n")
             return 0
-        return run_simulator_session(paths, simulator_request, simulator_env)
+        code = run_simulator_session(paths, simulator_request, simulator_env)
+        if code == 0 and request.publish:
+            return _publish_evaluation(simulator_env["ROBODOJO_RUN_ID"])
+        return code
 
     policy_request = request.policy_request(host="127.0.0.1", port=port, dry_run=request.dry_run)
     policy_argv = policy_server_command(policy_request, port)

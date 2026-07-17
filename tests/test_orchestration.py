@@ -257,6 +257,36 @@ def test_evaluation_publishes_once_only_after_success(monkeypatch, tmp_path):
     assert len(published) == 1
 
 
+def test_scene_only_evaluation_publishes_after_success_without_policy(monkeypatch, tmp_path):
+    policy_dir = _policy_dir(tmp_path)
+    published: list[str] = []
+    simulator_code = 0
+    monkeypatch.setenv("ROBODOJO_S3_URI", "s3://bucket/robodojo")
+    monkeypatch.setattr(evaluation.shutil, "which", lambda name: "/usr/bin/aws")
+    monkeypatch.setattr(evaluation, "start", lambda *args, **kwargs: pytest.fail("policy must not start"))
+    monkeypatch.setattr(evaluation, "run_simulator_session", lambda *args, **kwargs: simulator_code)
+    monkeypatch.setattr(evaluation, "_publish_evaluation", lambda run_id: published.append(run_id) or 0)
+
+    request = _request(policy_dir).model_copy(update={"export_scene_only": True, "publish": True})
+    assert evaluation.run_evaluation(RepositoryPaths.resolve(ROOT), request, preflight=False) == 0
+    assert len(published) == 1
+
+    simulator_code = 7
+    assert evaluation.run_evaluation(RepositoryPaths.resolve(ROOT), request, preflight=False) == 7
+    assert len(published) == 1
+
+
+def test_scene_only_evaluation_returns_publication_failure(monkeypatch, tmp_path):
+    policy_dir = _policy_dir(tmp_path)
+    monkeypatch.setenv("ROBODOJO_S3_URI", "s3://bucket/robodojo")
+    monkeypatch.setattr(evaluation.shutil, "which", lambda name: "/usr/bin/aws")
+    monkeypatch.setattr(evaluation, "run_simulator_session", lambda *args, **kwargs: 0)
+    monkeypatch.setattr(evaluation, "_publish_evaluation", lambda run_id: 5)
+
+    request = _request(policy_dir).model_copy(update={"export_scene_only": True, "publish": True})
+    assert evaluation.run_evaluation(RepositoryPaths.resolve(ROOT), request, preflight=False) == 5
+
+
 @pytest.mark.parametrize(
     ("failure", "expected_code", "message"),
     [

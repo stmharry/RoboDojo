@@ -81,6 +81,7 @@ requested:
 
 ```bash
 robodojo eval --publish <other-eval-options>
+robodojo eval --export-scene-only --publish <other-eval-options>
 robodojo snapshots --publish <other-snapshot-options>
 ```
 
@@ -108,15 +109,18 @@ robodojo storage publish-eval --run-id 2026-07-16_12-00-00
 directory below canonical local evaluation storage. The two selectors are
 mutually exclusive; when neither is supplied, the current directory is used.
 
-With `--publish`, a successful evaluation or fully completed snapshot batch
-publishes its timestamped run exactly once through the typed storage API.
-Snapshot batches are stored below `runs/snapshots/<run-id>`. Dry runs, failed
-evaluations or snapshots, smoke runs, and benchmark sweeps never publish.
-RoboDojo validates the S3 prefix and AWS CLI before starting expensive work; an
-upload failure returns nonzero but leaves the local result in place. Payload
-files are uploaded first, followed by `_MANIFEST.json`,
-`_result.json` when present, and `_COMPLETE.json` last. Completed remote
-destinations are immutable unless `--replace` is explicit.
+With `--publish`, a successful evaluation, completed scene-only evaluation, or
+fully completed snapshot batch publishes its timestamped run exactly once
+through the typed storage API. A scene-only evaluation remains in the standard
+`runs/eval_result/RoboDojo/...` hierarchy; its completed
+`scene_snapshot/scene_manifest.json` is the publication proof and no
+`_result.json` is created. Snapshot batches are stored below
+`runs/snapshots/<run-id>`. Dry runs, failed evaluations or snapshots, smoke
+runs, and benchmark sweeps never publish. RoboDojo validates the S3 prefix and
+AWS CLI before starting expensive work; an upload failure returns nonzero but
+leaves the local result in place. Payload files are uploaded first, followed by
+`_MANIFEST.json`, `_result.json` when present, and `_COMPLETE.json` last.
+Completed remote destinations are immutable unless `--replace` is explicit.
 
 New evaluation results use artifact schema v4, snapshot summaries and
 first-frame metadata use schema/format v2, and scene exports use format v8.

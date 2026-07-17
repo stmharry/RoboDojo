@@ -55,7 +55,6 @@ class EvaluationRequest(ExperimentRequest):
     checkpoint_label: str | None = None
     export_scene: bool = False
     export_scene_only: bool = False
-    export_scene_dir: Path | None = None
     layout_id: NonNegativeInt = 0
     publish: bool = False
     dry_run: bool = False
@@ -66,12 +65,6 @@ class EvaluationRequest(ExperimentRequest):
         if isinstance(value, int) and value < 1:
             raise ValueError("must be positive or 'native'")
         return value
-
-    @model_validator(mode="after")
-    def publish_requires_evaluation_result(self) -> EvaluationRequest:
-        if self.publish and self.export_scene_only:
-            raise ValueError("--publish cannot be combined with --export-scene-only")
-        return self
 
 
 class PolicyServerLaunchRequest(PolicyExperimentRequest):

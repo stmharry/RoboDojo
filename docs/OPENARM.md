@@ -114,8 +114,8 @@ OMNI_KIT_ACCEPT_EULA=YES uv run --extra sim --locked robodojo eval \
   --export-scene-only
 ```
 
-The default export is `scene_snapshot/` inside the evaluation run directory.
-Use `--export-scene-dir PATH` to select another ignored artifact directory.
+The export is always written to `scene_snapshot/` inside the evaluation run
+directory.
 
 Each completed export contains three scene artifacts:
 

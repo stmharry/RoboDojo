@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import asdict, dataclass
-import json
 import math
 from pathlib import Path
 from typing import Any
@@ -12,54 +10,19 @@ import zipfile
 
 import numpy as np
 
+from robodojo.core.artifacts.scene_exports import (
+    SCENE_EXPORT_FORMAT_VERSION as _SCENE_EXPORT_FORMAT_VERSION,
+    ExportIdentity,
+    SceneExportArtifactError,
+    normalize_export_manifest as _normalize_export_manifest,
+    require_completed_scene_export,
+)
 from robodojo.core.paths import RepositoryPaths
 from robodojo.core.profiles.environment import load_environment_profile
 from robodojo.core.profiles.scene import load_scene_profile
 
-SCENE_EXPORT_FORMAT_VERSION = 8
-LEGACY_SCENE_EXPORT_FORMAT_VERSION = 7
-REQUIRED_EXPORT_ARTIFACTS = (
-    "scene_referenced.usda",
-    "scene_flattened.usdc",
-    "scene_preview.usdz",
-)
-REQUIRED_MANIFEST_ARTIFACTS = {
-    "referenced_usda": "scene_referenced.usda",
-    "flattened_usdc": "scene_flattened.usdc",
-    "preview_usdz": "scene_preview.usdz",
-}
-REQUIRED_PREVIEW_DIAGNOSTICS = (
-    "preserved_materials",
-    "translated_materials",
-    "fallback_materials",
-    "missing_textures",
-    "unsupported_inputs",
-    "excluded_guide_meshes",
-    "approximation",
-)
-
-
-@dataclass(frozen=True)
-class ExportIdentity:
-    task: str
-    task_protocol: str
-    episode_horizon: int
-    evaluation_episodes: int
-    recipe: str | None
-    experiment_hash: str | None
-    environment: str
-    scene: str
-    seed: int
-    layout_id: int
-    repository_revision: str
-    environment_profile_hash: str
-    embodiment: str
-    scene_profile_hash: str
-    layout_set_hash: str
-    scene_asset_hash: str
-
-    def to_dict(self) -> dict[str, object]:
-        return asdict(self)
+SCENE_EXPORT_FORMAT_VERSION = _SCENE_EXPORT_FORMAT_VERSION
+normalize_export_manifest = _normalize_export_manifest
 
 
 def scene_input_paths(
@@ -134,64 +97,20 @@ def calculate_fisheye_fov_degrees(
     }
 
 
-def completed_export_matches(output_dir: str | Path, identity: ExportIdentity) -> bool:
+def completed_export_matches(
+    output_dir: str | Path,
+    identity: ExportIdentity,
+    *,
+    scene_export_only: bool | None = None,
+) -> bool:
     """Return whether an atomic export already completed for this exact scene."""
-    output = Path(output_dir)
-    manifest_path = output / "scene_manifest.json"
     try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (OSError, ValueError, TypeError):
+        manifest = require_completed_scene_export(output_dir)
+    except SceneExportArtifactError:
         return False
-    try:
-        manifest = normalize_export_manifest(manifest)
-    except ValueError:
-        return False
-    artifacts = manifest.get("artifacts")
-    preview = manifest.get("preview")
-    complete_artifacts = isinstance(artifacts, dict) and all(
-        isinstance(artifacts.get(key), dict)
-        and artifacts[key].get("path") == filename
-        and isinstance(artifacts[key].get("sha256"), str)
-        and len(artifacts[key]["sha256"]) == 64
-        and (output / filename).is_file()
-        for key, filename in REQUIRED_MANIFEST_ARTIFACTS.items()
-    )
-    complete_preview = isinstance(preview, dict) and all(key in preview for key in REQUIRED_PREVIEW_DIAGNOSTICS)
-    return (
-        bool(manifest.get("complete"))
-        and manifest.get("format_version") == SCENE_EXPORT_FORMAT_VERSION
-        and manifest.get("identity") == identity.to_dict()
-        and complete_artifacts
-        and complete_preview
-    )
-
-
-def normalize_export_manifest(manifest: Mapping[str, Any]) -> dict[str, Any]:
-    """Return a format-v8 in-memory view of a v7 or v8 scene manifest."""
-
-    version = manifest.get("format_version")
-    normalized = dict(manifest)
-    if version == SCENE_EXPORT_FORMAT_VERSION:
-        return normalized
-    if version != LEGACY_SCENE_EXPORT_FORMAT_VERSION:
-        raise ValueError(
-            f"unsupported scene export format {version!r}; expected "
-            f"{LEGACY_SCENE_EXPORT_FORMAT_VERSION} or {SCENE_EXPORT_FORMAT_VERSION}"
-        )
-    identity = dict(normalized.get("identity") or {})
-    for old, new in {
-        "protocol": "task_protocol",
-        "native_eval_num": "evaluation_episodes",
-        "contract_hash": "experiment_hash",
-        "profile": "environment",
-        "scene_config": "scene",
-        "policy_contract": "embodiment",
-    }.items():
-        if old in identity:
-            identity[new] = identity.pop(old)
-    normalized["identity"] = identity
-    normalized["format_version"] = SCENE_EXPORT_FORMAT_VERSION
-    return normalized
+    marker = manifest.get("scene_export_only")
+    marker_matches = scene_export_only is None or (marker is True) == scene_export_only
+    return marker_matches and manifest.get("identity") == identity.to_dict()
 
 
 def split_package_asset_path(path: str) -> tuple[str, str]:

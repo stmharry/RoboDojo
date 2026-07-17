@@ -7,6 +7,7 @@ import sys
 
 import pytest
 
+from robodojo.core.artifacts.scene_exports import SceneExportArtifactError, require_completed_scene_export
 from robodojo.core.models.experiment import ExperimentSpec
 from robodojo.sim.scene_export.contracts import (
     SCENE_EXPORT_FORMAT_VERSION,
@@ -45,10 +46,11 @@ def _identity(**overrides) -> ExportIdentity:
     return ExportIdentity(**values)
 
 
-def _complete_manifest(identity: ExportIdentity) -> dict[str, object]:
+def _complete_manifest(identity: ExportIdentity, *, scene_export_only: bool = False) -> dict[str, object]:
     return {
         "format_version": SCENE_EXPORT_FORMAT_VERSION,
         "complete": True,
+        "scene_export_only": scene_export_only,
         "identity": identity.to_dict(),
         "artifacts": {
             "referenced_usda": {"path": "scene_referenced.usda", "sha256": "a" * 64},
@@ -110,6 +112,26 @@ def test_completed_export_requires_exact_identity(tmp_path):
         tmp_path,
         _identity(environment="openarm_wowrobo_v1_1", scene_asset_hash="e" * 64),
     )
+
+
+def test_scene_only_completion_requires_explicit_manifest_marker(tmp_path):
+    identity = _identity()
+    for name in ("scene_referenced.usda", "scene_flattened.usdc", "scene_preview.usdz"):
+        (tmp_path / name).touch()
+    (tmp_path / "scene_manifest.json").write_text(
+        json.dumps(_complete_manifest(identity, scene_export_only=True)),
+        encoding="utf-8",
+    )
+
+    manifest = require_completed_scene_export(tmp_path, require_scene_export_only=True)
+    assert manifest["scene_export_only"] is True
+    assert completed_export_matches(tmp_path, identity, scene_export_only=True)
+    assert not completed_export_matches(tmp_path, identity, scene_export_only=False)
+
+    manifest["scene_export_only"] = False
+    (tmp_path / "scene_manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(SceneExportArtifactError, match="not marked scene_export_only"):
+        require_completed_scene_export(tmp_path, require_scene_export_only=True)
 
 
 def test_scene_export_v8_identity_has_no_layout_selector():
@@ -225,6 +247,7 @@ def test_scene_only_eval_dry_run_bypasses_policy_orchestrator():
             "--layout-id",
             "0",
             "--export-scene-only",
+            "--publish",
             "--dry-run",
         ],
         cwd=ROOT,
@@ -234,6 +257,7 @@ def test_scene_only_eval_dry_run_bypasses_policy_orchestrator():
     )
     assert "robodojo.sim.evaluation.main" in result.stdout
     assert "ROBODOJO_EXPORT_SCENE_ONLY=true" in result.stdout
+    assert "ROBODOJO_EXPORT_SCENE_DIR" not in result.stdout
     assert "setup_eval_policy_server.sh" not in result.stdout
 
 

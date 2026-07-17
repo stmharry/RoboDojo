@@ -13,6 +13,7 @@ import sys
 import tempfile
 
 from robodojo.core.artifacts.results import ArtifactSchemaError, require_current_result_artifact
+from robodojo.core.artifacts.scene_exports import SceneExportArtifactError, require_completed_scene_export
 from robodojo.core.artifacts.snapshots import normalize_snapshot_summary
 from robodojo.core.models.reports import SnapshotSummary
 from robodojo.core.storage import eval_work_root, s3_uri, storage_root
@@ -138,12 +139,23 @@ def _validate_evaluation_source(source: Path, relative: str) -> dict | None:
     if destination.parts[: len(EVALUATION_PREFIX.parts)] != EVALUATION_PREFIX.parts:
         return None
     result_path = source / "_result.json"
+    if result_path.exists():
+        try:
+            result = json.loads(result_path.read_text(encoding="utf-8"))
+            require_current_result_artifact(result, context=f"evaluation result {result_path}")
+        except (OSError, json.JSONDecodeError, ArtifactSchemaError) as exc:
+            raise StorageError(str(exc)) from exc
+        return result
+
+    scene_export = source / "scene_snapshot"
     try:
-        result = json.loads(result_path.read_text(encoding="utf-8"))
-        require_current_result_artifact(result, context=f"evaluation result {result_path}")
-    except (OSError, json.JSONDecodeError, ArtifactSchemaError) as exc:
+        return require_completed_scene_export(
+            scene_export,
+            require_scene_export_only=True,
+            context=f"scene-only evaluation {source}",
+        )
+    except SceneExportArtifactError as exc:
         raise StorageError(str(exc)) from exc
-    return result
 
 
 def publish(source: Path, relative: str, *, replace: bool = False, dry_run: bool = False) -> None:
@@ -245,16 +257,18 @@ def publish(source: Path, relative: str, *, replace: bool = False, dry_run: bool
 
 
 def _find_eval_run(run_id: str) -> Path:
-    matches = [path.parent for path in eval_work_root().rglob("_result.json") if path.parent.name == run_id]
+    matches = {path.parent for path in eval_work_root().rglob("_result.json") if path.parent.name == run_id}
+    matches.update(
+        manifest.parent.parent
+        for manifest in eval_work_root().rglob("scene_manifest.json")
+        if manifest.parent.name == "scene_snapshot" and manifest.parent.parent.name == run_id
+    )
     if len(matches) != 1:
-        raise StorageError(f"expected one completed local eval run named {run_id!r}, found {len(matches)}")
-    result_path = matches[0] / "_result.json"
-    try:
-        result = json.loads(result_path.read_text(encoding="utf-8"))
-        require_current_result_artifact(result, context=f"evaluation result {result_path}")
-    except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
-        raise StorageError(f"evaluation result is invalid: {result_path}: {exc}") from exc
-    return matches[0]
+        raise StorageError(f"expected one publishable local eval run named {run_id!r}, found {len(matches)}")
+    source = next(iter(matches))
+    relative = str(EVALUATION_PREFIX / source.resolve().relative_to(eval_work_root().resolve()))
+    _validate_evaluation_source(source, relative)
+    return source
 
 
 def publish_evaluation_run(run_id: str, *, replace: bool = False, dry_run: bool = False) -> None:

@@ -38,7 +38,13 @@ REFERENCED_NAME = "scene_referenced.usda"
 FLATTENED_NAME = "scene_flattened.usdc"
 
 
-def export_scene_snapshot(env, output_dir: str | os.PathLike[str], layout_id: int) -> Path:
+def export_scene_snapshot(
+    env,
+    output_dir: str | os.PathLike[str],
+    layout_id: int,
+    *,
+    scene_export_only: bool = False,
+) -> Path:
     """Export one fully reset environment and return the completed directory."""
     repo_root = Path(ROOT_DIR).resolve()
     output = Path(output_dir).expanduser().resolve()
@@ -62,7 +68,7 @@ def export_scene_snapshot(env, output_dir: str | os.PathLike[str], layout_id: in
         scene_asset_hash=str(env.scene_asset_hash),
     )
     if output.exists():
-        if completed_export_matches(output, identity):
+        if completed_export_matches(output, identity, scene_export_only=scene_export_only):
             logger.info("[scene-export] reusing completed snapshot: %s", output)
             return output
         raise FileExistsError(f"scene export directory already exists and does not match this run: {output}")
@@ -105,6 +111,7 @@ def export_scene_snapshot(env, output_dir: str | os.PathLike[str], layout_id: in
         manifest = {
             "format_version": SCENE_EXPORT_FORMAT_VERSION,
             "complete": True,
+            "scene_export_only": scene_export_only,
             "identity": identity.to_dict(),
             "created_at": datetime.now(UTC).isoformat(),
             "snapshot_boundary": "post_reset_pre_rollout",

@@ -129,12 +129,7 @@ def evaluate(
     export_scene_only: bool = typer.Option(
         False,
         "--export-scene-only",
-        help="Export the selected scene without starting a policy server or producing evaluation results.",
-    ),
-    export_scene_dir: Path | None = typer.Option(
-        None,
-        "--export-scene-dir",
-        help="Directory for scene exports; the simulator default is used when omitted.",
+        help="Export the selected scene without a policy rollout; the scene-only run may still be published.",
     ),
     layout_id: Annotated[
         int,
@@ -143,7 +138,7 @@ def evaluate(
     publish: bool = typer.Option(
         False,
         "--publish",
-        help="After a successful evaluation, publish its completed run to ROBODOJO_S3_URI.",
+        help="After a successful evaluation or scene-only export, publish its completed run to ROBODOJO_S3_URI.",
     ),
     dry_run: DryRunOption = False,
     root: RepositoryRootOption = None,
@@ -170,7 +165,6 @@ def evaluate(
         checkpoint_label=checkpoint_label,
         export_scene=export_scene,
         export_scene_only=export_scene_only,
-        export_scene_dir=export_scene_dir,
         layout_id=layout_id,
         publish=publish,
         dry_run=dry_run,

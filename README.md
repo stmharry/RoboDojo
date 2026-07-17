@@ -169,12 +169,13 @@ path, or policy-specific Conda environment.
 Large assets, datasets, model weights, and runs live below one writable local
 root, `.robodojo/` by default. S3 is an optional explicit publication and
 restore target; it is never mounted by the application. Direct CLI evaluations
-export only with `robodojo eval --export-scene` and publish only with
-`robodojo eval --publish`. The Make workflow also stays local and skips scene
-export by default; opt in with `PUBLISH=true` and `EXPORT_SCENE=true` explicitly
-or as machine defaults in `.env`. `VERBOSITY` defaults to `INFO` and controls
-the global RoboDojo log level for Make-launched commands. See [Local storage and
-S3 publication](docs/STORAGE.md) for the contract.
+export with `robodojo eval --export-scene` or `--export-scene-only` and publish
+only with `--publish`; scene-only runs may combine the two latter flags. The
+Make workflow also stays local and skips scene export by default; opt in with
+`PUBLISH=true` and `EXPORT_SCENE=true` explicitly or as machine defaults in
+`.env`. `VERBOSITY` defaults to `INFO` and controls the global RoboDojo log
+level for Make-launched commands. See [Local storage and S3 publication](docs/STORAGE.md)
+for the contract.
 
 ## 🔌 Policy Integration
 
